@@ -1,4 +1,4 @@
-namespace MiAPI.Configuration;
+namespace Orleans.Sidecar.Configuration;
 
 public static class DatabaseConfiguration
 {

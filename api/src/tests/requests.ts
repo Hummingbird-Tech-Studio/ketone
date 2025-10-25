@@ -92,3 +92,14 @@ Effect.runPromise(timedProgram)
   .catch(console.error);
 
 // bun run api/src/tests/requests.ts
+
+// ✅ All requests completed!
+// ⏱️  Total execution time: 6183.153875ms
+// ⏱️  Total execution time: 6.183153875s // 5.936972125s
+// 📊 Summary:
+//    Total requests: 1000
+//    Successful: 1000
+//    Failed: 0
+//    Average time per request: 6.18ms
+// ✨ Program completed
+// 📈 Final execution time: 6184.322541ms (6.184322541s)

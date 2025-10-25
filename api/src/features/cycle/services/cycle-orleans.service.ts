@@ -1,7 +1,7 @@
 import { Effect, Match, Queue, Stream } from 'effect';
 import { createActor, waitFor } from 'xstate';
 import { cycleActor, CycleActorError, CycleEvent, CycleState, Emit, type EmitType } from '../domain';
-import { OrleansActorNotFoundError, OrleansClient, OrleansClientError } from '../infrastructure/orleans-client';
+import { OrleansClient, OrleansClientError } from '../infrastructure/orleans-client';
 import { CycleRepositoryError } from '../repositories';
 
 /**
@@ -21,6 +21,32 @@ import { CycleRepositoryError } from '../repositories';
 export class CycleOrleansService extends Effect.Service<CycleOrleansService>()('CycleOrleansService', {
   effect: Effect.gen(function* () {
     const orleansClient = yield* OrleansClient;
+
+    // Shared helper: Handle PERSIST_STATE event
+    const handlePersistState =
+      (actorId: string, machine: ReturnType<typeof createActor>, persistConfirmQueue: Queue.Queue<CycleState>) =>
+      (emit: { type: Emit.PERSIST_STATE; state: CycleState; snapshot: null }) =>
+        Effect.gen(function* () {
+          yield* Effect.logInfo(`[Orleans Service] Persisting state: ${emit.state}`);
+          // Get snapshot from machine after transition completes
+          const snapshot = machine.getPersistedSnapshot();
+          yield* orleansClient.persistActor(actorId, snapshot);
+          yield* Effect.logInfo(`[Orleans Service] ✅ State persisted successfully`);
+          // Confirm persistence completed
+          yield* Queue.offer(persistConfirmQueue, emit.state);
+        });
+
+    // Shared helper: Cleanup machine and listeners
+    const createCleanup = (
+      machine: ReturnType<typeof createActor>,
+      emitSubscriptions: Array<{ unsubscribe: () => void }>,
+    ) =>
+      Effect.gen(function* () {
+        yield* Effect.logInfo(`[Orleans Service] Cleaning up machine and listeners...`);
+        emitSubscriptions.forEach((sub) => sub.unsubscribe());
+        machine.stop();
+        yield* Effect.logInfo(`[Orleans Service] ✅ Cleanup complete`);
+      });
 
     return {
       /**
@@ -103,17 +129,7 @@ export class CycleOrleansService extends Effect.Service<CycleOrleansService>()('
           const eventProcessingEffect = Stream.fromQueue(eventQueue).pipe(
             Stream.runForEach((event) =>
               Match.value(event).pipe(
-                Match.when({ type: Emit.PERSIST_STATE }, (emit) =>
-                  Effect.gen(function* () {
-                    yield* Effect.logInfo(`[Orleans Service] Persisting state: ${emit.state}`);
-                    // Get snapshot from machine after transition completes
-                    const snapshot = machine.getPersistedSnapshot();
-                    yield* orleansClient.persistActor(actorId, snapshot);
-                    yield* Effect.logInfo(`[Orleans Service] ✅ State persisted successfully`);
-                    // Confirm persistence completed
-                    yield* Queue.offer(persistConfirmQueue, emit.state);
-                  }),
-                ),
+                Match.when({ type: Emit.PERSIST_STATE }, handlePersistState(actorId, machine, persistConfirmQueue)),
                 Match.when({ type: Emit.REPOSITORY_ERROR }, (emit) =>
                   Effect.fail(
                     new CycleRepositoryError({
@@ -172,12 +188,7 @@ export class CycleOrleansService extends Effect.Service<CycleOrleansService>()('
           });
 
           // Cleanup effect
-          const cleanup = Effect.gen(function* () {
-            yield* Effect.logInfo(`[Orleans Service] Cleaning up machine and listeners...`);
-            emitSubscriptions.forEach((sub) => sub.unsubscribe());
-            machine.stop();
-            yield* Effect.logInfo(`[Orleans Service] ✅ Cleanup complete`);
-          });
+          const cleanup = createCleanup(machine, emitSubscriptions);
 
           // Race between success and event processing, with guaranteed cleanup
           return yield* Effect.race(successEffect, eventProcessingEffect).pipe(Effect.ensuring(cleanup));
@@ -303,17 +314,7 @@ export class CycleOrleansService extends Effect.Service<CycleOrleansService>()('
           const eventProcessingEffect = Stream.fromQueue(eventQueue).pipe(
             Stream.runForEach((event) =>
               Match.value(event).pipe(
-                Match.when({ type: Emit.PERSIST_STATE }, (emit) =>
-                  Effect.gen(function* () {
-                    yield* Effect.logInfo(`[Orleans Service] Persisting state: ${emit.state}`);
-                    // Get snapshot from machine after transition completes
-                    const snapshot = machine.getPersistedSnapshot();
-                    yield* orleansClient.persistActor(actorId, snapshot);
-                    yield* Effect.logInfo(`[Orleans Service] ✅ State persisted successfully`);
-                    // Confirm persistence completed
-                    yield* Queue.offer(persistConfirmQueue, emit.state);
-                  }),
-                ),
+                Match.when({ type: Emit.PERSIST_STATE }, handlePersistState(actorId, machine, persistConfirmQueue)),
                 Match.when({ type: Emit.PERSIST_ERROR }, (emit) =>
                   Effect.fail(
                     new OrleansClientError({
@@ -356,12 +357,7 @@ export class CycleOrleansService extends Effect.Service<CycleOrleansService>()('
           });
 
           // Cleanup effect
-          const cleanup = Effect.gen(function* () {
-            yield* Effect.logInfo(`[Orleans Service] Cleaning up machine and listeners...`);
-            emitSubscriptions.forEach((sub) => sub.unsubscribe());
-            machine.stop();
-            yield* Effect.logInfo(`[Orleans Service] ✅ Cleanup complete`);
-          });
+          const cleanup = createCleanup(machine, emitSubscriptions);
 
           // Race between success and event processing, with guaranteed cleanup
           return yield* Effect.race(successEffect, eventProcessingEffect).pipe(Effect.ensuring(cleanup));

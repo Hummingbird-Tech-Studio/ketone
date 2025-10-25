@@ -1,11 +1,10 @@
 import { Console, Duration, Effect } from 'effect';
-import { v4 as uuidv4 } from 'uuid';
 
 // Function to make a single request
 const makeRequest = (index: number) =>
   Effect.gen(function* () {
-    const cycleId = uuidv4();
-    const userId = uuidv4();
+    const cycleId = crypto.randomUUID();
+    const userId = crypto.randomUUID();
     console.log('userId', userId);
     //const url = `http://localhost:3000/cycle/${cycleId}`;
     //const url = `http://localhost:3000/cycle/memory/${cycleId}`;
@@ -54,7 +53,7 @@ const program = Effect.gen(function* () {
   yield* Console.log('🚀 Starting 500 requests simultaneously...\n');
 
   // Create array of 500 effects
-  const requests = Array.from({ length: 1000 }, (_, i) => makeRequest(i + 1));
+  const requests = Array.from({ length: 10000 }, (_, i) => makeRequest(i + 1));
 
   // Execute all in parallel with unlimited concurrency and measure time
   const results = yield* Effect.all(requests, {
@@ -92,4 +91,4 @@ Effect.runPromise(timedProgram)
   })
   .catch(console.error);
 
-// bun run src/tests/requests.ts
+// bun run api/src/tests/requests.ts

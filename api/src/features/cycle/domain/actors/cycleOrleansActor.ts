@@ -34,6 +34,7 @@ export enum Emit {
   ERROR_CREATE_CYCLE = 'ERROR_CREATE_CYCLE',
   REPOSITORY_ERROR = 'REPOSITORY_ERROR',
   PERSIST_ERROR = 'PERSIST_ERROR',
+  PERSIST_STATE = 'PERSIST_STATE',
 }
 
 type CycleEventType =
@@ -56,7 +57,8 @@ type Context = {
 export type EmitType =
   | { type: Emit.ERROR_CREATE_CYCLE; error: Error }
   | { type: Emit.REPOSITORY_ERROR; error: Error }
-  | { type: Emit.PERSIST_ERROR; error: Error };
+  | { type: Emit.PERSIST_ERROR; error: Error }
+  | { type: Emit.PERSIST_STATE; state: CycleState; snapshot: null };
 
 // ============================================================================
 // ACTOR SETUP
@@ -110,14 +112,14 @@ export const cycleActor = setup({
       return {
         type: Emit.ERROR_CREATE_CYCLE,
         error: new Error(`${event.summary}: ${event.detail}`),
-      };
+      } as const;
     }),
     emitRepositoryError: emit(({ event }) => {
       assertEvent(event, CycleEvent.REPOSITORY_ERROR);
       return {
         type: Emit.REPOSITORY_ERROR,
         error: new Error(`${event.summary}: ${event.detail}`),
-      };
+      } as const;
     }),
   },
   actors: {
@@ -240,6 +242,13 @@ export const cycleActor = setup({
       },
     },
     [CycleState.InProgress]: {
+      entry: [
+        emit(() => ({
+          type: Emit.PERSIST_STATE,
+          state: CycleState.InProgress,
+          snapshot: null, // Service will get snapshot after transition completes
+        })),
+      ],
       on: {
         [CycleEvent.RESET]: {
           target: CycleState.Idle,
@@ -251,6 +260,13 @@ export const cycleActor = setup({
       },
     },
     [CycleState.Completed]: {
+      entry: [
+        emit(() => ({
+          type: Emit.PERSIST_STATE,
+          state: CycleState.Completed,
+          snapshot: null, // Service will get snapshot after transition completes
+        })),
+      ],
       on: {
         [CycleEvent.RESET]: {
           target: CycleState.Idle,

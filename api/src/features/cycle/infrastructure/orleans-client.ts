@@ -29,39 +29,53 @@ export class OrleansActorNotFoundError extends Data.TaggedError('OrleansActorNot
 }> {}
 
 /**
- * Orleans Actor State Schema
- *
- * XState's getPersistedSnapshot() returns a structure with:
- * - status: 'active' | 'done' | 'error' | 'stopped'
- * - output: any output value when machine completes
- * - error: any error if machine failed
- * - value: current state value (string or object for parallel states)
- * - context: machine context data
- * - children: child actors (optional)
- * - historyValue: history state values (optional)
- *
- * We define a schema for the essential parts we care about:
- * - value and context are required for state restoration
- * - Other fields are optional metadata that XState may include
+ * Base Actor State Schema - Shared structure
+ * We define the base structure and then extend it with different date types
  */
-export const OrleansActorStateSchema = S.Struct({
-  // Required fields for state restoration
-  value: S.String, // Current state: 'Idle' | 'Creating' | 'InProgress' | 'Completed'
-  context: S.Struct({
-    id: S.NullOr(S.String),
-    actorId: S.NullOr(S.String),
-    startDate: S.NullOr(S.DateFromString), // Orleans serializes dates as ISO strings
-    endDate: S.NullOr(S.DateFromString),
-  }),
-  // Optional XState metadata fields
+const BaseActorStateSchema = {
+  value: S.String,
   status: S.optional(S.String),
   output: S.optional(S.Unknown),
   error: S.optional(S.Unknown),
-  children: S.optional(S.Record({ key: S.String, value: S.Unknown })),
+  children: S.optional(S.Unknown),
   historyValue: S.optional(S.Unknown),
+};
+
+const BaseContextSchema = {
+  id: S.NullOr(S.String),
+  actorId: S.NullOr(S.String),
+};
+
+/**
+ * Orleans Actor State Schema - For Reading from Orleans
+ * Dates come as ISO strings and are converted to Date objects
+ */
+export const OrleansActorStateSchema = S.Struct({
+  ...BaseActorStateSchema,
+  context: S.Struct({
+    ...BaseContextSchema,
+    startDate: S.NullOr(S.DateFromString), // ISO string → Date
+    endDate: S.NullOr(S.DateFromString),
+  }),
 });
 
 export type OrleansActorState = S.Schema.Type<typeof OrleansActorStateSchema>;
+
+/**
+ * XState Snapshot Schema - For Writing to Orleans
+ * We validate the structure but not the date types since they can be Date objects,
+ * ISO strings, or null. JSON.stringify will handle the serialization correctly.
+ */
+const XStateSnapshotSchema = S.Struct({
+  ...BaseActorStateSchema,
+  context: S.Struct({
+    ...BaseContextSchema,
+    // We don't validate date types here - just ensure the field exists
+    // JSON.stringify will convert Date objects to ISO strings automatically
+    startDate: S.Unknown,
+    endDate: S.Unknown,
+  }),
+});
 
 // ============================================================================
 // Effect Program for Persistence
@@ -71,7 +85,7 @@ export type OrleansActorState = S.Schema.Type<typeof OrleansActorStateSchema>;
  * Effect program to persist actor state to Orleans
  * This is used by the XState machine to orchestrate persistence
  */
-export const programPersistToOrleans = (actorId: string, state: OrleansActorState) =>
+export const programPersistToOrleans = (actorId: string, state: unknown) =>
   Effect.gen(function* () {
     const client = yield* OrleansClient;
     yield* client.persistActor(actorId, state);
@@ -160,18 +174,34 @@ export class OrleansClient extends Effect.Service<OrleansClient>()('OrleansClien
       /**
        * Persist actor state to Orleans
        * Creates or updates the actor with the given state
+       * Validates the XState snapshot structure and serializes dates to ISO strings
        */
-      persistActor: (actorId: string, state: OrleansActorState) =>
+      persistActor: (actorId: string, state: unknown) =>
         Effect.gen(function* () {
+          // Validate XState snapshot structure (with Date objects)
+          const validatedSnapshot = yield* S.decodeUnknown(XStateSnapshotSchema)(state).pipe(
+            Effect.mapError(
+              (error) =>
+                new OrleansClientError({
+                  message: 'Invalid XState snapshot structure',
+                  cause: error,
+                }),
+            ),
+          );
+
+          // Serialize to Orleans format (Date objects -> ISO strings)
+          // JSON.stringify automatically converts Date objects to ISO strings
+          const serializedState = JSON.parse(JSON.stringify(validatedSnapshot));
+
           yield* Effect.logInfo(`POST ${ORLEANS_BASE_URL}/actors/${actorId}`).pipe(
             Effect.annotateLogs({
-              requestBody: JSON.stringify(state),
+              requestBody: JSON.stringify(serializedState),
               actorId,
             }),
           );
 
           const request = yield* HttpClientRequest.post(`${ORLEANS_BASE_URL}/actors/${actorId}`).pipe(
-            HttpClientRequest.bodyJson(state),
+            HttpClientRequest.bodyJson(serializedState),
           );
 
           const httpResponse = yield* httpClient.execute(request).pipe(

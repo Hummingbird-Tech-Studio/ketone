@@ -1,11 +1,10 @@
 import { Console, Duration, Effect } from 'effect';
-import { v4 as uuidv4 } from 'uuid';
 
 // Function to make a single request
 const makeRequest = (index: number) =>
   Effect.gen(function* () {
-    const cycleId = uuidv4();
-    const userId = uuidv4();
+    const cycleId = crypto.randomUUID();
+    const userId = crypto.randomUUID();
     console.log('userId', userId);
     //const url = `http://localhost:3000/cycle/${cycleId}`;
     //const url = `http://localhost:3000/cycle/memory/${cycleId}`;
@@ -92,4 +91,15 @@ Effect.runPromise(timedProgram)
   })
   .catch(console.error);
 
-// bun run src/tests/requests.ts
+// bun run api/src/tests/requests.ts
+
+// ✅ All requests completed!
+// ⏱️  Total execution time: 5359.208083ms
+// ⏱️  Total execution time: 5.359208083s
+// 📊 Summary:
+//    Total requests: 1000
+//    Successful: 1000
+//    Failed: 0
+//    Average time per request: 5.36ms
+// ✨ Program completed
+// 📈 Final execution time: 5360.251875ms (5.360251875s)

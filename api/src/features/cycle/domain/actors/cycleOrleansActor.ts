@@ -1,11 +1,10 @@
 import { Match } from 'effect';
 import { assertEvent, assign, emit, fromCallback, setup } from 'xstate';
-import { programPersistToOrleans, type OrleansActorState } from '../../infrastructure';
 import { programCreateCycle, runWithUi } from '../../repositories';
 
 /**
  * Cycle Actor
- * 
+ *
  * XState machine for orchestrating cycle creation with Orleans sidecar.
  * This machine runs locally in the Effect/Bun server and orchestrates:
  * 1. Creating the cycle in the database
@@ -34,6 +33,7 @@ export enum Emit {
   ERROR_CREATE_CYCLE = 'ERROR_CREATE_CYCLE',
   REPOSITORY_ERROR = 'REPOSITORY_ERROR',
   PERSIST_ERROR = 'PERSIST_ERROR',
+  PERSIST_STATE = 'PERSIST_STATE',
 }
 
 type CycleEventType =
@@ -56,7 +56,8 @@ type Context = {
 export type EmitType =
   | { type: Emit.ERROR_CREATE_CYCLE; error: Error }
   | { type: Emit.REPOSITORY_ERROR; error: Error }
-  | { type: Emit.PERSIST_ERROR; error: Error };
+  | { type: Emit.PERSIST_ERROR; error: Error }
+  | { type: Emit.PERSIST_STATE; state: CycleState };
 
 // ============================================================================
 // ACTOR SETUP
@@ -110,15 +111,29 @@ export const cycleActor = setup({
       return {
         type: Emit.ERROR_CREATE_CYCLE,
         error: new Error(`${event.summary}: ${event.detail}`),
-      };
+      } as const;
     }),
     emitRepositoryError: emit(({ event }) => {
       assertEvent(event, CycleEvent.REPOSITORY_ERROR);
       return {
         type: Emit.REPOSITORY_ERROR,
         error: new Error(`${event.summary}: ${event.detail}`),
-      };
+      } as const;
     }),
+    emitPersistInProgress: emit(
+      () =>
+        ({
+          type: Emit.PERSIST_STATE,
+          state: CycleState.InProgress,
+        } as const),
+    ),
+    emitPersistCompleted: emit(
+      () =>
+        ({
+          type: Emit.PERSIST_STATE,
+          state: CycleState.Completed,
+        } as const),
+    ),
   },
   actors: {
     createCycle: fromCallback(({ sendBack, input }) => {
@@ -161,32 +176,6 @@ export const cycleActor = setup({
               });
             }),
           );
-        },
-      );
-
-      return () => {};
-    }),
-    persistToOrleans: fromCallback(({ sendBack, input }) => {
-      const { actorId, state } = input as {
-        actorId: string;
-        state: OrleansActorState;
-      };
-
-      console.log('[Orleans Machine] Persisting to Orleans...', { actorId, state });
-
-      runWithUi(
-        programPersistToOrleans(actorId, state),
-        () => {
-          console.log('✅ [Orleans Machine] State persisted successfully');
-          sendBack({ type: CycleEvent.PERSIST_SUCCESS });
-        },
-        (error: any) => {
-          console.error('❌ [Orleans Machine] Failed to persist:', error);
-          sendBack({
-            type: CycleEvent.PERSIST_ERROR,
-            summary: 'Persist Error',
-            detail: error.message || 'Failed to persist to Orleans',
-          });
         },
       );
 
@@ -240,6 +229,7 @@ export const cycleActor = setup({
       },
     },
     [CycleState.InProgress]: {
+      entry: ['emitPersistInProgress'],
       on: {
         [CycleEvent.RESET]: {
           target: CycleState.Idle,
@@ -251,6 +241,7 @@ export const cycleActor = setup({
       },
     },
     [CycleState.Completed]: {
+      entry: ['emitPersistCompleted'],
       on: {
         [CycleEvent.RESET]: {
           target: CycleState.Idle,

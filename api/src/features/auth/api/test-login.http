@@ -1,0 +1,52 @@
+### Login - Valid Credentials
+POST http://localhost:3000/auth/login
+Content-Type: application/json
+
+{
+  "email": "test@example.com",
+  "password": "Test1234!"
+}
+
+### Login - Invalid Email Format
+POST http://localhost:3000/auth/login
+Content-Type: application/json
+
+{
+  "email": "invalid-email",
+  "password": "Test1234!"
+}
+
+### Login - Wrong Password
+POST http://localhost:3000/auth/login
+Content-Type: application/json
+
+{
+  "email": "test@example.com",
+  "password": "WrongPassword123!"
+}
+
+### Login - User Not Found
+POST http://localhost:3000/auth/login
+Content-Type: application/json
+
+{
+  "email": "nonexistent@example.com",
+  "password": "Test1234!"
+}
+
+### Login - Missing Password
+POST http://localhost:3000/auth/login
+Content-Type: application/json
+
+{
+  "email": "test@example.com"
+}
+
+### Login - Empty Password
+POST http://localhost:3000/auth/login
+Content-Type: application/json
+
+{
+  "email": "test@example.com",
+  "password": ""
+}

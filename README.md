@@ -108,6 +108,8 @@ bun run build:sidecar
 ## Type Checking
 
 ```bash
+# Type check root
+bunx tsc --noEmit
 # Type check all TypeScript projects
 bun run typecheck
 
@@ -207,3 +209,11 @@ brew install dotnet
 ## License
 
 Private project - All rights reserved
+
+## Next Steps
+
+Future authentication features to implement:
+- Password reset flow
+- Email verification
+- Session management
+- OAuth integration

@@ -15,3 +15,8 @@ export class UserResponseSchema extends S.Class<UserResponseSchema>('UserRespons
 export class SignupResponseSchema extends S.Class<SignupResponseSchema>('SignupResponseSchema')({
   user: UserResponseSchema,
 }) {}
+
+export class LoginResponseSchema extends S.Class<LoginResponseSchema>('LoginResponseSchema')({
+  token: S.String,
+  user: UserResponseSchema,
+}) {}

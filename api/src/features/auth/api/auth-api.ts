@@ -1,5 +1,9 @@
 import { HttpApi, HttpApiEndpoint, HttpApiGroup } from '@effect/platform';
 import {
+  InvalidCredentialsErrorSchema,
+  JwtGenerationErrorSchema,
+  LoginRequestSchema,
+  LoginResponseSchema,
   PasswordHashErrorSchema,
   SignupRequestSchema,
   SignupResponseSchema,
@@ -20,6 +24,16 @@ export class AuthApiGroup extends HttpApiGroup.make('auth')
       .addError(UserAlreadyExistsErrorSchema)
       .addError(UserRepositoryErrorSchema)
       .addError(PasswordHashErrorSchema),
+  )
+  .add(
+    // POST /auth/login - Authenticate user and generate JWT token
+    HttpApiEndpoint.post('login', '/auth/login')
+      .setPayload(LoginRequestSchema)
+      .addSuccess(LoginResponseSchema)
+      .addError(InvalidCredentialsErrorSchema)
+      .addError(UserRepositoryErrorSchema)
+      .addError(PasswordHashErrorSchema)
+      .addError(JwtGenerationErrorSchema),
   ) {}
 
 export class AuthApi extends HttpApi.make('auth-api').add(AuthApiGroup) {}

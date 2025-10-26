@@ -17,3 +17,8 @@ export class PasswordHashError extends Data.TaggedError('PasswordHashError')<{
   readonly message: string;
   readonly cause?: unknown;
 }> {}
+
+export class JwtGenerationError extends Data.TaggedError('JwtGenerationError')<{
+  readonly message: string;
+  readonly cause?: unknown;
+}> {}

@@ -189,13 +189,26 @@ export class CycleOrleansService extends Effect.Service<CycleOrleansService>()('
 
           // Fork persistence processing in background
           // Race between success effect and deferred (which completes on first error or success)
-          return yield* Effect.scoped(
+          const snapshot = yield* Effect.scoped(
             Effect.gen(function* () {
               yield* Effect.forkScoped(persistProcessingEffect);
               yield* Effect.forkScoped(successEffect);
               return yield* Deferred.await(resultDeferred);
             }),
           ).pipe(Effect.ensuring(cleanup));
+
+          // After successful creation, publish event to Orleans Stream
+          // This allows LastCompletedCycleGrain to track the cycle
+          // Note: We don't fail the whole operation if event publishing fails
+          yield* orleansClient
+            .publishCycleCompleted({
+              actorId,
+              cycleId: machine.getSnapshot().context.id!,
+              endDate: endDate.toISOString(),
+            })
+            .pipe(Effect.catchAll((error) => Effect.logWarning(`Failed to publish cycle completed event`, error)));
+
+          return snapshot;
         }),
 
       /**
@@ -359,13 +372,25 @@ export class CycleOrleansService extends Effect.Service<CycleOrleansService>()('
 
           // Fork persistence processing in background
           // Race between success effect and deferred (which completes on first error or success)
-          return yield* Effect.scoped(
+          const finalSnapshot = yield* Effect.scoped(
             Effect.gen(function* () {
               yield* Effect.forkScoped(persistProcessingEffect);
               yield* Effect.forkScoped(successEffect);
               return yield* Deferred.await(resultDeferred);
             }),
           ).pipe(Effect.ensuring(cleanup));
+
+          // After successful completion, publish event to Orleans Stream
+          // This updates the LastCompletedCycleGrain with the completed cycle
+          yield* orleansClient
+            .publishCycleCompleted({
+              actorId,
+              cycleId: machine.getSnapshot().context.id!,
+              endDate: endDate.toISOString(),
+            })
+            .pipe(Effect.catchAll((error) => Effect.logWarning(`Failed to publish cycle completed event`, error)));
+
+          return finalSnapshot;
         }),
     };
   }),

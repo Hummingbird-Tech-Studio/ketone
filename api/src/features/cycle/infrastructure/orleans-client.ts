@@ -28,6 +28,28 @@ export class OrleansActorNotFoundError extends Data.TaggedError('OrleansActorNot
   message: string;
 }> {}
 
+// ============================================================================
+// Event Types for Orleans Streams
+// ============================================================================
+
+export interface CycleCompletedEvent {
+  actorId: string;
+  cycleId: string;
+  endDate: string; // ISO string
+}
+
+export interface CycleDeletedEvent {
+  actorId: string;
+  cycleId: string;
+}
+
+export interface CycleModifiedEvent {
+  actorId: string;
+  cycleId: string;
+  newEndDate?: string; // ISO string
+  status: string;
+}
+
 /**
  * Base Actor State Schema - Shared structure
  * We define the base structure and then extend it with different date types
@@ -240,6 +262,105 @@ export class OrleansClient extends Effect.Service<OrleansClient>()('OrleansClien
           }
 
           yield* Effect.logInfo(`✅ Actor state persisted to Orleans`).pipe(Effect.annotateLogs({ actorId }));
+        }),
+
+      /**
+       * Publish a cycle completed event to Orleans Stream
+       */
+      publishCycleCompleted: (event: CycleCompletedEvent) =>
+        Effect.gen(function* () {
+          yield* Effect.logInfo(`[Orleans Client] Publishing CycleCompletedEvent for ${event.actorId}`);
+
+          const request = yield* HttpClientRequest.post(`${ORLEANS_BASE_URL}/events/cycle-completed`).pipe(
+            HttpClientRequest.bodyJson(event),
+          );
+
+          const httpResponse = yield* httpClient.execute(request).pipe(
+            Effect.mapError(
+              (error) =>
+                new OrleansClientError({
+                  message: 'Failed to publish cycle completed event',
+                  cause: error,
+                }),
+            ),
+          );
+
+          if (httpResponse.status !== 200) {
+            return yield* Effect.fail(
+              new OrleansClientError({
+                message: `Failed to publish cycle completed event: HTTP ${httpResponse.status}`,
+                cause: httpResponse,
+              }),
+            );
+          }
+
+          yield* Effect.logInfo(`✅ CycleCompletedEvent published successfully`);
+        }),
+
+      /**
+       * Publish a cycle deleted event to Orleans Stream
+       */
+      publishCycleDeleted: (event: CycleDeletedEvent) =>
+        Effect.gen(function* () {
+          yield* Effect.logInfo(`[Orleans Client] Publishing CycleDeletedEvent for ${event.actorId}`);
+
+          const request = yield* HttpClientRequest.post(`${ORLEANS_BASE_URL}/events/cycle-deleted`).pipe(
+            HttpClientRequest.bodyJson(event),
+          );
+
+          const httpResponse = yield* httpClient.execute(request).pipe(
+            Effect.mapError(
+              (error) =>
+                new OrleansClientError({
+                  message: 'Failed to publish cycle deleted event',
+                  cause: error,
+                }),
+            ),
+          );
+
+          if (httpResponse.status !== 200) {
+            return yield* Effect.fail(
+              new OrleansClientError({
+                message: `Failed to publish cycle deleted event: HTTP ${httpResponse.status}`,
+                cause: httpResponse,
+              }),
+            );
+          }
+
+          yield* Effect.logInfo(`✅ CycleDeletedEvent published successfully`);
+        }),
+
+      /**
+       * Publish a cycle modified event to Orleans Stream
+       */
+      publishCycleModified: (event: CycleModifiedEvent) =>
+        Effect.gen(function* () {
+          yield* Effect.logInfo(`[Orleans Client] Publishing CycleModifiedEvent for ${event.actorId}`);
+
+          const request = yield* HttpClientRequest.post(`${ORLEANS_BASE_URL}/events/cycle-modified`).pipe(
+            HttpClientRequest.bodyJson(event),
+          );
+
+          const httpResponse = yield* httpClient.execute(request).pipe(
+            Effect.mapError(
+              (error) =>
+                new OrleansClientError({
+                  message: 'Failed to publish cycle modified event',
+                  cause: error,
+                }),
+            ),
+          );
+
+          if (httpResponse.status !== 200) {
+            return yield* Effect.fail(
+              new OrleansClientError({
+                message: `Failed to publish cycle modified event: HTTP ${httpResponse.status}`,
+                cause: httpResponse,
+              }),
+            );
+          }
+
+          yield* Effect.logInfo(`✅ CycleModifiedEvent published successfully`);
         }),
     };
   }),

@@ -2,11 +2,7 @@ import { HttpApiBuilder } from '@effect/platform';
 import { Effect } from 'effect';
 import { AuthService } from '../services';
 import { AuthApi } from './auth-api';
-import {
-  PasswordHashErrorSchema,
-  UserAlreadyExistsErrorSchema,
-  UserRepositoryErrorSchema,
-} from './schemas';
+import { PasswordHashErrorSchema, UserAlreadyExistsErrorSchema, UserRepositoryErrorSchema } from './schemas';
 
 /**
  * Auth API Handler
@@ -23,19 +19,19 @@ export const AuthApiLive = HttpApiBuilder.group(AuthApi, 'auth', (handlers) =>
 
         const user = yield* authService.signup(payload.email, payload.password).pipe(
           Effect.catchTags({
-            UserAlreadyExistsError: (error) =>
+            UserAlreadyExistsError: () =>
               Effect.fail(
                 new UserAlreadyExistsErrorSchema({
-                  message: 'Registration failed',
+                  message: 'User with this email already exists',
                 }),
               ),
-            UserRepositoryError: (error) =>
+            UserRepositoryError: () =>
               Effect.fail(
                 new UserRepositoryErrorSchema({
                   message: 'Database operation failed',
                 }),
               ),
-            PasswordHashError: (error) =>
+            PasswordHashError: () =>
               Effect.fail(
                 new PasswordHashErrorSchema({
                   message: 'Password processing failed',

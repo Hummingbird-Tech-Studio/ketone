@@ -12,7 +12,7 @@ const SignupFields = S.Struct({
       (email) => {
         // Strict email validation regex
         const emailRegex =
-          /^[a-z0-9.!#$&'*+/=?^_`{|}~\-]+@[a-z0-9](?:[a-z0-9-]{0,62}(?<!-))?(?:\.[a-z0-9](?:[a-z0-9-]{0,62}(?<!-))?)*$/i;
+          /^[a-z0-9.!#$&'*+/=?^_`{|}~\-]+@[a-z0-9](?:[a-z0-9-]{0,62}(?<!-))?(?:\.[a-z0-9](?:[a-z0-9-]{0,62}(?<!-))?)+$/i;
         return emailRegex.test(email);
       },
       { message: () => 'Invalid email format' },
@@ -32,6 +32,9 @@ const SignupFields = S.Struct({
     S.maxLength(100, { message: () => 'Password must be at most 100 characters long' }),
     S.filter((password) => /[a-z]/.test(password), {
       message: () => 'Password must contain at least 1 lowercase letter',
+    }),
+    S.filter((password) => /[A-Z]/.test(password), {
+      message: () => 'Password must contain at least 1 uppercase letter',
     }),
     S.filter((password) => /\d/.test(password), {
       message: () => 'Password must contain at least 1 number',

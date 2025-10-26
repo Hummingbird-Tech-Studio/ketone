@@ -26,3 +26,7 @@ export class PasswordHashErrorSchema extends S.TaggedError<PasswordHashErrorSche
 export class UserRepositoryErrorSchema extends S.TaggedError<UserRepositoryErrorSchema>()('UserRepositoryError', {
   message: S.String,
 }) {}
+
+export class JwtGenerationErrorSchema extends S.TaggedError<JwtGenerationErrorSchema>()('JwtGenerationError', {
+  message: S.String,
+}) {}

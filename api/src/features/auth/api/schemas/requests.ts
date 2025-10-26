@@ -53,3 +53,18 @@ export class SignupRequestSchema extends S.Class<SignupRequestSchema>('SignupReq
     S.filter((data) => data.password !== data.email, { message: () => 'Password cannot be the same as email' }),
   ),
 ) {}
+
+/**
+ * Login Request Schema
+ * Simpler validation for login - only basic format checks
+ */
+export class LoginRequestSchema extends S.Class<LoginRequestSchema>('LoginRequestSchema')({
+  email: S.String.pipe(
+    S.maxLength(255, { message: () => 'Email must be at most 255 characters long' }),
+    S.filter((email) => email.includes('@'), { message: () => 'Invalid email format' }),
+  ),
+  password: S.String.pipe(
+    S.minLength(1, { message: () => 'Password is required' }),
+    S.maxLength(100, { message: () => 'Password must be at most 100 characters long' }),
+  ),
+}) {}

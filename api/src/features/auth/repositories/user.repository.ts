@@ -114,6 +114,49 @@ export class UserRepository extends Effect.Service<UserRepository>()('UserReposi
 
           return result;
         }),
+
+      /**
+       * Find a user by email with password hash (for authentication)
+       */
+      findUserByEmailWithPassword: (email: string) =>
+        Effect.gen(function* () {
+          yield* Effect.logInfo(`[UserRepository] Finding user by email`);
+          const canonicalEmail = email.trim().toLowerCase();
+
+          const results = yield* drizzle
+            .select({
+              id: usersTable.id,
+              email: usersTable.email,
+              passwordHash: usersTable.passwordHash,
+              createdAt: usersTable.createdAt,
+              updatedAt: usersTable.updatedAt,
+            })
+            .from(usersTable)
+            .where(eq(usersTable.email, canonicalEmail))
+            .limit(1)
+            .pipe(
+              Effect.tapError((error) =>
+                Effect.logError('❌ Database error in findUserByEmail (auth lookup)', error),
+              ),
+              Effect.mapError(
+                (error) =>
+                  new UserRepositoryError({
+                    message: 'Failed to find user by email (auth lookup)',
+                    cause: error,
+                  }),
+              ),
+            );
+
+          const result = results[0] || null;
+
+          if (result) {
+            yield* Effect.logInfo(`[UserRepository] User found with id: ${result.id}`);
+          } else {
+            yield* Effect.logInfo(`[UserRepository] User not found`);
+          }
+
+          return result;
+        }),
     };
   }),
   accessors: true,

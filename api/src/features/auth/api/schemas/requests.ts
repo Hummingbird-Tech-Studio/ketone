@@ -1,4 +1,5 @@
 import { Schema as S } from 'effect';
+import { EmailSchema } from '../../domain';
 
 /**
  * Request Schemas
@@ -6,27 +7,7 @@ import { Schema as S } from 'effect';
  */
 
 const SignupFields = S.Struct({
-  email: S.String.pipe(
-    S.maxLength(255, { message: () => 'Email must be at most 255 characters long' }),
-    S.filter(
-      (email) => {
-        // Strict email validation regex
-        const emailRegex =
-          /^[a-z0-9.!#$&'*+/=?^_`{|}~\-]+@[a-z0-9](?:[a-z0-9-]{0,62}(?<!-))?(?:\.[a-z0-9](?:[a-z0-9-]{0,62}(?<!-))?)+$/i;
-        return emailRegex.test(email);
-      },
-      { message: () => 'Invalid email format' },
-    ),
-    S.filter((email) => !email.includes('..'), {
-      message: () => 'Email cannot contain consecutive dots',
-    }),
-    S.filter((email) => !email.includes('.@'), {
-      message: () => 'Email cannot have a dot immediately before @',
-    }),
-    S.filter((email) => !email.startsWith('.'), {
-      message: () => 'Email cannot start with a dot',
-    }),
-  ),
+  email: EmailSchema,
   password: S.String.pipe(
     S.minLength(8, { message: () => 'Password must be at least 8 characters' }),
     S.maxLength(100, { message: () => 'Password must be at most 100 characters long' }),
@@ -53,3 +34,16 @@ export class SignupRequestSchema extends S.Class<SignupRequestSchema>('SignupReq
     S.filter((data) => data.password !== data.email, { message: () => 'Password cannot be the same as email' }),
   ),
 ) {}
+
+/**
+ * Login Request Schema
+ * Uses same email validation as signup for consistency
+ */
+export class LoginRequestSchema extends S.Class<LoginRequestSchema>('LoginRequestSchema')({
+  email: EmailSchema,
+  password: S.String.pipe(
+    S.minLength(1, { message: () => 'Password is required' }),
+    S.maxLength(100, { message: () => 'Password must be at most 100 characters long' }),
+    S.filter((p) => p.trim().length > 0, { message: () => 'Password cannot be blank' }),
+  ),
+}) {}

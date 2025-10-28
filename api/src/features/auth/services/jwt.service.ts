@@ -1,5 +1,5 @@
 import { jwtVerify, SignJWT } from 'jose';
-import { Effect } from 'effect';
+import { Effect, Option } from 'effect';
 import { JwtConfigError, JwtGenerationError, JwtPayload, JwtVerificationError } from '../domain';
 
 /**
@@ -35,28 +35,35 @@ export class JwtService extends Effect.Service<JwtService>()('JwtService', {
     }
 
     return {
-      /**
-       * Generate a JWT token for a user
-       */
-      generateToken: (userId: string, email: string) =>
+      generateToken: (userId: string, email: string, passwordChangedAt?: Date) =>
         Effect.gen(function* () {
           const now = Math.floor(Date.now() / 1000);
           const exp = now + TOKEN_EXPIRATION_SECONDS;
 
-          // Validate payload using schema
+          const passwordChangedAtOption = Option.fromNullable(passwordChangedAt).pipe(
+            Option.map((date) => Math.floor(date.getTime() / 1000)),
+          );
+
           const payload = new JwtPayload({
             userId,
             email,
             iat: now,
             exp,
+            passwordChangedAt: passwordChangedAtOption,
           });
+
+          const jwtPayload: Record<string, unknown> = {
+            userId: payload.userId,
+            email: payload.email,
+          };
+
+          if (Option.isSome(payload.passwordChangedAt)) {
+            jwtPayload.passwordChangedAt = payload.passwordChangedAt.value;
+          }
 
           return yield* Effect.tryPromise({
             try: () =>
-              new SignJWT({
-                userId: payload.userId,
-                email: payload.email,
-              })
+              new SignJWT(jwtPayload)
                 .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
                 .setIssuedAt(payload.iat)
                 .setExpirationTime(payload.exp)
@@ -83,7 +90,6 @@ export class JwtService extends Effect.Service<JwtService>()('JwtService', {
               }),
           });
 
-          // Validate and parse payload using schema
           return yield* Effect.try({
             try: () =>
               new JwtPayload({
@@ -91,6 +97,7 @@ export class JwtService extends Effect.Service<JwtService>()('JwtService', {
                 email: result.email as string,
                 iat: result.iat as number,
                 exp: result.exp as number,
+                passwordChangedAt: Option.fromNullable(result.passwordChangedAt as number | undefined),
               }),
             catch: (error) =>
               new JwtVerificationError({

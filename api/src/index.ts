@@ -1,6 +1,7 @@
 import { FetchHttpClient, HttpApiBuilder, HttpServer } from '@effect/platform';
 import { BunHttpServer, BunRuntime } from '@effect/platform-bun';
 import { Layer } from 'effect';
+import { Api } from './api';
 import { DatabaseLive } from './db';
 import { AuthServiceLive } from './features/auth/services';
 import { AuthenticationLive } from './features/auth/api/middleware';
@@ -8,29 +9,36 @@ import { OrleansClient } from './features/cycle/infrastructure';
 import { CycleOrleansService } from './features/cycle/services/cycle-orleans.service';
 import { CycleApiLive } from './features/cycle/api/cycle-api-handler';
 import { AuthApiLive } from './features/auth/api/auth-api-handler';
-import { CycleApi } from './features/cycle/api/cycle-api';
-import { AuthApi } from './features/auth/api/auth-api';
 
 // ============================================================================
 // Effect HTTP Server (Public API)
 // ============================================================================
 
-// Build complete API implementations for each module
-const CycleApiImplementation = HttpApiBuilder.api(CycleApi).pipe(Layer.provide(CycleApiLive));
-const AuthApiImplementation = HttpApiBuilder.api(AuthApi).pipe(Layer.provide(AuthApiLive));
+/**
+ * HTTP Server Layer Configuration
+ *
+ * Combine all API groups into a single unified API, then provide handlers.
+ * This ensures proper error metadata preservation for all endpoints.
+ */
 
-// Combine all API implementations
-const ApiLive = Layer.mergeAll(CycleApiImplementation, AuthApiImplementation);
+// Combine handlers
+const HandlersLive = Layer.mergeAll(CycleApiLive, AuthApiLive);
+
+// Combine API with handlers
+const ApiLive = HttpApiBuilder.api(Api).pipe(Layer.provide(HandlersLive));
 
 const HttpLive = HttpApiBuilder.serve().pipe(
+  // Add CORS middleware
   Layer.provide(HttpApiBuilder.middlewareCors()),
+  // Provide unified API
   Layer.provide(ApiLive),
-  Layer.provide(AuthenticationLive), // Provide Authentication middleware for protected endpoints
-  Layer.provide(CycleOrleansService.Default), // Provide Orleans service
-  Layer.provide(OrleansClient.Default), // Provide Orleans HTTP client
-  Layer.provide(AuthServiceLive), // Provide Auth service with dependencies
-  Layer.provide(DatabaseLive), // Provide shared database connection pool
-  Layer.provide(FetchHttpClient.layer), // Provide HttpClient for Orleans calls
+  // Provide middleware and services
+  Layer.provide(AuthenticationLive),
+  Layer.provide(CycleOrleansService.Default),
+  Layer.provide(OrleansClient.Default),
+  Layer.provide(AuthServiceLive),
+  Layer.provide(DatabaseLive),
+  Layer.provide(FetchHttpClient.layer),
   HttpServer.withLogAddress,
   Layer.provide(
     BunHttpServer.layer({

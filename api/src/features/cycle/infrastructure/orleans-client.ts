@@ -48,14 +48,15 @@ const BaseContextSchema = {
 
 /**
  * Orleans Actor State Schema - For Reading from Orleans
- * Dates come as ISO strings and are converted to Date objects
+ * Dates come as Unknown since Orleans may return them as Date objects or ISO strings
+ * Handler will normalize them to Date objects
  */
 export const OrleansActorStateSchema = S.Struct({
   ...BaseActorStateSchema,
   context: S.Struct({
     ...BaseContextSchema,
-    startDate: S.NullOr(S.DateFromString), // ISO string → Date
-    endDate: S.NullOr(S.DateFromString),
+    startDate: S.Unknown, // Can be Date object, ISO string, or null
+    endDate: S.Unknown,   // Can be Date object, ISO string, or null
   }),
 });
 
@@ -76,6 +77,26 @@ const XStateSnapshotSchema = S.Struct({
     endDate: S.Unknown,
   }),
 });
+
+/**
+ * XState Snapshot Schema for Service Responses - Flexible Date Handling
+ * This schema validates XState snapshots returned from our service methods.
+ * Dates can be Date objects or ISO strings, handled flexibly.
+ */
+export const XStateServiceSnapshotSchema = S.Struct({
+  ...BaseActorStateSchema,
+  context: S.Struct({
+    ...BaseContextSchema,
+    startDate: S.Unknown,
+    endDate: S.Unknown,
+  }),
+});
+
+/**
+ * Type definition for XState snapshots from service
+ * Provides type-safe access with flexible date handling
+ */
+export const XStateSnapshotWithDatesSchema = XStateServiceSnapshotSchema;
 
 // ============================================================================
 // Effect Program for Persistence

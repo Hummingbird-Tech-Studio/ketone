@@ -1,7 +1,6 @@
-import { HttpApiMiddleware, HttpApiSchema, HttpApiSecurity } from '@effect/platform';
-import { Context, Effect, Layer, Redacted, Schema as S } from 'effect';
+import { HttpApiMiddleware, HttpApiSecurity } from '@effect/platform';
+import { Context, Effect, Layer, Option, Redacted, Schema as S } from 'effect';
 import { JwtService } from '../../services';
-import { UserRepository } from '../../repositories';
 
 /**
  * Authenticated User Context
@@ -27,23 +26,19 @@ export class UnauthorizedErrorSchema extends S.TaggedError<UnauthorizedErrorSche
   {
     message: S.String,
   },
-  HttpApiSchema.annotations({ status: 401 }),
 ) {}
 
 /**
  * Authentication Middleware
  * Enforces JWT bearer token authentication on endpoints
  */
-export class Authentication extends HttpApiMiddleware.Tag<Authentication>()(
-  'Authentication',
-  {
-    failure: UnauthorizedErrorSchema,
-    provides: CurrentUser,
-    security: {
-      bearer: HttpApiSecurity.bearer,
-    },
+export class Authentication extends HttpApiMiddleware.Tag<Authentication>()('Authentication', {
+  failure: UnauthorizedErrorSchema,
+  provides: CurrentUser,
+  security: {
+    bearer: HttpApiSecurity.bearer,
   },
-) {}
+}) {}
 
 /**
  * Authentication Middleware Implementation (Base)
@@ -53,7 +48,6 @@ const AuthenticationLiveBase = Layer.effect(
   Authentication,
   Effect.gen(function* () {
     const jwtService = yield* JwtService;
-    const userRepository = yield* UserRepository;
 
     yield* Effect.logInfo('[AuthenticationLive] Creating Authentication middleware');
 
@@ -77,43 +71,23 @@ const AuthenticationLiveBase = Layer.effect(
 
           yield* Effect.logInfo(`[Authentication] Token verified for user ${payload.userId}`);
 
-          // Check if token was issued before password change (token invalidation)
-          const user = yield* userRepository.findUserByEmailWithPassword(payload.email).pipe(
-            Effect.catchAll(() =>
-              Effect.gen(function* () {
-                yield* Effect.logWarning('[Authentication] User lookup failed during token validation');
-                return yield* Effect.fail(
-                  new UnauthorizedErrorSchema({
-                    message: 'Invalid or expired token',
-                  }),
-                );
-              }),
-            ),
-          );
+          yield* Option.match(payload.passwordChangedAt, {
+            onNone: () => Effect.void,
+            onSome: (passwordChangedAtTimestamp) =>
+              payload.iat < passwordChangedAtTimestamp
+                ? Effect.gen(function* () {
+                    yield* Effect.logWarning(
+                      `[Authentication] Token invalidated: issued before password change (iat=${payload.iat}, passwordChangedAt=${passwordChangedAtTimestamp})`,
+                    );
 
-          if (!user) {
-            yield* Effect.logWarning('[Authentication] User not found during token validation');
-            return yield* Effect.fail(
-              new UnauthorizedErrorSchema({
-                message: 'Invalid or expired token',
-              }),
-            );
-          }
-
-          // If password was changed after token was issued, invalidate the token
-          if (user.passwordChangedAt) {
-            const passwordChangedTimestamp = Math.floor(user.passwordChangedAt.getTime() / 1000);
-            if (payload.iat < passwordChangedTimestamp) {
-              yield* Effect.logWarning(
-                `[Authentication] Token invalidated: issued before password change (iat=${payload.iat}, passwordChangedAt=${passwordChangedTimestamp})`,
-              );
-              return yield* Effect.fail(
-                new UnauthorizedErrorSchema({
-                  message: 'Token invalidated due to password change',
-                }),
-              );
-            }
-          }
+                    return yield* Effect.fail(
+                      new UnauthorizedErrorSchema({
+                        message: 'Token invalidated due to password change',
+                      }),
+                    );
+                  })
+                : Effect.void,
+          });
 
           return new AuthenticatedUser({
             userId: payload.userId,
@@ -126,9 +100,6 @@ const AuthenticationLiveBase = Layer.effect(
 
 /**
  * Authentication Middleware with Dependencies
- * Complete layer with JwtService and UserRepository dependencies
+ * Complete layer with JwtService dependency
  */
-export const AuthenticationLive = AuthenticationLiveBase.pipe(
-  Layer.provide(JwtService.Default),
-  Layer.provide(UserRepository.Default),
-);
+export const AuthenticationLive = AuthenticationLiveBase.pipe(Layer.provide(JwtService.Default));

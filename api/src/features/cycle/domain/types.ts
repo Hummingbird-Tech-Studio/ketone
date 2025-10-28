@@ -1,4 +1,5 @@
 import { Schema as S } from 'effect';
+import type { Snapshot } from 'xstate';
 import { CycleState } from './actors/cycleOrleansActor';
 
 /**
@@ -8,3 +9,8 @@ import { CycleState } from './actors/cycleOrleansActor';
  */
 
 export const CycleStateSchema = S.Enums(CycleState);
+
+/**
+ * Type-safe snapshot for CycleActor
+ */
+export type CycleActorSnapshot = Snapshot<unknown>;

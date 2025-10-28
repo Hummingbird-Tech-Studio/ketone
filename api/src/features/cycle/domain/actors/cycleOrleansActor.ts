@@ -22,7 +22,6 @@ export enum CycleEvent {
   CREATE_CYCLE = 'CREATE_CYCLE',
   SUCCESS = 'SUCCESS',
   PERSIST_SUCCESS = 'PERSIST_SUCCESS',
-  PERSIST_ERROR = 'PERSIST_ERROR',
   REPOSITORY_ERROR = 'REPOSITORY_ERROR',
   ERROR = 'ERROR',
   RESET = 'RESET',
@@ -32,7 +31,6 @@ export enum CycleEvent {
 export enum Emit {
   ERROR_CREATE_CYCLE = 'ERROR_CREATE_CYCLE',
   REPOSITORY_ERROR = 'REPOSITORY_ERROR',
-  PERSIST_ERROR = 'PERSIST_ERROR',
   PERSIST_STATE = 'PERSIST_STATE',
 }
 
@@ -40,7 +38,6 @@ type CycleEventType =
   | { type: CycleEvent.CREATE_CYCLE; actorId: string; startDate: Date; endDate: Date }
   | { type: CycleEvent.SUCCESS; id: string; actorId: string; startDate: Date; endDate: Date }
   | { type: CycleEvent.PERSIST_SUCCESS }
-  | { type: CycleEvent.PERSIST_ERROR; summary: string; detail: string }
   | { type: CycleEvent.REPOSITORY_ERROR; summary: string; detail: string }
   | { type: CycleEvent.ERROR; summary: string; detail: string }
   | { type: CycleEvent.RESET }
@@ -56,7 +53,6 @@ type Context = {
 export type EmitType =
   | { type: Emit.ERROR_CREATE_CYCLE; error: Error }
   | { type: Emit.REPOSITORY_ERROR; error: Error }
-  | { type: Emit.PERSIST_ERROR; error: Error }
   | { type: Emit.PERSIST_STATE; state: CycleState };
 
 // ============================================================================

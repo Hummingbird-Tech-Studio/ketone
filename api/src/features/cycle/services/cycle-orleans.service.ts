@@ -1,4 +1,4 @@
-import { Deferred, Effect, Match, Queue, Stream } from 'effect';
+import { Deferred, Effect, Match, Option, Queue, Stream } from 'effect';
 import { createActor, waitFor, type Snapshot } from 'xstate';
 import {
   cycleActor,
@@ -75,7 +75,7 @@ export class CycleOrleansService extends Effect.Service<CycleOrleansService>()('
             Effect.catchTag('OrleansActorNotFoundError', () => Effect.succeedNone),
           );
 
-          if (existingGrain._tag === 'Some') {
+          if (Option.isSome(existingGrain)) {
             yield* Effect.logInfo(`[Orleans] Grain ${actorId} exists, checking if cycle is in progress`);
 
             // Load the XState machine with existing grain data
@@ -97,7 +97,6 @@ export class CycleOrleansService extends Effect.Service<CycleOrleansService>()('
               );
             }
 
-            // mmm
             machine.stop();
             yield* Effect.logInfo(`[Orleans] Cycle is not in progress, proceeding with new cycle creation`);
           }
@@ -141,18 +140,6 @@ export class CycleOrleansService extends Effect.Service<CycleOrleansService>()('
                     resultDeferred,
                     new CycleActorError({
                       message: 'Failed to create cycle',
-                      cause: emit.error,
-                    }),
-                  ),
-                );
-              }),
-              Match.when({ type: Emit.PERSIST_ERROR }, (emit) => {
-                console.log('❌ [Orleans Service] Persist error - completing deferred');
-                Effect.runFork(
-                  Deferred.fail(
-                    resultDeferred,
-                    new OrleansClientError({
-                      message: 'Failed to persist state to Orleans',
                       cause: emit.error,
                     }),
                   ),
@@ -301,18 +288,6 @@ export class CycleOrleansService extends Effect.Service<CycleOrleansService>()('
           // Handler for emitted events
           const handleEmit = (event: EmitType) => {
             Match.value(event).pipe(
-              Match.when({ type: Emit.PERSIST_ERROR }, (emit) => {
-                console.log('❌ [Orleans Service] Persist error - completing deferred');
-                Effect.runFork(
-                  Deferred.fail(
-                    resultDeferred,
-                    new OrleansClientError({
-                      message: 'Failed to persist state to Orleans',
-                      cause: emit.error,
-                    }),
-                  ),
-                );
-              }),
               Match.when({ type: Emit.PERSIST_STATE }, (emit) => {
                 Effect.runFork(Queue.offer(persistQueue, emit));
               }),
@@ -321,10 +296,7 @@ export class CycleOrleansService extends Effect.Service<CycleOrleansService>()('
           };
 
           // Register emit listeners
-          const emitSubscriptions = [
-            machine.on(Emit.PERSIST_ERROR, handleEmit),
-            machine.on(Emit.PERSIST_STATE, handleEmit),
-          ];
+          const emitSubscriptions = [machine.on(Emit.PERSIST_STATE, handleEmit)];
 
           // Start machine with restored state
           machine.start();

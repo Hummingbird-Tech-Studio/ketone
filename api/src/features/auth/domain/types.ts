@@ -24,16 +24,6 @@ export const EmailSchema = S.String.pipe(
 );
 
 /**
- * User Schema
- */
-export class User extends S.Class<User>('User')({
-  id: S.String.pipe(S.minLength(1)),
-  email: EmailSchema,
-  createdAt: S.Date,
-  updatedAt: S.Date,
-}) {}
-
-/**
  * JWT Payload Schema
  */
 export class JwtPayload extends S.Class<JwtPayload>('JwtPayload')({
@@ -41,19 +31,7 @@ export class JwtPayload extends S.Class<JwtPayload>('JwtPayload')({
   email: EmailSchema,
   iat: S.Number.pipe(S.int({ message: () => 'iat must be an integer' })),
   exp: S.Number.pipe(S.int({ message: () => 'exp must be an integer' })),
-}) {}
-
-/**
- * Signup Request Schema
- */
-export class SignupRequest extends S.Class<SignupRequest>('SignupRequest')({
-  email: EmailSchema,
-  password: S.String.pipe(S.minLength(1)),
-}) {}
-
-/**
- * Signup Response Schema
- */
-export class SignupResponse extends S.Class<SignupResponse>('SignupResponse')({
-  user: User,
+  passwordChangedAt: S.OptionFromSelf(
+    S.Number.pipe(S.int({ message: () => 'passwordChangedAt must be an integer' })),
+  ),
 }) {}

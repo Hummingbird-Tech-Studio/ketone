@@ -19,8 +19,6 @@ export class AuthService extends Effect.Service<AuthService>()('AuthService', {
         Effect.gen(function* () {
           yield* Effect.logInfo(`[AuthService] Starting signup process`);
 
-          // Check if user already exists (performance optimization to avoid unnecessary hashing)
-          // Note: Database unique constraint is the authoritative check for race conditions
           const existingUser = yield* userRepository.findUserByEmail(email);
 
           if (existingUser) {
@@ -33,11 +31,9 @@ export class AuthService extends Effect.Service<AuthService>()('AuthService', {
             );
           }
 
-          // Hash password
           yield* Effect.logInfo(`[AuthService] Hashing password`);
           const passwordHash = yield* passwordService.hashPassword(password);
 
-          // Create user (repository maps unique constraint violations to UserAlreadyExistsError)
           yield* Effect.logInfo(`[AuthService] Creating user in database`);
           const user = yield* userRepository.createUser(email, passwordHash);
 
@@ -65,7 +61,6 @@ export class AuthService extends Effect.Service<AuthService>()('AuthService', {
             );
           }
 
-          // Verify password
           yield* Effect.logInfo(`[AuthService] Verifying password`);
           const isPasswordValid = yield* passwordService.verifyPassword(password, user.passwordHash);
 
@@ -78,9 +73,8 @@ export class AuthService extends Effect.Service<AuthService>()('AuthService', {
             );
           }
 
-          // Generate JWT token
           yield* Effect.logInfo(`[AuthService] Generating JWT token`);
-          const token = yield* jwtService.generateToken(user.id, user.email);
+          const token = yield* jwtService.generateToken(user.id, user.email, user.passwordChangedAt ?? undefined);
 
           yield* Effect.logInfo(`[AuthService] User logged in successfully with id: ${user.id}`);
 
@@ -98,7 +92,6 @@ export class AuthService extends Effect.Service<AuthService>()('AuthService', {
         Effect.gen(function* () {
           yield* Effect.logInfo(`[AuthService] Starting password update process`);
 
-          // Find user by authenticated userId (from JWT token)
           const user = yield* userRepository.findUserByIdWithPassword(userId);
 
           if (!user) {
@@ -110,7 +103,6 @@ export class AuthService extends Effect.Service<AuthService>()('AuthService', {
             );
           }
 
-          // Verify current password
           yield* Effect.logInfo(`[AuthService] Verifying current password`);
           const isPasswordValid = yield* passwordService.verifyPassword(currentPassword, user.passwordHash);
 
@@ -135,11 +127,9 @@ export class AuthService extends Effect.Service<AuthService>()('AuthService', {
             );
           }
 
-          // Hash new password
           yield* Effect.logInfo(`[AuthService] Hashing new password`);
           const newPasswordHash = yield* passwordService.hashPassword(newPassword);
 
-          // Update password in database
           yield* Effect.logInfo(`[AuthService] Updating password in database`);
           const updatedUser = yield* userRepository.updateUserPassword(user.id, newPasswordHash);
 

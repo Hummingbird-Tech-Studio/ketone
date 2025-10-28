@@ -9,6 +9,7 @@ import {
   CycleState,
   Emit,
   type EmitType,
+  type CycleActorSnapshot,
 } from '../domain';
 import { OrleansClient, OrleansClientError } from '../infrastructure/orleans-client';
 import { CycleRepositoryError } from '../repositories';
@@ -77,7 +78,9 @@ export class CycleOrleansService extends Effect.Service<CycleOrleansService>()('
           yield* Effect.logInfo(`[Orleans] Grain ${actorId} exists, checking state`);
 
           // Load the XState machine with existing grain data
-          const machine = yield* Effect.sync(() => createActor(cycleActor, { snapshot: existingGrain.value as any }));
+          const machine = yield* Effect.sync(() =>
+            createActor(cycleActor, { snapshot: existingGrain.value as CycleActorSnapshot }),
+          );
           machine.start();
 
           const currentState = machine.getSnapshot().value;
@@ -311,7 +314,9 @@ export class CycleOrleansService extends Effect.Service<CycleOrleansService>()('
 
           // Step 3: Restore XState machine with persisted snapshot
           // OrleansActorState is compatible with XState snapshot structure
-          const machine = yield* Effect.sync(() => createActor(cycleActor, { snapshot: persistedSnapshot as any }));
+          const machine = yield* Effect.sync(() =>
+            createActor(cycleActor, { snapshot: persistedSnapshot as CycleActorSnapshot }),
+          );
 
           // Create queue for persistence events
           const persistQueue = yield* Queue.unbounded<{ type: Emit.PERSIST_STATE; state: CycleState }>();

@@ -3,6 +3,7 @@ import { Effect, Schema as S } from 'effect';
 import { Api } from '../../../api';
 import { XStateSnapshotWithDatesSchema, OrleansActorStateSchema } from '../infrastructure/orleans-client';
 import { CycleOrleansService } from '../services/cycle-orleans.service';
+import { ensureDate } from '../utils/date-helpers';
 import {
   CycleActorErrorSchema,
   CycleRepositoryErrorSchema,
@@ -34,7 +35,6 @@ export const CycleApiLive = HttpApiBuilder.group(Api, 'cycle', (handlers) =>
 
           yield* Effect.logInfo(`[Handler] Calling Orleans service to create cycle`);
 
-          // Use Orleans service to orchestrate cycle creation
           const actorState = yield* orleansService.createCycleWithOrleans(userId, startDate, endDate).pipe(
             Effect.tapError((error) => Effect.logError(`[Handler] Error creating cycle: ${error.message}`)),
             Effect.catchTags({
@@ -72,7 +72,6 @@ export const CycleApiLive = HttpApiBuilder.group(Api, 'cycle', (handlers) =>
           yield* Effect.logInfo(`[Handler] Cycle created successfully, preparing response`);
           yield* Effect.logInfo(`[Handler] Persisted snapshot:`, actorState);
 
-          // Decode and validate the XState snapshot returned from service
           const snapshot = yield* S.decodeUnknown(XStateSnapshotWithDatesSchema)(actorState).pipe(
             Effect.mapError(
               (error) =>
@@ -82,14 +81,6 @@ export const CycleApiLive = HttpApiBuilder.group(Api, 'cycle', (handlers) =>
                 }),
             ),
           );
-
-          // Helper function to safely convert unknown dates to Date objects
-          const ensureDate = (date: unknown): Date | null => {
-            if (!date) return null;
-            if (date instanceof Date) return date;
-            if (typeof date === 'string') return new Date(date);
-            return null;
-          };
 
           const response = {
             actorId: userId,
@@ -113,7 +104,6 @@ export const CycleApiLive = HttpApiBuilder.group(Api, 'cycle', (handlers) =>
 
           yield* Effect.logInfo(`[Handler] GET /cycle - Request received for user ${userId}`);
 
-          // Get cycle state from Orleans
           const actorState = yield* orleansService.getCycleStateFromOrleans(userId).pipe(
             Effect.catchTag('CycleActorError', (error) =>
               Effect.fail(
@@ -125,7 +115,6 @@ export const CycleApiLive = HttpApiBuilder.group(Api, 'cycle', (handlers) =>
             ),
           );
 
-          // Decode and validate actor state
           const snapshot = yield* S.decodeUnknown(OrleansActorStateSchema)(actorState).pipe(
             Effect.mapError(
               (error) =>
@@ -136,15 +125,6 @@ export const CycleApiLive = HttpApiBuilder.group(Api, 'cycle', (handlers) =>
             ),
           );
 
-          // Helper function to safely convert unknown dates to Date objects
-          const ensureDate = (date: unknown): Date | null => {
-            if (!date) return null;
-            if (date instanceof Date) return date;
-            if (typeof date === 'string') return new Date(date);
-            return null;
-          };
-
-          // Return transformed response
           return {
             actorId: userId,
             state: snapshot.value,
@@ -200,7 +180,6 @@ export const CycleApiLive = HttpApiBuilder.group(Api, 'cycle', (handlers) =>
           yield* Effect.logInfo(`[Handler] Cycle completed successfully, preparing response`);
           yield* Effect.logInfo(`[Handler] Persisted snapshot:`, actorState);
 
-          // Decode and validate actor state
           const snapshot = yield* S.decodeUnknown(OrleansActorStateSchema)(actorState).pipe(
             Effect.mapError(
               (error) =>
@@ -210,14 +189,6 @@ export const CycleApiLive = HttpApiBuilder.group(Api, 'cycle', (handlers) =>
                 }),
             ),
           );
-
-          // Helper function to safely convert unknown dates to Date objects
-          const ensureDate = (date: unknown): Date | null => {
-            if (!date) return null;
-            if (date instanceof Date) return date;
-            if (typeof date === 'string') return new Date(date);
-            return null;
-          };
 
           const response = {
             actorId: userId,

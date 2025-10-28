@@ -1,6 +1,16 @@
-import { Deferred, Effect, Match, Queue, Stream } from 'effect';
+import { Deferred, Effect, Match, Option, Queue, Stream } from 'effect';
 import { createActor, waitFor, type Snapshot } from 'xstate';
-import { cycleActor, CycleActorError, CycleEvent, CycleState, Emit, type EmitType } from '../domain';
+import {
+  cycleActor,
+  CycleActorError,
+  CycleAlreadyInProgressError,
+  CycleIdMismatchError,
+  CycleEvent,
+  CycleState,
+  Emit,
+  type EmitType,
+  type CycleActorSnapshot,
+} from '../domain';
 import { OrleansClient, OrleansClientError } from '../infrastructure/orleans-client';
 import { CycleRepositoryError } from '../repositories';
 
@@ -48,6 +58,53 @@ export class CycleOrleansService extends Effect.Service<CycleOrleansService>()('
         yield* Effect.logInfo(`[Orleans Service] ✅ Cleanup complete`);
       });
 
+    /**
+     * Check if a cycle is already in progress for the given actor
+     *
+     * @returns Effect that fails with CycleAlreadyInProgressError if a cycle is in progress,
+     *          or succeeds with void if no cycle is in progress or actor doesn't exist
+     */
+    const checkCycleInProgress = (actorId: string) =>
+      Effect.gen(function* () {
+        yield* Effect.logInfo(`[Orleans] Checking if cycle is in progress for actor ${actorId}`);
+
+        // Check if grain exists in Orleans
+        const existingGrain = yield* orleansClient.getActor(actorId).pipe(
+          Effect.asSome,
+          Effect.catchTag('OrleansActorNotFoundError', () => Effect.succeedNone),
+        );
+
+        if (Option.isSome(existingGrain)) {
+          yield* Effect.logInfo(`[Orleans] Grain ${actorId} exists, checking state`);
+
+          // Load the XState machine with existing grain data
+          const machine = yield* Effect.sync(() =>
+            createActor(cycleActor, { snapshot: existingGrain.value as CycleActorSnapshot }),
+          );
+          machine.start();
+
+          const currentState = machine.getSnapshot().value;
+          yield* Effect.logInfo(`[Orleans] Current cycle state: ${currentState}`);
+
+          // Check if cycle is currently in progress
+          if (currentState === CycleState.InProgress || currentState === CycleState.Creating) {
+            machine.stop();
+            yield* Effect.logInfo(`[Orleans] Cycle is already in progress for user ${actorId}`);
+            return yield* Effect.fail(
+              new CycleAlreadyInProgressError({
+                message: 'A cycle is already in progress',
+                userId: actorId,
+              }),
+            );
+          }
+
+          machine.stop();
+          yield* Effect.logInfo(`[Orleans] No active cycle found, proceeding`);
+        } else {
+          yield* Effect.logInfo(`[Orleans] No grain found for actor ${actorId}`);
+        }
+      });
+
     return {
       /**
        * Create a cycle using Orleans architecture
@@ -61,23 +118,10 @@ export class CycleOrleansService extends Effect.Service<CycleOrleansService>()('
         Effect.gen(function* () {
           yield* Effect.logInfo(`[Orleans] Starting cycle creation for actor ${actorId}`);
 
-          // Step 1: Check if actor exists in Orleans
-          const actorExists = yield* orleansClient.getActor(actorId).pipe(
-            Effect.as(true),
-            Effect.catchTag('OrleansActorNotFoundError', () => Effect.succeed(false)),
-          );
+          // Step 1: Check if a cycle is already in progress
+          yield* checkCycleInProgress(actorId);
 
-          if (actorExists) {
-            yield* Effect.logInfo(`[Orleans] Actor ${actorId} already exists in Orleans`);
-            return yield* Effect.fail(
-              new CycleActorError({
-                message: `Actor ${actorId} already exists`,
-                cause: new Error('Actor already initialized'),
-              }),
-            );
-          }
-
-          yield* Effect.logInfo(`[Orleans] Actor ${actorId} not found (404), creating new machine`);
+          yield* Effect.logInfo(`[Orleans] No cycle in progress, creating new machine`);
 
           // Step 2: Create local XState machine to orchestrate
           const machine = yield* Effect.sync(() => createActor(cycleActor));
@@ -91,7 +135,7 @@ export class CycleOrleansService extends Effect.Service<CycleOrleansService>()('
           // Create deferred for result coordination (completes with success or error)
           const resultDeferred = yield* Deferred.make<
             Snapshot<unknown>,
-            CycleRepositoryError | CycleActorError | OrleansClientError
+            CycleRepositoryError | CycleActorError | OrleansClientError | CycleAlreadyInProgressError
           >();
 
           // Handler for emitted events
@@ -116,18 +160,6 @@ export class CycleOrleansService extends Effect.Service<CycleOrleansService>()('
                     resultDeferred,
                     new CycleActorError({
                       message: 'Failed to create cycle',
-                      cause: emit.error,
-                    }),
-                  ),
-                );
-              }),
-              Match.when({ type: Emit.PERSIST_ERROR }, (emit) => {
-                console.log('❌ [Orleans Service] Persist error - completing deferred');
-                Effect.runFork(
-                  Deferred.fail(
-                    resultDeferred,
-                    new OrleansClientError({
-                      message: 'Failed to persist state to Orleans',
                       cause: emit.error,
                     }),
                   ),
@@ -230,14 +262,15 @@ export class CycleOrleansService extends Effect.Service<CycleOrleansService>()('
        *
        * Flow using XState machine with persisted snapshot:
        * 1. Get current persisted snapshot from Orleans sidecar
-       * 2. Restore XState machine with snapshot
-       * 3. Send COMPLETE event to machine
-       * 4. Machine orchestrates: InProgress -> Completing (persist) -> Completed
-       * 5. Return persisted snapshot
+       * 2. Validate that the requested cycle ID matches the active cycle
+       * 3. Restore XState machine with snapshot
+       * 4. Send COMPLETE event to machine
+       * 5. Machine orchestrates: InProgress -> Completing (persist) -> Completed
+       * 6. Return persisted snapshot
        */
-      updateCycleStateInOrleans: (actorId: string, startDate: Date, endDate: Date) =>
+      updateCycleStateInOrleans: (actorId: string, cycleId: string, startDate: Date, endDate: Date) =>
         Effect.gen(function* () {
-          yield* Effect.logInfo(`[Orleans Service] Starting cycle completion for actor ${actorId}`);
+          yield* Effect.logInfo(`[Orleans Service] Starting cycle completion for actor ${actorId}, cycle ${cycleId}`);
 
           // Step 1: Get current persisted snapshot from Orleans sidecar
           const persistedSnapshot = yield* orleansClient.getActor(actorId).pipe(
@@ -260,9 +293,30 @@ export class CycleOrleansService extends Effect.Service<CycleOrleansService>()('
           );
           yield* Effect.logInfo(`[Orleans Service] Current persisted snapshot from Orleans:`, persistedSnapshot);
 
-          // Step 2: Restore XState machine with persisted snapshot
+          // Step 2: Validate cycle ID matches (prevent race conditions from multiple tabs)
+          const activeCycleId = Option.fromNullable(persistedSnapshot.context?.id);
+
+          if (Option.isSome(activeCycleId) && activeCycleId.value !== cycleId) {
+            yield* Effect.logWarning(
+              `[Orleans Service] Cycle ID mismatch: requested=${cycleId}, active=${activeCycleId.value}`,
+            );
+
+            return yield* Effect.fail(
+              new CycleIdMismatchError({
+                message: 'The cycle ID does not match the currently active cycle',
+                requestedCycleId: cycleId,
+                activeCycleId: activeCycleId.value,
+              }),
+            );
+          }
+
+          yield* Effect.logInfo(`[Orleans Service] Cycle ID validated: ${cycleId}`);
+
+          // Step 3: Restore XState machine with persisted snapshot
           // OrleansActorState is compatible with XState snapshot structure
-          const machine = yield* Effect.sync(() => createActor(cycleActor, { snapshot: persistedSnapshot as any }));
+          const machine = yield* Effect.sync(() =>
+            createActor(cycleActor, { snapshot: persistedSnapshot as CycleActorSnapshot }),
+          );
 
           // Create queue for persistence events
           const persistQueue = yield* Queue.unbounded<{ type: Emit.PERSIST_STATE; state: CycleState }>();
@@ -276,18 +330,6 @@ export class CycleOrleansService extends Effect.Service<CycleOrleansService>()('
           // Handler for emitted events
           const handleEmit = (event: EmitType) => {
             Match.value(event).pipe(
-              Match.when({ type: Emit.PERSIST_ERROR }, (emit) => {
-                console.log('❌ [Orleans Service] Persist error - completing deferred');
-                Effect.runFork(
-                  Deferred.fail(
-                    resultDeferred,
-                    new OrleansClientError({
-                      message: 'Failed to persist state to Orleans',
-                      cause: emit.error,
-                    }),
-                  ),
-                );
-              }),
               Match.when({ type: Emit.PERSIST_STATE }, (emit) => {
                 Effect.runFork(Queue.offer(persistQueue, emit));
               }),
@@ -296,10 +338,7 @@ export class CycleOrleansService extends Effect.Service<CycleOrleansService>()('
           };
 
           // Register emit listeners
-          const emitSubscriptions = [
-            machine.on(Emit.PERSIST_ERROR, handleEmit),
-            machine.on(Emit.PERSIST_STATE, handleEmit),
-          ];
+          const emitSubscriptions = [machine.on(Emit.PERSIST_STATE, handleEmit)];
 
           // Start machine with restored state
           machine.start();

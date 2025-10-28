@@ -29,10 +29,19 @@ export class OrleansClientErrorSchema extends S.TaggedError<OrleansClientErrorSc
   cause: S.optional(S.Unknown),
 }) {}
 
-export class OrleansActorNotFoundErrorSchema extends S.TaggedError<OrleansActorNotFoundErrorSchema>()(
-  'OrleansActorNotFoundError',
+export class CycleAlreadyInProgressErrorSchema extends S.TaggedError<CycleAlreadyInProgressErrorSchema>()(
+  'CycleAlreadyInProgressError',
   {
-    actorId: S.String,
     message: S.String,
+    userId: S.String,
+  },
+) {}
+
+export class CycleIdMismatchErrorSchema extends S.TaggedError<CycleIdMismatchErrorSchema>()(
+  'CycleIdMismatchError',
+  {
+    message: S.String,
+    requestedCycleId: S.String,
+    activeCycleId: S.String,
   },
 ) {}

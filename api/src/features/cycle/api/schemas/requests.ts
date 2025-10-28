@@ -25,7 +25,6 @@ const UserIdSchema = S.UUID.pipe(S.brand('UserId'));
  * The machine state will be created and persisted automatically.
  */
 export const CreateCycleOrleansSchema = S.Struct({
-  userId: UserIdSchema,
   startDate: S.Date,
   endDate: S.Date,
 }).pipe(
@@ -73,11 +72,12 @@ export const CreateCycleOrleansSchema = S.Struct({
 /**
  * Update Cycle Orleans Schema
  * 
- * For updating an existing actor's state in Orleans.
- * Allows updating cycle data and triggering state transitions.
+ * For completing a cycle. Requires the cycle ID to prevent race conditions
+ * (e.g., multiple browser tabs with different cycle states).
+ * The cycle ID must match the currently active cycle.
  */
 export const UpdateCycleOrleansSchema = S.Struct({
-  userId: UserIdSchema,
+  cycleId: S.UUID,
   startDate: S.Date,
   endDate: S.Date,
 }).pipe(

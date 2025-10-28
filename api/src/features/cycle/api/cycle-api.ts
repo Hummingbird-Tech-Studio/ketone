@@ -17,7 +17,7 @@ import { Authentication, UnauthorizedErrorSchema } from '../../auth/api/middlewa
 export class CycleApiGroup extends HttpApiGroup.make('cycle')
   .add(
     // POST /cycle/orleans - Create cycle (Orleans) with authentication
-    HttpApiEndpoint.post('createCycleOrleans', '/cycle/orleans')
+    HttpApiEndpoint.post('createCycleOrleans', '/cycle')
       .setPayload(CreateCycleOrleansSchema)
       .addSuccess(CycleResponseSchema, { status: 201 })
       .addError(UnauthorizedErrorSchema, { status: 401 })

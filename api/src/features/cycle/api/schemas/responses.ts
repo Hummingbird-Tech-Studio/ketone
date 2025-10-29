@@ -10,10 +10,6 @@ import { Schema as S } from 'effect';
  * Effect Schema automatically handles the transformation based on context:
  * - In HttpApiBuilder: Uses as "Type" (Date objects) for type safety
  * - In S.decodeUnknown: Parses from "Encoded" (ISO strings) to Date objects
- *
- * S.Date is a bidirectional transformation: Schema<Date, string>
- * - Type: Date (what the handler returns)
- * - Encoded: string (what JSON contains)
  */
 export const CycleResponseSchema = S.Struct({
   actorId: S.String,

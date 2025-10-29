@@ -2,14 +2,6 @@ import { Schema as S } from 'effect';
 
 /**
  * Cycle Response Schema
- *
- * This schema handles both encoding and decoding:
- * - **Encoding (Handler → JSON)**: Accepts Date objects, serializes to ISO strings
- * - **Decoding (JSON → Tests)**: Accepts ISO strings, parses to Date objects
- *
- * Effect Schema automatically handles the transformation based on context:
- * - In HttpApiBuilder: Uses as "Type" (Date objects) for type safety
- * - In S.decodeUnknown: Parses from "Encoded" (ISO strings) to Date objects
  */
 export const CycleResponseSchema = S.Struct({
   actorId: S.String,

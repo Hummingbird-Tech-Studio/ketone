@@ -49,7 +49,9 @@ export interface CleanupConfig<TRepo, TData> {
  *   dataLabel: 'test users'
  * }));
  */
-export function createCleanup<TRepo, TData>(config: CleanupConfig<TRepo, TData>) {
+export function createCleanup<TRepo, TData>(
+  config: CleanupConfig<TRepo, TData>,
+): () => Promise<void> {
   return async () => {
     const cleanupProgram = Effect.gen(function* () {
       const repository = yield* config.repository;
@@ -61,6 +63,8 @@ export function createCleanup<TRepo, TData>(config: CleanupConfig<TRepo, TData>)
       console.log(`✅ ${config.dataLabel} cleanup completed successfully\n`);
     });
 
+    // Type assertion needed: TypeScript can't verify that repositoryLayer provides exactly TRepo
+    // The CleanupConfig interface guarantees this contract at runtime
     const providedProgram = Effect.provide(cleanupProgram, config.repositoryLayer) as Effect.Effect<
       void,
       never,

@@ -21,11 +21,3 @@ export interface TestConfig {
   jwtSecret: string;
   orleansBaseUrl?: string;
 }
-
-/**
- * Generic test data tracker
- * Used to track test data for cleanup
- */
-export interface TestDataTracker<T extends string = string> {
-  [key: string]: Set<T>;
-}

@@ -6,7 +6,6 @@ import {
   API_BASE_URL,
   validateJwtSecret,
   makeRequest,
-  createTestDataTracker,
   generateTestEmail,
   type ErrorResponse,
 } from '../../../../test-utils';
@@ -43,9 +42,9 @@ const UPDATE_PASSWORD_ENDPOINT = `${API_BASE_URL}/auth/update-password`;
  * We explicitly track what we create so we only delete test data
  * Need both email (for user deletion) and userId (for Orleans storage deletion)
  */
-const testData = createTestDataTracker({
+const testData = {
   users: new Map<string, string>(), // Map<email, userId>
-});
+};
 
 // ============================================================================
 // Test Cleanup
@@ -460,7 +459,7 @@ describe('POST /auth/update-password - Update Password', () => {
       const program = Effect.gen(function* () {
         const email = yield* generateTestEmail();
         const oldPassword = yield* generateValidPassword();
-        const newPassword = Effect.runSync(Effect.sync(() => 'NewPass456!'));
+        const newPassword = 'NewPass456!';
 
         // Signup and login
         yield* signupUser(email, oldPassword);
@@ -492,7 +491,7 @@ describe('POST /auth/update-password - Update Password', () => {
       const program = Effect.gen(function* () {
         const email = yield* generateTestEmail();
         const oldPassword = yield* generateValidPassword();
-        const newPassword = Effect.runSync(Effect.sync(() => 'NewPass456!'));
+        const newPassword = 'NewPass456!';
 
         // Signup and login to get a token
         // NOTE: Signup initializes Orleans UserAuth actor with user.createdAt
@@ -531,7 +530,7 @@ describe('POST /auth/update-password - Update Password', () => {
       const program = Effect.gen(function* () {
         const email = yield* generateTestEmail();
         const password = yield* generateValidPassword();
-        const newPassword = Effect.runSync(Effect.sync(() => 'NewPass456!'));
+        const newPassword = 'NewPass456!';
 
         // Signup and login
         yield* signupUser(email, password);
@@ -633,7 +632,7 @@ describe('POST /auth/update-password - Update Password', () => {
       const program = Effect.gen(function* () {
         const email = yield* generateTestEmail();
         const password1 = yield* generateValidPassword();
-        const password2 = Effect.runSync(Effect.sync(() => 'SecondPass123!'));
+        const password2 = 'SecondPass123!';
 
         // ===== STEP 1: Signup =====
         // - Creates user in DB with createdAt

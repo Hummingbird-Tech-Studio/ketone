@@ -9,7 +9,6 @@ import {
   ORLEANS_BASE_URL,
   validateJwtSecret,
   makeRequest,
-  createTestDataTracker,
   generateExpiredToken,
   createTestUser,
   type ErrorResponse,
@@ -45,10 +44,10 @@ const COMPLETE_CYCLE_ENDPOINT = `${API_BASE_URL}/cycle/complete`;
  * Track test user IDs and cycle IDs for cleanup
  * We explicitly track what we create so we only delete test data
  */
-const testData = createTestDataTracker({
+const testData = {
   userIds: new Set<string>(),
   cycleIds: new Set<string>(),
-});
+};
 
 // ============================================================================
 // Test Cleanup

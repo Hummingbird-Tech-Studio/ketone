@@ -28,27 +28,11 @@ export {
 } from './auth';
 
 // ============================================================================
-// Tracking Utilities
-// ============================================================================
-export { createTestDataTracker } from './tracking';
-
-// ============================================================================
 // Shared Types
 // ============================================================================
-export type { ErrorResponse, TestConfig, TestDataTracker } from './types';
+export type { ErrorResponse, TestConfig } from './types';
 
 // ============================================================================
 // Constants
 // ============================================================================
-
-/**
- * API server base URL for integration tests
- * Default: http://localhost:3000
- */
-export const API_BASE_URL = 'http://localhost:3000';
-
-/**
- * Orleans sidecar base URL for integration tests
- * Default: http://localhost:5174 (can be overridden via ORLEANS_BASE_URL env var)
- */
-export const ORLEANS_BASE_URL = Bun.env.ORLEANS_BASE_URL || 'http://localhost:5174';
+export { API_BASE_URL, ORLEANS_BASE_URL } from '../config/test-environment';

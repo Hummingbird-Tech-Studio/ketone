@@ -26,7 +26,10 @@ export const makeRequest = (url: string, options: RequestInit) =>
     const status = response.status;
     const json = yield* Effect.tryPromise({
       try: () => response.json(),
-      catch: () => ({}),
+      catch: (error) => {
+        console.warn(`Failed to parse JSON response from ${url}:`, error);
+        return {};
+      },
     });
 
     return { status, json, response };

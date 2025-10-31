@@ -1,6 +1,6 @@
 import { Match } from 'effect';
 import { assertEvent, assign, emit, fromCallback, setup } from 'xstate';
-import { programCreateCycle, runWithUi } from '../../repositories';
+import { programCreateCycle, programUpdateCycleStatus, programUpdateCycleDates, runWithUi } from '../../repositories';
 
 /**
  * Cycle Actor
@@ -15,6 +15,8 @@ export enum CycleState {
   Idle = 'Idle',
   Creating = 'Creating',
   InProgress = 'InProgress',
+  Updating = 'Updating',
+  Completing = 'Completing',
   Completed = 'Completed',
 }
 
@@ -25,6 +27,7 @@ export enum CycleEvent {
   REPOSITORY_ERROR = 'REPOSITORY_ERROR',
   ERROR = 'ERROR',
   RESET = 'RESET',
+  UPDATE_DATES = 'UPDATE_DATES',
   COMPLETE = 'COMPLETE',
 }
 
@@ -35,17 +38,18 @@ export enum Emit {
 }
 
 type CycleEventType =
-  | { type: CycleEvent.CREATE_CYCLE; actorId: string; startDate: Date; endDate: Date }
-  | { type: CycleEvent.SUCCESS; id: string; actorId: string; startDate: Date; endDate: Date }
+  | { type: CycleEvent.CREATE_CYCLE; userId: string; startDate: Date; endDate: Date }
+  | { type: CycleEvent.SUCCESS; id: string; userId: string; startDate: Date; endDate: Date }
   | { type: CycleEvent.PERSIST_SUCCESS }
   | { type: CycleEvent.REPOSITORY_ERROR; summary: string; detail: string }
   | { type: CycleEvent.ERROR; summary: string; detail: string }
   | { type: CycleEvent.RESET }
+  | { type: CycleEvent.UPDATE_DATES; startDate: Date; endDate: Date }
   | { type: CycleEvent.COMPLETE; startDate: Date; endDate: Date };
 
 type Context = {
   id: string | null;
-  actorId: string | null;
+  userId: string | null;
   startDate: Date | null;
   endDate: Date | null;
 };
@@ -68,7 +72,7 @@ export const cycleActor = setup({
   actions: {
     resetContext: assign({
       id: null,
-      actorId: null,
+      userId: null,
       startDate: null,
       endDate: null,
     }),
@@ -78,9 +82,9 @@ export const cycleActor = setup({
         console.log('✅ [Orleans] Cycle created with ID:', event.id);
         return event.id;
       },
-      actorId: ({ event }) => {
+      userId: ({ event }) => {
         assertEvent(event, CycleEvent.SUCCESS);
-        return event.actorId;
+        return event.userId;
       },
       startDate: ({ event }) => {
         assertEvent(event, CycleEvent.SUCCESS);
@@ -88,6 +92,17 @@ export const cycleActor = setup({
       },
       endDate: ({ event }) => {
         assertEvent(event, CycleEvent.SUCCESS);
+        return event.endDate;
+      },
+    }),
+    onUpdateDates: assign({
+      startDate: ({ event }) => {
+        assertEvent(event, CycleEvent.UPDATE_DATES);
+        console.log('✅ [Orleans] Updating cycle dates');
+        return event.startDate;
+      },
+      endDate: ({ event }) => {
+        assertEvent(event, CycleEvent.UPDATE_DATES);
         return event.endDate;
       },
     }),
@@ -132,16 +147,13 @@ export const cycleActor = setup({
     ),
   },
   actors: {
-    createCycle: fromCallback(({ sendBack, input }) => {
-      const { actorId, startDate, endDate } = input as {
-        actorId: string;
-        startDate: Date;
-        endDate: Date;
-      };
+    createCycle: fromCallback<CycleEventType, { userId: string; startDate: Date; endDate: Date }>(({ sendBack, input }) => {
+      const { userId, startDate, endDate } = input;
 
       runWithUi(
         programCreateCycle({
-          actorId,
+          userId,
+          status: CycleState.InProgress,
           startDate,
           endDate,
         }),
@@ -150,7 +162,7 @@ export const cycleActor = setup({
           sendBack({
             type: CycleEvent.SUCCESS,
             id: cycle.id,
-            actorId: cycle.actorId,
+            userId: cycle.userId,
             startDate: cycle.startDate,
             endDate: cycle.endDate,
           });
@@ -177,13 +189,79 @@ export const cycleActor = setup({
 
       return () => {};
     }),
+    updateCycleDates: fromCallback<CycleEventType, { cycleId: string; startDate: Date; endDate: Date }>(({ sendBack, input }) => {
+      const { cycleId, startDate, endDate } = input;
+
+      runWithUi(
+        programUpdateCycleDates(cycleId, startDate, endDate),
+        (cycle) => {
+          console.log('✅ [Orleans] Cycle dates updated successfully:', cycle.id);
+          sendBack({
+            type: CycleEvent.PERSIST_SUCCESS,
+          });
+        },
+        (error) => {
+          Match.value(error).pipe(
+            Match.when({ _tag: 'CycleRepositoryError' }, (err) => {
+              sendBack({
+                type: CycleEvent.REPOSITORY_ERROR,
+                summary: 'Repository Error',
+                detail: err.message,
+              });
+            }),
+            Match.orElse(() => {
+              sendBack({
+                type: CycleEvent.ERROR,
+                summary: 'Unexpected Error',
+                detail: 'An unexpected error occurred while updating cycle dates',
+              });
+            }),
+          );
+        },
+      );
+
+      return () => {};
+    }),
+    updateCycleStatus: fromCallback<CycleEventType, { cycleId: string; startDate: Date; endDate: Date }>(({ sendBack, input }) => {
+      const { cycleId, startDate, endDate } = input;
+
+      runWithUi(
+        programUpdateCycleStatus(cycleId, CycleState.Completed, startDate, endDate),
+        (cycle) => {
+          console.log('✅ [Orleans] Cycle status updated successfully:', cycle.id);
+          sendBack({
+            type: CycleEvent.PERSIST_SUCCESS,
+          });
+        },
+        (error) => {
+          Match.value(error).pipe(
+            Match.when({ _tag: 'CycleRepositoryError' }, (err) => {
+              sendBack({
+                type: CycleEvent.REPOSITORY_ERROR,
+                summary: 'Repository Error',
+                detail: err.message,
+              });
+            }),
+            Match.orElse(() => {
+              sendBack({
+                type: CycleEvent.ERROR,
+                summary: 'Unexpected Error',
+                detail: 'An unexpected error occurred while updating cycle status',
+              });
+            }),
+          );
+        },
+      );
+
+      return () => {};
+    }),
   },
 }).createMachine({
   id: 'cycle',
   initial: CycleState.Idle,
   context: {
     id: null,
-    actorId: null,
+    userId: null,
     startDate: null,
     endDate: null,
   },
@@ -203,7 +281,7 @@ export const cycleActor = setup({
         input: ({ event }) => {
           assertEvent(event, CycleEvent.CREATE_CYCLE);
           return {
-            actorId: event.actorId,
+            userId: event.userId,
             startDate: event.startDate,
             endDate: event.endDate,
           };
@@ -230,9 +308,65 @@ export const cycleActor = setup({
         [CycleEvent.RESET]: {
           target: CycleState.Idle,
         },
+        [CycleEvent.UPDATE_DATES]: {
+          target: CycleState.Updating,
+          actions: ['onUpdateDates'],
+        },
         [CycleEvent.COMPLETE]: {
-          target: CycleState.Completed,
+          target: CycleState.Completing,
           actions: ['onComplete'],
+        },
+      },
+    },
+    [CycleState.Updating]: {
+      invoke: {
+        id: 'updateCycleDates',
+        src: 'updateCycleDates',
+        input: ({ context }) => {
+          return {
+            cycleId: context.id!,
+            startDate: context.startDate!,
+            endDate: context.endDate!,
+          };
+        },
+      },
+      on: {
+        [CycleEvent.PERSIST_SUCCESS]: {
+          target: CycleState.InProgress,
+        },
+        [CycleEvent.REPOSITORY_ERROR]: {
+          target: CycleState.InProgress,
+          actions: ['emitRepositoryError'],
+        },
+        [CycleEvent.ERROR]: {
+          target: CycleState.InProgress,
+          actions: ['emitError'],
+        },
+      },
+    },
+    [CycleState.Completing]: {
+      invoke: {
+        id: 'updateCycleStatus',
+        src: 'updateCycleStatus',
+        input: ({ context }) => {
+          return {
+            cycleId: context.id!,
+            startDate: context.startDate!,
+            endDate: context.endDate!,
+          };
+        },
+      },
+      on: {
+        [CycleEvent.PERSIST_SUCCESS]: {
+          target: CycleState.Completed,
+        },
+        [CycleEvent.REPOSITORY_ERROR]: {
+          target: CycleState.InProgress,
+          actions: ['emitRepositoryError'],
+        },
+        [CycleEvent.ERROR]: {
+          target: CycleState.InProgress,
+          actions: ['emitError'],
         },
       },
     },

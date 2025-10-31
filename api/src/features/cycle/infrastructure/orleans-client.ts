@@ -24,7 +24,7 @@ export class OrleansClientError extends Data.TaggedError('OrleansClientError')<{
 }> {}
 
 export class OrleansActorNotFoundError extends Data.TaggedError('OrleansActorNotFoundError')<{
-  actorId: string;
+  userId: string;
   message: string;
 }> {}
 
@@ -41,23 +41,62 @@ const BaseActorStateSchema = {
   historyValue: S.optional(S.Unknown),
 };
 
-const BaseContextSchema = {
+/**
+ * Backward-Compatible Context Schema
+ *
+ * This schema accepts both the legacy `actorId` field and the new `userId` field.
+ * It automatically migrates old data by using `userId` if present, otherwise falling back to `actorId`.
+ * This ensures zero-downtime migration of existing Orleans data.
+ */
+const BackwardCompatibleContextSchema = S.Struct({
   id: S.NullOr(S.String),
-  actorId: S.NullOr(S.String),
+  userId: S.optional(S.NullOr(S.String)),  // New field (optional for backward compatibility)
+  actorId: S.optional(S.NullOr(S.String)), // Legacy field (optional for backward compatibility)
+  startDate: S.Unknown,
+  endDate: S.Unknown,
+}).pipe(
+  S.transform(
+    S.Struct({
+      id: S.NullOr(S.String),
+      userId: S.NullOr(S.String),
+      startDate: S.Unknown,
+      endDate: S.Unknown,
+    }),
+    {
+      decode: (input) => ({
+        id: input.id,
+        // Migration: use userId if present, otherwise fall back to actorId
+        userId: input.userId ?? input.actorId ?? null,
+        startDate: input.startDate,
+        endDate: input.endDate,
+      }),
+      encode: (output) => ({
+        id: output.id,
+        userId: output.userId,  // Always encode with userId (new format)
+        startDate: output.startDate,
+        endDate: output.endDate,
+      }),
+    }
+  )
+);
+
+/**
+ * Context Schema for Writing - Only uses userId (new format)
+ */
+const WriteContextSchema = {
+  id: S.NullOr(S.String),
+  userId: S.NullOr(S.String),
 };
 
 /**
  * Orleans Actor State Schema - For Reading from Orleans
+ * Uses backward-compatible schema to handle both actorId (legacy) and userId (current)
  * Dates come as Unknown since Orleans may return them as Date objects or ISO strings
  * Handler will normalize them to Date objects
  */
 export const OrleansActorStateSchema = S.Struct({
   ...BaseActorStateSchema,
-  context: S.Struct({
-    ...BaseContextSchema,
-    startDate: S.Unknown, // Can be Date object, ISO string, or null
-    endDate: S.Unknown,   // Can be Date object, ISO string, or null
-  }),
+  context: BackwardCompatibleContextSchema,
 });
 
 export type OrleansActorState = S.Schema.Type<typeof OrleansActorStateSchema>;
@@ -66,11 +105,12 @@ export type OrleansActorState = S.Schema.Type<typeof OrleansActorStateSchema>;
  * XState Snapshot Schema - For Writing to Orleans
  * We validate the structure but not the date types since they can be Date objects,
  * ISO strings, or null. JSON.stringify will handle the serialization correctly.
+ * Uses WriteContextSchema to ensure we only write userId (new format)
  */
 const XStateSnapshotSchema = S.Struct({
   ...BaseActorStateSchema,
   context: S.Struct({
-    ...BaseContextSchema,
+    ...WriteContextSchema,
     // We don't validate date types here - just ensure the field exists
     // JSON.stringify will convert Date objects to ISO strings automatically
     startDate: S.Unknown,
@@ -81,15 +121,12 @@ const XStateSnapshotSchema = S.Struct({
 /**
  * XState Snapshot Schema for Service Responses - Flexible Date Handling
  * This schema validates XState snapshots returned from our service methods.
+ * Uses backward-compatible schema to handle both actorId (legacy) and userId (current)
  * Dates can be Date objects or ISO strings, handled flexibly.
  */
 export const XStateServiceSnapshotSchema = S.Struct({
   ...BaseActorStateSchema,
-  context: S.Struct({
-    ...BaseContextSchema,
-    startDate: S.Unknown,
-    endDate: S.Unknown,
-  }),
+  context: BackwardCompatibleContextSchema,
 });
 
 /**
@@ -106,10 +143,10 @@ export const XStateSnapshotWithDatesSchema = XStateServiceSnapshotSchema;
  * Effect program to persist actor state to Orleans
  * This is used by the XState machine to orchestrate persistence
  */
-export const programPersistToOrleans = (actorId: string, state: unknown) =>
+export const programPersistToOrleans = (userId: string, state: unknown) =>
   Effect.gen(function* () {
     const client = yield* OrleansClient;
-    yield* client.persistActor(actorId, state);
+    yield* client.persistActor(userId, state);
   }).pipe(Effect.provide(OrleansClient.Default.pipe(Layer.provide(FetchHttpClient.layer))));
 
 // ============================================================================
@@ -128,11 +165,11 @@ export class OrleansClient extends Effect.Service<OrleansClient>()('OrleansClien
        * Check if an actor exists in Orleans
        * Returns the actor state if found, throws OrleansActorNotFoundError if 404
        */
-      getActor: (actorId: string) =>
+      getActor: (userId: string) =>
         Effect.gen(function* () {
-          yield* Effect.logInfo(`[Orleans Client] GET ${ORLEANS_BASE_URL}/actors/${actorId}`);
+          yield* Effect.logInfo(`[Orleans Client] GET ${ORLEANS_BASE_URL}/actors/${userId}`);
 
-          const request = HttpClientRequest.get(`${ORLEANS_BASE_URL}/actors/${actorId}`);
+          const request = HttpClientRequest.get(`${ORLEANS_BASE_URL}/actors/${userId}`);
 
           const httpResponse = yield* httpClient.execute(request).pipe(
             Effect.tapError((error) =>
@@ -151,11 +188,11 @@ export class OrleansClient extends Effect.Service<OrleansClient>()('OrleansClien
 
           // Check for 404 - actor not found
           if (httpResponse.status === 404) {
-            yield* Effect.logInfo(`[Orleans Client] Actor ${actorId} not found (404)`);
+            yield* Effect.logInfo(`[Orleans Client] Actor ${userId} not found (404)`);
             return yield* Effect.fail(
               new OrleansActorNotFoundError({
-                actorId,
-                message: `Actor ${actorId} not found in Orleans`,
+                userId,
+                message: `Actor ${userId} not found in Orleans`,
               }),
             );
           }
@@ -197,7 +234,7 @@ export class OrleansClient extends Effect.Service<OrleansClient>()('OrleansClien
        * Creates or updates the actor with the given state
        * Validates the XState snapshot structure and serializes dates to ISO strings
        */
-      persistActor: (actorId: string, state: unknown) =>
+      persistActor: (userId: string, state: unknown) =>
         Effect.gen(function* () {
           // Validate XState snapshot structure (with Date objects)
           const validatedSnapshot = yield* S.decodeUnknown(XStateSnapshotSchema)(state).pipe(
@@ -214,14 +251,14 @@ export class OrleansClient extends Effect.Service<OrleansClient>()('OrleansClien
           // JSON.stringify automatically converts Date objects to ISO strings
           const serializedState = JSON.parse(JSON.stringify(validatedSnapshot));
 
-          yield* Effect.logInfo(`POST ${ORLEANS_BASE_URL}/actors/${actorId}`).pipe(
+          yield* Effect.logInfo(`POST ${ORLEANS_BASE_URL}/actors/${userId}`).pipe(
             Effect.annotateLogs({
               requestBody: JSON.stringify(serializedState),
-              actorId,
+              userId,
             }),
           );
 
-          const request = yield* HttpClientRequest.post(`${ORLEANS_BASE_URL}/actors/${actorId}`).pipe(
+          const request = yield* HttpClientRequest.post(`${ORLEANS_BASE_URL}/actors/${userId}`).pipe(
             HttpClientRequest.bodyJson(serializedState),
           );
 
@@ -230,7 +267,7 @@ export class OrleansClient extends Effect.Service<OrleansClient>()('OrleansClien
               Effect.logError('Connection error').pipe(
                 Effect.annotateLogs({
                   error: String(error),
-                  actorId,
+                  userId,
                 }),
               ),
             ),
@@ -248,7 +285,7 @@ export class OrleansClient extends Effect.Service<OrleansClient>()('OrleansClien
           // Check for success status codes
           if (httpResponse.status !== 200 && httpResponse.status !== 201) {
             yield* Effect.logError(`Failed to persist: HTTP ${httpResponse.status}`).pipe(
-              Effect.annotateLogs({ actorId }),
+              Effect.annotateLogs({ userId }),
             );
 
             return yield* Effect.fail(
@@ -259,7 +296,7 @@ export class OrleansClient extends Effect.Service<OrleansClient>()('OrleansClien
             );
           }
 
-          yield* Effect.logInfo(`✅ Actor state persisted to Orleans`).pipe(Effect.annotateLogs({ actorId }));
+          yield* Effect.logInfo(`✅ Actor state persisted to Orleans`).pipe(Effect.annotateLogs({ userId }));
         }),
     };
   }),

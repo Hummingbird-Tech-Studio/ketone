@@ -22,7 +22,8 @@ export class CycleRepository extends Effect.Service<CycleRepository>()('CycleRep
           const [result] = yield* drizzle
             .insert(cyclesTable)
             .values({
-              actorId: data.actorId,
+              userId: data.userId,
+              status: data.status,
               startDate: data.startDate, // Already Date object from actor
               endDate: data.endDate, // Already Date object from actor
             })
@@ -49,19 +50,77 @@ export class CycleRepository extends Effect.Service<CycleRepository>()('CycleRep
         }),
 
       /**
-       * Delete cycles for a specific actor ID
+       * Update the status of a cycle
+       */
+      updateCycleStatus: (cycleId: string, status: 'InProgress' | 'Completed', startDate: Date, endDate: Date) =>
+        Effect.gen(function* () {
+          const [result] = yield* drizzle
+            .update(cyclesTable)
+            .set({ status, startDate, endDate })
+            .where(eq(cyclesTable.id, cycleId))
+            .returning()
+            .pipe(
+              Effect.tapError((error) => Effect.logError('❌ Database error in updateCycleStatus', error)),
+              Effect.mapError((error) => {
+                return new CycleRepositoryError({
+                  message: 'Failed to update cycle status in database',
+                  cause: error,
+                });
+              }),
+            );
+
+          return yield* S.decodeUnknown(CycleRecordSchema)(result).pipe(
+            Effect.mapError(
+              (error) =>
+                new CycleRepositoryError({
+                  message: 'Failed to validate cycle record from database',
+                  cause: error,
+                }),
+            ),
+          );
+        }),
+      updateCycleDates: (cycleId: string, startDate: Date, endDate: Date) =>
+        Effect.gen(function* () {
+          const [result] = yield* drizzle
+            .update(cyclesTable)
+            .set({ startDate, endDate })
+            .where(eq(cyclesTable.id, cycleId))
+            .returning()
+            .pipe(
+              Effect.tapError((error) => Effect.logError('❌ Database error in updateCycleDates', error)),
+              Effect.mapError((error) => {
+                return new CycleRepositoryError({
+                  message: 'Failed to update cycle dates in database',
+                  cause: error,
+                });
+              }),
+            );
+
+          return yield* S.decodeUnknown(CycleRecordSchema)(result).pipe(
+            Effect.mapError(
+              (error) =>
+                new CycleRepositoryError({
+                  message: 'Failed to validate cycle record from database',
+                  cause: error,
+                }),
+            ),
+          );
+        }),
+
+      /**
+       * Delete cycles for a specific user ID
        * Used for test cleanup - only deletes cycles for explicitly tracked test users
        */
-      deleteCyclesByActorId: (actorId: string) =>
+      deleteCyclesByUserId: (userId: string) =>
         Effect.gen(function* () {
           return yield* drizzle
             .delete(cyclesTable)
-            .where(eq(cyclesTable.actorId, actorId))
+            .where(eq(cyclesTable.userId, userId))
             .pipe(
-              Effect.tapError((error) => Effect.logError(`❌ Failed to delete cycles for ${actorId}`, error)),
+              Effect.tapError((error) => Effect.logError(`❌ Failed to delete cycles for ${userId}`, error)),
               Effect.mapError((error) => {
                 return new CycleRepositoryError({
-                  message: `Failed to delete cycles for actor ${actorId}`,
+                  message: `Failed to delete cycles for user ${userId}`,
                   cause: error,
                 });
               }),
@@ -75,14 +134,32 @@ export class CycleRepository extends Effect.Service<CycleRepository>()('CycleRep
 /**
  * Effect program to create a cycle
  */
-export const programCreateCycle = (data: { actorId: string; startDate: Date; endDate: Date }) =>
+export const programCreateCycle = (data: { userId: string; status: 'InProgress' | 'Completed'; startDate: Date; endDate: Date }) =>
   Effect.gen(function* () {
     const repository = yield* CycleRepository;
     return yield* repository.createCycle(data);
   }).pipe(Effect.provide(CycleRepository.Default.pipe(Layer.provide(DatabaseLive))));
 
 /**
- * Bridge an Effect’s success/error channels to UI callbacks.
+ * Effect program to update a cycle status
+ */
+export const programUpdateCycleStatus = (cycleId: string, status: 'InProgress' | 'Completed', startDate: Date, endDate: Date) =>
+  Effect.gen(function* () {
+    const repository = yield* CycleRepository;
+    return yield* repository.updateCycleStatus(cycleId, status, startDate, endDate);
+  }).pipe(Effect.provide(CycleRepository.Default.pipe(Layer.provide(DatabaseLive))));
+
+/**
+ * Effect program to update cycle dates
+ */
+export const programUpdateCycleDates = (cycleId: string, startDate: Date, endDate: Date) =>
+  Effect.gen(function* () {
+    const repository = yield* CycleRepository;
+    return yield* repository.updateCycleDates(cycleId, startDate, endDate);
+  }).pipe(Effect.provide(CycleRepository.Default.pipe(Layer.provide(DatabaseLive))));
+
+/**
+ * Bridge an Effect's success/error channels to UI callbacks.
  *
  * Generic over:
  *   • A – success value

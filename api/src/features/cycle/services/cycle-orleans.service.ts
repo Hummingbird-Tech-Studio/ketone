@@ -14,6 +14,8 @@ import {
 import { OrleansClient } from '../infrastructure';
 import { OrleansClientError } from '../infrastructure';
 import { CycleRepositoryError } from '../repositories';
+import { EventBroadcaster } from '../../../infrastructure/websocket';
+import type { CycleEventPayload } from '../../../infrastructure/websocket';
 
 type CycleActorSnapshot = Snapshot<unknown>;
 
@@ -62,6 +64,26 @@ const validateCycleIdMatch = (
 export class CycleOrleansService extends Effect.Service<CycleOrleansService>()('CycleOrleansService', {
   effect: Effect.gen(function* () {
     const orleansClient = yield* OrleansClient;
+    const eventBroadcaster = yield* EventBroadcaster;
+
+    /**
+     * Convierte un snapshot de XState a un payload de evento de ciclo
+     */
+    const snapshotToCyclePayload = (userId: string, snapshot: any): CycleEventPayload => {
+      const context = snapshot.context || {};
+      return {
+        userId,
+        state: String(snapshot.value || snapshot.status),
+        cycle: {
+          id: context.id || '',
+          startDate: context.startDate ? new Date(context.startDate).toISOString() : '',
+          endDate: context.endDate ? new Date(context.endDate).toISOString() : '',
+          status: String(snapshot.value || snapshot.status),
+          createdAt: context.createdAt ? new Date(context.createdAt).toISOString() : undefined,
+          completedAt: context.completedAt ? new Date(context.completedAt).toISOString() : null,
+        },
+      };
+    };
 
     const handlePersistState =
       (actorId: string, machine: ReturnType<typeof createActor>, persistConfirmQueue: Queue.Queue<CycleState>) =>
@@ -72,6 +94,24 @@ export class CycleOrleansService extends Effect.Service<CycleOrleansService>()('
           const snapshot = machine.getPersistedSnapshot();
           yield* orleansClient.persistActor(actorId, snapshot);
           yield* Effect.logInfo(`[Orleans Service] ✅ State persisted successfully`);
+
+          // Broadcast event to WebSocket clients based on state
+          const payload = snapshotToCyclePayload(actorId, snapshot);
+
+          if (emit.state === CycleState.InProgress) {
+            // Cycle was just created
+            yield* eventBroadcaster.broadcastCycleEvent(actorId, 'cycle:created', payload);
+            yield* Effect.logInfo(`[Orleans Service] 📡 Broadcasted cycle:created event`);
+          } else if (emit.state === CycleState.Completed) {
+            // Cycle was completed
+            yield* eventBroadcaster.broadcastCycleEvent(actorId, 'cycle:completed', payload);
+            yield* Effect.logInfo(`[Orleans Service] 📡 Broadcasted cycle:completed event`);
+          } else {
+            // Cycle was updated (dates changed, etc.)
+            yield* eventBroadcaster.broadcastCycleEvent(actorId, 'cycle:updated', payload);
+            yield* Effect.logInfo(`[Orleans Service] 📡 Broadcasted cycle:updated event`);
+          }
+
           // Confirm persistence completed
           yield* Queue.offer(persistConfirmQueue, emit.state);
         });

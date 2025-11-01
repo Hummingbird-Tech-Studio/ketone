@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Real-time Sync Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            font-weight: 500;
+        }
+        .status.connected {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.disconnected {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .status.connecting {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        input, button {
+            padding: 10px;
+            font-size: 14px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin: 5px 0;
+        }
+        input {
+            width: 100%;
+            box-sizing: border-box;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+            min-width: 120px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+        .events {
+            max-height: 400px;
+            overflow-y: auto;
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 15px;
+        }
+        .event {
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            border-left: 4px solid #007bff;
+            background-color: white;
+        }
+        .event.cycle-created {
+            border-left-color: #28a745;
+        }
+        .event.cycle-updated {
+            border-left-color: #ffc107;
+        }
+        .event.cycle-completed {
+            border-left-color: #dc3545;
+        }
+        .event-type {
+            font-weight: bold;
+            color: #007bff;
+        }
+        .event-time {
+            color: #6c757d;
+            font-size: 12px;
+        }
+        .event-payload {
+            margin-top: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            background-color: #f8f9fa;
+            padding: 8px;
+            border-radius: 3px;
+        }
+        .actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .actions button {
+            flex: 1;
+        }
+        label {
+            display: block;
+            margin-top: 10px;
+            font-weight: 500;
+            color: #555;
+        }
+        .info {
+            background-color: #e7f3ff;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            border-left: 4px solid #007bff;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔄 WebSocket Real-time Sync Test</h1>
+
+    <div class="info">
+        <strong>Instrucciones:</strong>
+        <ol>
+            <li>Primero haz login en la API para obtener un JWT token</li>
+            <li>Pega el token en el campo de abajo</li>
+            <li>Haz click en "Connect WebSocket"</li>
+            <li>Abre esta página en múltiples pestañas/ventanas</li>
+            <li>Crea, actualiza o completa un ciclo desde cualquier ventana</li>
+            <li>Observa cómo se sincronizan los eventos en todas las ventanas</li>
+        </ol>
+    </div>
+
+    <div class="container">
+        <h2>Conexión WebSocket</h2>
+        <div id="status" class="status disconnected">
+            Desconectado
+        </div>
+
+        <label for="jwtToken">JWT Token:</label>
+        <input
+            type="text"
+            id="jwtToken"
+            placeholder="Pega tu JWT token aquí..."
+            autocomplete="off"
+        />
+
+        <div class="actions">
+            <button id="connectBtn" onclick="connect()">Connect WebSocket</button>
+            <button id="disconnectBtn" onclick="disconnect()" disabled>Disconnect</button>
+            <button onclick="sendPing()" id="pingBtn" disabled>Send Ping</button>
+            <button onclick="clearEvents()">Clear Events</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>Eventos Recibidos</h2>
+        <div id="events" class="events">
+            <p style="color: #6c757d;">Esperando eventos...</p>
+        </div>
+    </div>
+
+    <script>
+        let ws = null;
+        let reconnectAttempts = 0;
+        const maxReconnectAttempts = 5;
+
+        function updateStatus(message, className) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = `status ${className}`;
+        }
+
+        function addEvent(type, payload, timestamp) {
+            const events = document.getElementById('events');
+
+            // Remove placeholder
+            if (events.querySelector('p')) {
+                events.innerHTML = '';
+            }
+
+            const eventDiv = document.createElement('div');
+            eventDiv.className = `event ${type.replace(':', '-')}`;
+
+            eventDiv.innerHTML = `
+                <div class="event-type">${type}</div>
+                <div class="event-time">${new Date(timestamp).toLocaleString()}</div>
+                <div class="event-payload">${JSON.stringify(payload, null, 2)}</div>
+            `;
+
+            events.insertBefore(eventDiv, events.firstChild);
+        }
+
+        function connect() {
+            const token = document.getElementById('jwtToken').value.trim();
+
+            if (!token) {
+                alert('Por favor ingresa un JWT token');
+                return;
+            }
+
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                alert('Ya estás conectado');
+                return;
+            }
+
+            updateStatus('Conectando...', 'connecting');
+
+            // WebSocket runs on port 3001
+            const wsUrl = `ws://localhost:3001?token=${encodeURIComponent(token)}`;
+
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = () => {
+                console.log('WebSocket conectado');
+                updateStatus('Conectado', 'connected');
+                reconnectAttempts = 0;
+
+                document.getElementById('connectBtn').disabled = true;
+                document.getElementById('disconnectBtn').disabled = false;
+                document.getElementById('pingBtn').disabled = false;
+            };
+
+            ws.onmessage = (event) => {
+                console.log('Mensaje recibido:', event.data);
+
+                try {
+                    const message = JSON.parse(event.data);
+
+                    if (message.type === 'pong') {
+                        addEvent('pong', { message: 'Pong received' }, message.timestamp);
+                    } else if (message.type === 'connected') {
+                        addEvent('connected', message.payload, message.timestamp);
+                    } else if (message.type.startsWith('cycle:')) {
+                        addEvent(message.type, message.payload, message.timestamp);
+                    } else {
+                        addEvent(message.type, message.payload || {}, message.timestamp);
+                    }
+                } catch (error) {
+                    console.error('Error parsing message:', error);
+                }
+            };
+
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+                updateStatus('Error en la conexión', 'disconnected');
+            };
+
+            ws.onclose = (event) => {
+                console.log('WebSocket desconectado', event.code, event.reason);
+                updateStatus('Desconectado', 'disconnected');
+
+                document.getElementById('connectBtn').disabled = false;
+                document.getElementById('disconnectBtn').disabled = true;
+                document.getElementById('pingBtn').disabled = true;
+
+                // Auto-reconnect if not intentional disconnect
+                if (event.code !== 1000 && reconnectAttempts < maxReconnectAttempts) {
+                    reconnectAttempts++;
+                    const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000);
+                    console.log(`Reconnecting in ${delay}ms (attempt ${reconnectAttempts}/${maxReconnectAttempts})...`);
+                    setTimeout(() => connect(), delay);
+                }
+            };
+        }
+
+        function disconnect() {
+            if (ws) {
+                ws.close(1000, 'Client disconnect');
+                ws = null;
+            }
+        }
+
+        function sendPing() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                const message = { type: 'ping' };
+                ws.send(JSON.stringify(message));
+                console.log('Ping sent');
+            } else {
+                alert('WebSocket no está conectado');
+            }
+        }
+
+        function clearEvents() {
+            const events = document.getElementById('events');
+            events.innerHTML = '<p style="color: #6c757d;">Esperando eventos...</p>';
+        }
+
+        // Auto-connect if token is in localStorage
+        window.addEventListener('load', () => {
+            const savedToken = localStorage.getItem('jwtToken');
+            if (savedToken) {
+                document.getElementById('jwtToken').value = savedToken;
+            }
+        });
+
+        // Save token to localStorage when changed
+        document.getElementById('jwtToken').addEventListener('change', (e) => {
+            localStorage.setItem('jwtToken', e.target.value);
+        });
+
+        // Clean up on page unload
+        window.addEventListener('beforeunload', () => {
+            if (ws) {
+                ws.close();
+            }
+        });
+    </script>
+</body>
+</html>

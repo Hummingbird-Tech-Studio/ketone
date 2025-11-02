@@ -26,6 +26,20 @@ public static class OrleansExtensions
                 options.Invariant = "Npgsql";
                 options.ConnectionString = connectionString;
             });
+
+            // Configure CycleGrain storage (one grain per cycle)
+            siloBuilder.AddAdoNetGrainStorage("cycleStore", options =>
+            {
+                options.Invariant = "Npgsql";
+                options.ConnectionString = connectionString;
+            });
+
+            // Configure UserCycleIndexGrain storage (one grain per user - coordinates cycles)
+            siloBuilder.AddAdoNetGrainStorage("cycleIndexStore", options =>
+            {
+                options.Invariant = "Npgsql";
+                options.ConnectionString = connectionString;
+            });
         });
 
         return builder;

@@ -3,6 +3,7 @@ import { Schema as S } from 'effect';
 export const CycleStatusSchema = S.Literal('InProgress', 'Completed');
 
 const CycleDataSchema = S.Struct({
+  id: S.optional(S.String), // Optional explicit ID (for grain correlation)
   userId: S.String,
   status: CycleStatusSchema,
   startDate: S.DateFromSelf, // DB returns Date objects, not strings

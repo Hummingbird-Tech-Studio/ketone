@@ -190,5 +190,239 @@ app.MapPost("/user-auth/{userId}/validate-token", async (string userId, long tok
 })
 .WithName("ValidateToken");
 
+// ============================================================================
+// CYCLE GRAIN ENDPOINTS (Multi-Cycle Architecture)
+// ============================================================================
+
+// POST /users/{userId}/cycles/start - Try to start a new cycle
+app.MapPost("/users/{userId}/cycles/start", async (
+    string userId,
+    HttpContext context,
+    IGrainFactory grainFactory,
+    ILoggerFactory loggerFactory) =>
+{
+    var logger = loggerFactory.CreateLogger("Orleans.Sidecar.CycleEndpoint");
+    logger.LogInformation("[POST /users/{UserId}/cycles/start] Incoming request", userId);
+
+    try
+    {
+        // Parse request body
+        var request = await context.Request.ReadFromJsonAsync<StartCycleRequest>();
+        if (request == null)
+        {
+            return Results.BadRequest(new { error = "Invalid request body" });
+        }
+
+        // Get index grain and try to start new cycle
+        var indexGrain = grainFactory.GetGrain<IUserCycleIndexGrain>(Guid.Parse(userId));
+        var canStart = await indexGrain.TryStartNewCycle(request.CycleId, request.StartDate, request.EndDate);
+
+        if (!canStart)
+        {
+            logger.LogWarning("[POST /users/{UserId}/cycles/start] User already has active cycle", userId);
+            return Results.Conflict(new { error = "User already has an active cycle", userId });
+        }
+
+        // Initialize the cycle grain
+        var cycleGrain = grainFactory.GetGrain<ICycleGrain>(request.CycleId);
+        await cycleGrain.Initialize(userId, request.StartDate, request.EndDate);
+
+        logger.LogInformation("[POST /users/{UserId}/cycles/start] Cycle {CycleId} started successfully", userId, request.CycleId);
+        return Results.Ok(new { cycleId = request.CycleId, userId, status = "started" });
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "[POST /users/{UserId}/cycles/start] Error", userId);
+        return Results.BadRequest(new { error = ex.Message });
+    }
+})
+.WithName("StartCycle");
+
+// GET /users/{userId}/cycles/active - Get active cycle ID
+app.MapGet("/users/{userId}/cycles/active", async (string userId, IGrainFactory grainFactory, ILoggerFactory loggerFactory) =>
+{
+    var logger = loggerFactory.CreateLogger("Orleans.Sidecar.CycleEndpoint");
+    logger.LogInformation("[GET /users/{UserId}/cycles/active] Incoming request", userId);
+
+    try
+    {
+        var indexGrain = grainFactory.GetGrain<IUserCycleIndexGrain>(Guid.Parse(userId));
+        var activeCycleId = await indexGrain.GetActiveCycleId();
+
+        if (!activeCycleId.HasValue)
+        {
+            logger.LogInformation("[GET /users/{UserId}/cycles/active] No active cycle found", userId);
+            return Results.NotFound(new { message = "No active cycle", userId });
+        }
+
+        logger.LogInformation("[GET /users/{UserId}/cycles/active] Active cycle: {CycleId}", userId, activeCycleId.Value);
+        return Results.Ok(new { cycleId = activeCycleId.Value, userId });
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "[GET /users/{UserId}/cycles/active] Error", userId);
+        return Results.BadRequest(new { error = ex.Message });
+    }
+})
+.WithName("GetActiveCycle");
+
+// GET /cycles/{cycleId} - Get cycle snapshot
+app.MapGet("/cycles/{cycleId}", async (string cycleId, IGrainFactory grainFactory, ILoggerFactory loggerFactory) =>
+{
+    var logger = loggerFactory.CreateLogger("Orleans.Sidecar.CycleEndpoint");
+    logger.LogInformation("[GET /cycles/{CycleId}] Incoming request", cycleId);
+
+    try
+    {
+        var cycleGrain = grainFactory.GetGrain<ICycleGrain>(Guid.Parse(cycleId));
+        var snapshotJson = await cycleGrain.GetStateJson();
+
+        if (snapshotJson == null)
+        {
+            logger.LogInformation("[GET /cycles/{CycleId}] Cycle not found", cycleId);
+            return Results.NotFound(new { message = "Cycle not found", cycleId });
+        }
+
+        logger.LogInformation("[GET /cycles/{CycleId}] Returning cycle snapshot", cycleId);
+        return Results.Content(snapshotJson, "application/json");
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "[GET /cycles/{CycleId}] Error", cycleId);
+        return Results.BadRequest(new { error = ex.Message });
+    }
+})
+.WithName("GetCycleSnapshot");
+
+// POST /cycles/{cycleId} - Update cycle snapshot
+app.MapPost("/cycles/{cycleId}", async (string cycleId, HttpContext context, IGrainFactory grainFactory, ILoggerFactory loggerFactory) =>
+{
+    var logger = loggerFactory.CreateLogger("Orleans.Sidecar.CycleEndpoint");
+    logger.LogInformation("[POST /cycles/{CycleId}] Incoming request to update snapshot", cycleId);
+
+    try
+    {
+        // Read raw JSON body
+        using var reader = new StreamReader(context.Request.Body);
+        var snapshotJson = await reader.ReadToEndAsync();
+
+        logger.LogInformation("[POST /cycles/{CycleId}] Received snapshot (length: {Length})", cycleId, snapshotJson.Length);
+
+        // Validate JSON
+        var jsonDoc = JsonDocument.Parse(snapshotJson);
+        logger.LogInformation("[POST /cycles/{CycleId}] JSON is valid", cycleId);
+
+        // Update grain
+        var cycleGrain = grainFactory.GetGrain<ICycleGrain>(Guid.Parse(cycleId));
+        var savedJson = await cycleGrain.UpdateStateJson(snapshotJson);
+
+        logger.LogInformation("[POST /cycles/{CycleId}] Snapshot updated successfully", cycleId);
+        return Results.Content(savedJson, "application/json");
+    }
+    catch (JsonException ex)
+    {
+        logger.LogError(ex, "[POST /cycles/{CycleId}] Invalid JSON", cycleId);
+        return Results.BadRequest(new { error = "Invalid JSON in request body" });
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "[POST /cycles/{CycleId}] Error", cycleId);
+        return Results.BadRequest(new { error = ex.Message });
+    }
+})
+.WithName("UpdateCycleSnapshot");
+
+// PATCH /cycles/{cycleId}/metadata - Update cycle metadata
+app.MapPatch("/cycles/{cycleId}/metadata", async (
+    string cycleId,
+    HttpContext context,
+    IGrainFactory grainFactory,
+    ILoggerFactory loggerFactory) =>
+{
+    var logger = loggerFactory.CreateLogger("Orleans.Sidecar.CycleEndpoint");
+    logger.LogInformation("[PATCH /cycles/{CycleId}/metadata] Incoming request", cycleId);
+
+    try
+    {
+        var request = await context.Request.ReadFromJsonAsync<UpdateMetadataRequest>();
+        if (request == null)
+        {
+            return Results.BadRequest(new { error = "Invalid request body" });
+        }
+
+        var cycleGrain = grainFactory.GetGrain<ICycleGrain>(Guid.Parse(cycleId));
+        await cycleGrain.UpdateMetadata(request.StartDate, request.EndDate, request.Status);
+
+        logger.LogInformation("[PATCH /cycles/{CycleId}/metadata] Metadata updated", cycleId);
+        return Results.Ok(new { cycleId, status = "updated" });
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "[PATCH /cycles/{CycleId}/metadata] Error", cycleId);
+        return Results.BadRequest(new { error = ex.Message });
+    }
+})
+.WithName("UpdateCycleMetadata");
+
+// POST /cycles/{cycleId}/complete - Mark cycle as completed
+app.MapPost("/cycles/{cycleId}/complete", async (string cycleId, IGrainFactory grainFactory, ILoggerFactory loggerFactory) =>
+{
+    var logger = loggerFactory.CreateLogger("Orleans.Sidecar.CycleEndpoint");
+    logger.LogInformation("[POST /cycles/{CycleId}/complete] Incoming request", cycleId);
+
+    try
+    {
+        var cycleGrain = grainFactory.GetGrain<ICycleGrain>(Guid.Parse(cycleId));
+        var metadata = await cycleGrain.GetMetadata();
+
+        if (metadata == null)
+        {
+            return Results.NotFound(new { message = "Cycle not found", cycleId });
+        }
+
+        // Update cycle status to Completed
+        await cycleGrain.UpdateMetadata(metadata.StartDate, metadata.EndDate, "Completed");
+
+        // Update index grain
+        var indexGrain = grainFactory.GetGrain<IUserCycleIndexGrain>(Guid.Parse(metadata.UserId));
+        await indexGrain.MarkCycleComplete(Guid.Parse(cycleId));
+
+        logger.LogInformation("[POST /cycles/{CycleId}/complete] Cycle marked as completed", cycleId);
+        return Results.Ok(new { cycleId, status = "completed" });
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "[POST /cycles/{CycleId}/complete] Error", cycleId);
+        return Results.BadRequest(new { error = ex.Message });
+    }
+})
+.WithName("CompleteCycle");
+
+// GET /users/{userId}/cycles/recent - Get recent cycle IDs
+app.MapGet("/users/{userId}/cycles/recent", async (string userId, int? limit, IGrainFactory grainFactory, ILoggerFactory loggerFactory) =>
+{
+    var logger = loggerFactory.CreateLogger("Orleans.Sidecar.CycleEndpoint");
+    logger.LogInformation("[GET /users/{UserId}/cycles/recent] Incoming request. Limit: {Limit}", userId, limit);
+
+    try
+    {
+        var indexGrain = grainFactory.GetGrain<IUserCycleIndexGrain>(Guid.Parse(userId));
+        var cycleIds = await indexGrain.GetRecentCycleIds(limit ?? 10);
+
+        logger.LogInformation("[GET /users/{UserId}/cycles/recent] Returning {Count} cycle IDs", userId, cycleIds.Count);
+        return Results.Ok(new { userId, cycles = cycleIds });
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "[GET /users/{UserId}/cycles/recent] Error", userId);
+        return Results.BadRequest(new { error = ex.Message });
+    }
+})
+.WithName("GetRecentCycles");
+
 app.Run();
+
+// Request/Response DTOs
+public record StartCycleRequest(Guid CycleId, DateTime StartDate, DateTime EndDate);
+public record UpdateMetadataRequest(DateTime StartDate, DateTime EndDate, string Status);
 

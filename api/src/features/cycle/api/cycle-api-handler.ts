@@ -2,11 +2,10 @@ import { HttpApiBuilder } from '@effect/platform';
 import { Effect, Schema as S } from 'effect';
 import { Api } from '../../../api';
 import { XStateSnapshotWithDatesSchema, OrleansActorStateSchema } from '../infrastructure/orleans-client';
-import { CycleOrleansService } from '../services/cycle-orleans.service';
+import { CycleGrainService } from '../services/cycle-grain.service';
 import { ensureDate } from '../utils/date-helpers';
 import {
   CycleActorErrorSchema,
-  CycleRepositoryErrorSchema,
   OrleansClientErrorSchema,
   CycleAlreadyInProgressErrorSchema,
   CycleIdMismatchErrorSchema,
@@ -20,7 +19,7 @@ import { CurrentUser } from '../../auth/api/middleware';
 
 export const CycleApiLive = HttpApiBuilder.group(Api, 'cycle', (handlers) =>
   Effect.gen(function* () {
-    const orleansService = yield* CycleOrleansService;
+    const cycleService = yield* CycleGrainService;
 
     return handlers
       .handle('createCycleOrleans', ({ payload }) =>
@@ -34,39 +33,21 @@ export const CycleApiLive = HttpApiBuilder.group(Api, 'cycle', (handlers) =>
           const startDate = payload.startDate;
           const endDate = payload.endDate;
 
-          yield* Effect.logInfo(`[Handler] Calling Orleans service to create cycle`);
+          yield* Effect.logInfo(`[Handler] Calling Cycle Grain service to create cycle`);
 
-          const actorState = yield* orleansService.createCycleWithOrleans(userId, startDate, endDate).pipe(
-            Effect.tapError((error) => Effect.logError(`[Handler] Error creating cycle: ${error.message}`)),
-            Effect.catchTags({
-              CycleActorError: (error) =>
-                Effect.fail(
-                  new CycleActorErrorSchema({
-                    message: error.message,
-                    cause: error.cause,
-                  }),
-                ),
-              CycleRepositoryError: (error) =>
-                Effect.fail(
-                  new CycleRepositoryErrorSchema({
-                    message: error.message,
-                    cause: error.cause,
-                  }),
-                ),
-              OrleansClientError: (error) =>
-                Effect.fail(
-                  new OrleansClientErrorSchema({
-                    message: error.message,
-                    cause: error.cause,
-                  }),
-                ),
-              CycleAlreadyInProgressError: (error) =>
-                Effect.fail(
-                  new CycleAlreadyInProgressErrorSchema({
-                    message: error.message,
-                    userId: userId,
-                  }),
-                ),
+          const actorState = yield* cycleService.createCycle(userId, startDate, endDate).pipe(
+            Effect.mapError((error) => {
+              if (error._tag === 'CycleActorError') {
+                return new CycleActorErrorSchema({ message: error.message, cause: error.cause });
+              }
+              if (error._tag === 'OrleansClientError') {
+                return new OrleansClientErrorSchema({ message: error.message, cause: error.cause });
+              }
+              if (error._tag === 'CycleAlreadyInProgressError') {
+                return new CycleAlreadyInProgressErrorSchema({ message: error.message, userId });
+              }
+              // Handle unexpected errors (including HttpBodyError)
+              return new CycleActorErrorSchema({ message: 'Unexpected error', cause: error });
             }),
           );
 
@@ -105,15 +86,17 @@ export const CycleApiLive = HttpApiBuilder.group(Api, 'cycle', (handlers) =>
 
           yield* Effect.logInfo(`[Handler] GET /cycle - Request received for user ${userId}`);
 
-          const actorState = yield* orleansService.getCycleStateFromOrleans(userId).pipe(
-            Effect.catchTag('CycleActorError', (error) =>
-              Effect.fail(
-                new CycleActorErrorSchema({
-                  message: error.message,
-                  cause: error.cause,
-                }),
-              ),
-            ),
+          const actorState = yield* cycleService.getCycleState(userId).pipe(
+            Effect.mapError((error) => {
+              if (error._tag === 'CycleActorError') {
+                return new CycleActorErrorSchema({ message: error.message, cause: error.cause });
+              }
+              if (error._tag === 'OrleansClientError') {
+                return new OrleansClientErrorSchema({ message: error.message, cause: error.cause });
+              }
+              // Handle unexpected errors
+              return new CycleActorErrorSchema({ message: 'Unexpected error', cause: error });
+            }),
           );
 
           const snapshot = yield* S.decodeUnknown(OrleansActorStateSchema)(actorState).pipe(
@@ -149,47 +132,32 @@ export const CycleApiLive = HttpApiBuilder.group(Api, 'cycle', (handlers) =>
           const startDate = payload.startDate;
           const endDate = payload.endDate;
 
-          yield* Effect.logInfo(`[Handler] Calling Orleans service to update cycle dates ${cycleId}`);
+          yield* Effect.logInfo(`[Handler] Calling Cycle Grain service to update cycle dates ${cycleId}`);
 
-          const actorState = yield* orleansService.updateCycleDatesInOrleans(userId, cycleId, startDate, endDate).pipe(
-            Effect.catchTags({
-              CycleActorError: (error) =>
-                Effect.fail(
-                  new CycleActorErrorSchema({
-                    message: error.message,
-                    cause: error.cause,
-                  }),
-                ),
-              CycleRepositoryError: (error) =>
-                Effect.fail(
-                  new CycleRepositoryErrorSchema({
-                    message: error.message,
-                    cause: error.cause,
-                  }),
-                ),
-              CycleIdMismatchError: (error) =>
-                Effect.fail(
-                  new CycleIdMismatchErrorSchema({
-                    message: error.message,
-                    requestedCycleId: error.requestedCycleId,
-                    activeCycleId: error.activeCycleId,
-                  }),
-                ),
-              CycleInvalidStateError: (error) =>
-                Effect.fail(
-                  new CycleInvalidStateErrorSchema({
-                    message: error.message,
-                    currentState: error.currentState,
-                    expectedState: error.expectedState,
-                  }),
-                ),
-              OrleansClientError: (error) =>
-                Effect.fail(
-                  new OrleansClientErrorSchema({
-                    message: error.message,
-                    cause: error.cause,
-                  }),
-                ),
+          const actorState = yield* cycleService.updateCycleDates(userId, cycleId, startDate, endDate).pipe(
+            Effect.mapError((error) => {
+              if (error._tag === 'CycleActorError') {
+                return new CycleActorErrorSchema({ message: error.message, cause: error.cause });
+              }
+              if (error._tag === 'OrleansClientError') {
+                return new OrleansClientErrorSchema({ message: error.message, cause: error.cause });
+              }
+              if (error._tag === 'CycleIdMismatchError') {
+                return new CycleIdMismatchErrorSchema({
+                  message: error.message,
+                  requestedCycleId: error.requestedCycleId,
+                  activeCycleId: error.activeCycleId,
+                });
+              }
+              if (error._tag === 'CycleInvalidStateError') {
+                return new CycleInvalidStateErrorSchema({
+                  message: error.message,
+                  currentState: error.currentState,
+                  expectedState: error.expectedState,
+                });
+              }
+              // Handle unexpected errors
+              return new CycleActorErrorSchema({ message: 'Unexpected error', cause: error });
             }),
           );
 
@@ -233,39 +201,25 @@ export const CycleApiLive = HttpApiBuilder.group(Api, 'cycle', (handlers) =>
           const startDate = payload.startDate;
           const endDate = payload.endDate;
 
-          yield* Effect.logInfo(`[Handler] Calling Orleans service to complete cycle ${cycleId}`);
+          yield* Effect.logInfo(`[Handler] Calling Cycle Grain service to complete cycle ${cycleId}`);
 
-          const actorState = yield* orleansService.updateCycleStateInOrleans(userId, cycleId, startDate, endDate).pipe(
-            Effect.catchTags({
-              CycleActorError: (error) =>
-                Effect.fail(
-                  new CycleActorErrorSchema({
-                    message: error.message,
-                    cause: error.cause,
-                  }),
-                ),
-              CycleRepositoryError: (error) =>
-                Effect.fail(
-                  new CycleRepositoryErrorSchema({
-                    message: error.message,
-                    cause: error.cause,
-                  }),
-                ),
-              CycleIdMismatchError: (error) =>
-                Effect.fail(
-                  new CycleIdMismatchErrorSchema({
-                    message: error.message,
-                    requestedCycleId: error.requestedCycleId,
-                    activeCycleId: error.activeCycleId,
-                  }),
-                ),
-              OrleansClientError: (error) =>
-                Effect.fail(
-                  new OrleansClientErrorSchema({
-                    message: error.message,
-                    cause: error.cause,
-                  }),
-                ),
+          const actorState = yield* cycleService.completeCycle(userId, cycleId, startDate, endDate).pipe(
+            Effect.mapError((error) => {
+              if (error._tag === 'CycleActorError') {
+                return new CycleActorErrorSchema({ message: error.message, cause: error.cause });
+              }
+              if (error._tag === 'OrleansClientError') {
+                return new OrleansClientErrorSchema({ message: error.message, cause: error.cause });
+              }
+              if (error._tag === 'CycleIdMismatchError') {
+                return new CycleIdMismatchErrorSchema({
+                  message: error.message,
+                  requestedCycleId: error.requestedCycleId,
+                  activeCycleId: error.activeCycleId,
+                });
+              }
+              // Handle unexpected errors
+              return new CycleActorErrorSchema({ message: 'Unexpected error', cause: error });
             }),
           );
 

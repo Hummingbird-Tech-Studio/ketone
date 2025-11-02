@@ -15,6 +15,7 @@ export class CycleRepository extends Effect.Service<CycleRepository>()('CycleRep
           const [result] = yield* drizzle
             .insert(cyclesTable)
             .values({
+              ...(data.id ? { id: data.id } : {}), // Use explicit ID if provided (for grain correlation)
               userId: data.userId,
               status: data.status,
               startDate: data.startDate, // Already Date object from actor

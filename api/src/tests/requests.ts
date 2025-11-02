@@ -5,11 +5,13 @@ const makeRequest = (index: number) =>
   Effect.gen(function* () {
     const cycleId = crypto.randomUUID();
     const userId = crypto.randomUUID();
+    const token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI0YTFkYTcyYy1hM2FjLTRhYjgtOTRkNS03ZTJhOTdjZTFkMDEiLCJlbWFpbCI6ImFuZHJlcy5wZXJlemNvcm9uYTgxQGdtYWlsLmNvbSIsInBhc3N3b3JkQ2hhbmdlZEF0IjoxNzYxNzYyMjc0LCJpYXQiOjE3NjE5NDg5NzcsImV4cCI6MTc2MjU1Mzc3N30.Itd-o7dAMUu6CCJlDJptQCB71Yt_P0yilBDi08BXXaY';
     console.log('userId', userId);
     //const url = `http://localhost:3000/cycle/${cycleId}`;
     //const url = `http://localhost:3000/cycle/memory/${cycleId}`;
     //const url = `http://localhost:5174/cycle/${cycleId}`;
-    const url = `http://localhost:3000/cycle/orleans/${cycleId}`;
+    //const url = `http://localhost:3000/cycle/orleans/${cycleId}`;
+    const url = `http://localhost:3000/v2/cycle`;
     const body = {
       startDate: '2025-10-13T08:00:00Z',
       endDate: '2025-10-14T08:00:00Z',
@@ -26,6 +28,7 @@ const makeRequest = (index: number) =>
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify(body),
         }),

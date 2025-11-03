@@ -91,50 +91,37 @@ export class CycleRepository extends Effect.Service<CycleRepository>()('CycleRep
             .pipe(
               Effect.tapError((error) => Effect.logError('❌ Database error in createCycle', error)),
               Effect.mapError((error) => {
-                // Helper function to check if an object is a constraint violation
-                const isConstraintViolation = (err: any): boolean => {
+                // Check for PostgreSQL unique constraint violation (error code 23505)
+                // Similar pattern to UserRepository - check error directly first
+                const checkConstraintViolation = (err: any): boolean => {
                   return (
                     typeof err === 'object' &&
                     err !== null &&
                     'code' in err &&
-                    err.code === '23505' &&
-                    'constraint' in err &&
-                    err.constraint === 'idx_cycles_user_active'
+                    err.code === '23505'
                   );
                 };
 
-                // Check direct access paths first (most common with @effect/sql)
-                const errorPaths = [
-                  (error as any)?.cause?.cause?.cause, // Level 3 (most common)
-                  (error as any)?.cause?.cause, // Level 2
-                  (error as any)?.cause, // Level 1
-                  error, // Level 0
-                ];
+                // Check error at top level first (most common)
+                if (checkConstraintViolation(error)) {
+                  return new CycleAlreadyInProgressError({
+                    message: 'User already has a cycle in progress',
+                    userId: data.userId,
+                  });
+                }
 
-                for (const err of errorPaths) {
-                  if (isConstraintViolation(err)) {
+                // Check nested causes (sometimes wrapped by Effect/Drizzle)
+                let currentError: any = error;
+                let depth = 0;
+                while (currentError && depth < 10) {
+                  if (currentError.cause && checkConstraintViolation(currentError.cause)) {
                     return new CycleAlreadyInProgressError({
                       message: 'User already has a cycle in progress',
                       userId: data.userId,
                     });
                   }
-                }
-
-                // Fallback: recursive check for any other nesting
-                const checkRecursive = (err: any, depth = 0): boolean => {
-                  if (depth > 10) return false; // Prevent infinite loops
-                  if (isConstraintViolation(err)) return true;
-                  if (err && typeof err === 'object' && 'cause' in err) {
-                    return checkRecursive(err.cause, depth + 1);
-                  }
-                  return false;
-                };
-
-                if (checkRecursive(error)) {
-                  return new CycleAlreadyInProgressError({
-                    message: 'User already has a cycle in progress',
-                    userId: data.userId,
-                  });
+                  currentError = currentError.cause;
+                  depth++;
                 }
 
                 return new CycleRepositoryError({

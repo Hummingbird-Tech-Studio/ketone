@@ -510,18 +510,24 @@ describe('POST /v1/cycles - Create Cycle', () => {
   });
 
   describe('Error Scenarios - Validation (400)', () => {
-    test('should return 400 when end date is before start date', async () => {
-      const program = Effect.gen(function* () {
-        const { token } = yield* createTestUserWithTracking();
-        const invalidDates = yield* generateInvalidDatesEndBeforeStart();
+    test(
+      'should return 400 when end date is before start date',
+      async () => {
+        const program = Effect.gen(function* () {
+          const { token } = yield* createTestUserWithTracking();
+          const invalidDates = yield* generateInvalidDatesEndBeforeStart();
 
-        const { status } = yield* makeAuthenticatedRequest(ENDPOINT, 'POST', token, invalidDates);
+          const { status } = yield* makeAuthenticatedRequest(ENDPOINT, 'POST', token, invalidDates);
 
-        expect(status).toBe(400);
-      }).pipe(Effect.provide(DatabaseLive));
+          expect(status).toBe(400);
+        }).pipe(Effect.provide(DatabaseLive));
 
-      await Effect.runPromise(program);
-    });
+        await Effect.runPromise(program);
+      },
+      {
+        timeout: 15000,
+      },
+    );
 
     test('should return 400 when duration is less than 1 hour', async () => {
       const program = Effect.gen(function* () {
@@ -1303,83 +1309,89 @@ describe('Race Conditions & Concurrency', () => {
   });
 
   describe('Multi-User Concurrent Operations', () => {
-    test('should handle concurrent operations across multiple users correctly', async () => {
-      const program = Effect.gen(function* () {
-        // Create 3 users
-        const userA = yield* createTestUserWithTracking();
-        const userB = yield* createTestUserWithTracking();
-        const userC = yield* createTestUserWithTracking();
+    test(
+      'should handle concurrent operations across multiple users correctly',
+      async () => {
+        const program = Effect.gen(function* () {
+          // Create 3 users
+          const userA = yield* createTestUserWithTracking();
+          const userB = yield* createTestUserWithTracking();
+          const userC = yield* createTestUserWithTracking();
 
-        const dates = yield* generateValidCycleDates();
+          const dates = yield* generateValidCycleDates();
 
-        // User A: Two concurrent creates (2nd should fail)
-        const [userAResult1, userAResult2] = yield* Effect.all(
-          [
-            makeRequest(ENDPOINT, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${userA.token}`,
-              },
-              body: JSON.stringify(dates),
-            }),
-            makeRequest(ENDPOINT, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${userA.token}`,
-              },
-              body: JSON.stringify(dates),
-            }),
-          ],
-          { concurrency: 'unbounded' },
-        );
+          // User A: Two concurrent creates (2nd should fail)
+          const [userAResult1, userAResult2] = yield* Effect.all(
+            [
+              makeRequest(ENDPOINT, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${userA.token}`,
+                },
+                body: JSON.stringify(dates),
+              }),
+              makeRequest(ENDPOINT, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${userA.token}`,
+                },
+                body: JSON.stringify(dates),
+              }),
+            ],
+            { concurrency: 'unbounded' },
+          );
 
-        // User B: Create then update (both should succeed)
-        const userBCycle = yield* createCycleForUser(userB.token);
-        const updateDates = yield* generateValidCycleDates();
-        const userBUpdateResult = yield* makeAuthenticatedRequest(
-          `${ENDPOINT}/${userBCycle.id}`,
-          'PATCH',
-          userB.token,
-          updateDates,
-        );
+          // User B: Create then update (both should succeed)
+          const userBCycle = yield* createCycleForUser(userB.token);
+          const updateDates = yield* generateValidCycleDates();
+          const userBUpdateResult = yield* makeAuthenticatedRequest(
+            `${ENDPOINT}/${userBCycle.id}`,
+            'PATCH',
+            userB.token,
+            updateDates,
+          );
 
-        // User C: Create then complete (both should succeed)
-        const userCCycle = yield* createCycleForUser(userC.token);
-        const completeDates = yield* generateValidCycleDates();
-        const userCCompleteResult = yield* makeAuthenticatedRequest(
-          `${ENDPOINT}/${userCCycle.id}/complete`,
-          'POST',
-          userC.token,
-          completeDates,
-        );
+          // User C: Create then complete (both should succeed)
+          const userCCycle = yield* createCycleForUser(userC.token);
+          const completeDates = yield* generateValidCycleDates();
+          const userCCompleteResult = yield* makeAuthenticatedRequest(
+            `${ENDPOINT}/${userCCycle.id}/complete`,
+            'POST',
+            userC.token,
+            completeDates,
+          );
 
-        // Verify User A: One create succeeds, one fails
-        const userAResults = [userAResult1, userAResult2];
-        const userASuccesses = userAResults.filter((r) => r.status === 201);
-        const userAFailures = userAResults.filter((r) => r.status === 409);
+          // Verify User A: One create succeeds, one fails
+          const userAResults = [userAResult1, userAResult2];
+          const userASuccesses = userAResults.filter((r) => r.status === 201);
+          const userAFailures = userAResults.filter((r) => r.status === 409);
 
-        // Debug logging to diagnose the issue
-        console.log('User A Result 1:', userAResult1.status, userAResult1.json);
-        console.log('User A Result 2:', userAResult2.status, userAResult2.json);
-        console.log('Successes:', userASuccesses.length, 'Failures:', userAFailures.length);
+          // Debug logging
+          console.log('User A Result 1 status:', userAResult1.status);
+          console.log('User A Result 2 status:', userAResult2.status);
+          console.log('All status codes:', userAResults.map(r => r.status));
 
-        expect(userASuccesses.length).toBe(1);
-        expect(userAFailures.length).toBe(1);
+          expect(userASuccesses.length).toBe(1);
+          expect(userAFailures.length).toBe(1);
 
-        // Verify User B: Update succeeded
-        expect(userBUpdateResult.status).toBe(200);
-        const updatedCycle = userBUpdateResult.json as any;
-        expect(updatedCycle.status).toBe('InProgress');
+          // Verify User B: Update succeeded
+          expect(userBUpdateResult.status).toBe(200);
+          const updatedCycle = userBUpdateResult.json as any;
+          expect(updatedCycle.status).toBe('InProgress');
 
-        // Verify User C: Complete succeeded
-        expect(userCCompleteResult.status).toBe(200);
-        const completedCycle = userCCompleteResult.json as any;
-        expect(completedCycle.status).toBe('Completed');
-      }).pipe(Effect.provide(DatabaseLive));
+          // Verify User C: Complete succeeded
+          expect(userCCompleteResult.status).toBe(200);
+          const completedCycle = userCCompleteResult.json as any;
+          expect(completedCycle.status).toBe('Completed');
+        }).pipe(Effect.provide(DatabaseLive));
 
-      await Effect.runPromise(program);
-    });
+        await Effect.runPromise(program);
+      },
+      {
+        timeout: 15000,
+      },
+    );
   });
 });

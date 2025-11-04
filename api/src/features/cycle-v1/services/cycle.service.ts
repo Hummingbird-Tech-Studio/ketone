@@ -5,12 +5,52 @@ import {
   CycleIdMismatchError,
   CycleInvalidStateError,
   CycleNotFoundError,
+  CycleOverlapError,
 } from '../domain';
-import { DatabaseLive } from '../../../db';
+import { CycleCompletionCache, CycleCompletionCacheLive } from './cycle-completion-cache.service';
 
 export class CycleService extends Effect.Service<CycleService>()('CycleService', {
   effect: Effect.gen(function* () {
     const repository = yield* CycleRepository;
+    const cycleCompletionCache = yield* CycleCompletionCache;
+
+    const validateNoOverlapWithLastCompleted = (
+      userId: string,
+      newStartDate: Date,
+    ): Effect.Effect<void, CycleOverlapError | CycleRepositoryError> =>
+      Effect.gen(function* () {
+        const lastCompletedDateOption = yield* cycleCompletionCache.getLastCompletionDate(userId).pipe(
+          Effect.catchAll((error) =>
+            Effect.gen(function* () {
+              yield* Effect.logWarning(
+                `[CycleService] Cache lookup failed for user ${userId}, falling back to direct DB query: ${error.message}`,
+              );
+
+              const lastCompletedCycleOption = yield* repository.getLastCompletedCycle(userId);
+
+              if (Option.isNone(lastCompletedCycleOption)) {
+                return Option.none<Date>();
+              }
+
+              return Option.some(lastCompletedCycleOption.value.endDate);
+            }),
+          ),
+        );
+
+        if (Option.isSome(lastCompletedDateOption)) {
+          const lastCompletedEndDate = lastCompletedDateOption.value;
+
+          if (newStartDate < lastCompletedEndDate) {
+            return yield* Effect.fail(
+              new CycleOverlapError({
+                message: 'Cycle overlaps with the last completed cycle',
+                newStartDate,
+                lastCompletedEndDate,
+              }),
+            );
+          }
+        }
+      });
 
     return {
       getCycle: (
@@ -36,7 +76,7 @@ export class CycleService extends Effect.Service<CycleService>()('CycleService',
         userId: string,
         startDate: Date,
         endDate: Date,
-      ): Effect.Effect<CycleRecord, CycleAlreadyInProgressError | CycleRepositoryError> =>
+      ): Effect.Effect<CycleRecord, CycleAlreadyInProgressError | CycleOverlapError | CycleRepositoryError> =>
         Effect.gen(function* () {
           const activeCycle = yield* repository.getActiveCycle(userId);
 
@@ -48,6 +88,8 @@ export class CycleService extends Effect.Service<CycleService>()('CycleService',
               }),
             );
           }
+
+          yield* validateNoOverlapWithLastCompleted(userId, startDate);
 
           return yield* repository.createCycle({
             userId,
@@ -64,7 +106,7 @@ export class CycleService extends Effect.Service<CycleService>()('CycleService',
         endDate: Date,
       ): Effect.Effect<
         CycleRecord,
-        CycleNotFoundError | CycleIdMismatchError | CycleInvalidStateError | CycleRepositoryError
+        CycleNotFoundError | CycleIdMismatchError | CycleInvalidStateError | CycleOverlapError | CycleRepositoryError
       > =>
         Effect.gen(function* () {
           const activeCycle = yield* repository.getActiveCycle(userId);
@@ -90,6 +132,8 @@ export class CycleService extends Effect.Service<CycleService>()('CycleService',
             );
           }
 
+          yield* validateNoOverlapWithLastCompleted(userId, startDate);
+
           return yield* repository.updateCycleDates(userId, cycleId, startDate, endDate);
         }),
 
@@ -100,10 +144,9 @@ export class CycleService extends Effect.Service<CycleService>()('CycleService',
         endDate: Date,
       ): Effect.Effect<
         CycleRecord,
-        CycleNotFoundError | CycleInvalidStateError | CycleRepositoryError
+        CycleNotFoundError | CycleInvalidStateError | CycleOverlapError | CycleRepositoryError
       > =>
         Effect.gen(function* () {
-          // Use getCycleById instead of getActiveCycle to support idempotency
           const cycleOption = yield* repository.getCycleById(userId, cycleId);
 
           if (Option.isNone(cycleOption)) {
@@ -117,12 +160,10 @@ export class CycleService extends Effect.Service<CycleService>()('CycleService',
 
           const cycle = cycleOption.value;
 
-          // Idempotency check: if already completed, return it
           if (cycle.status === 'Completed') {
             return cycle;
           }
 
-          // Verify status is InProgress before completing
           if (cycle.status !== 'InProgress') {
             return yield* Effect.fail(
               new CycleInvalidStateError({
@@ -133,12 +174,25 @@ export class CycleService extends Effect.Service<CycleService>()('CycleService',
             );
           }
 
-          return yield* repository.completeCycle(userId, cycleId, startDate, endDate);
+          yield* validateNoOverlapWithLastCompleted(userId, startDate);
+
+          const completedCycle = yield* repository.completeCycle(userId, cycleId, startDate, endDate);
+
+          yield* cycleCompletionCache.setLastCompletionDate(userId, completedCycle.endDate).pipe(
+            Effect.tapError((error) =>
+              Effect.logWarning(
+                `[CycleService] Failed to update completion cache for user ${userId}: ${JSON.stringify(error)}`,
+              ),
+            ),
+            Effect.catchAll(() => Effect.void),
+          );
+
+          return completedCycle;
         }),
     };
   }),
-  dependencies: [CycleRepository.Default],
+  dependencies: [CycleRepository.Default, CycleCompletionCache.Default],
   accessors: true,
 }) {}
 
-export const CycleServiceLive = CycleService.Default.pipe(Layer.provide(DatabaseLive));
+export const CycleServiceLive = CycleService.Default.pipe(Layer.provide(CycleCompletionCacheLive));

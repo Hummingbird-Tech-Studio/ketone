@@ -10,7 +10,8 @@ import {
   makeRequest,
   validateJwtSecret,
 } from '../../../../test-utils';
-import { CycleResponseSchema } from '../schemas';
+import { CycleResponseSchema, ValidateOverlapResponseSchema } from '../schemas';
+import { CycleRepository } from '../../repositories';
 
 validateJwtSecret();
 
@@ -1682,6 +1683,381 @@ describe('POST /v1/cycles/:id/complete - Complete Cycle', () => {
         }).pipe(Effect.provide(DatabaseLive));
 
         await Effect.runPromise(program);
+      },
+      { timeout: 15000 },
+    );
+  });
+});
+
+describe('POST /v1/cycles/:id/validate-overlap - Validate Cycle Overlap', () => {
+  describe('Success Scenarios', () => {
+    test(
+      'should return valid=true when no completed cycles exist',
+      async () => {
+        const program = Effect.gen(function* () {
+          const { token } = yield* createTestUserWithTracking();
+          const cycle = yield* createCycleForUser(token);
+
+          const { status, json } = yield* makeAuthenticatedRequest(
+            `${ENDPOINT}/${cycle.id}/validate-overlap`,
+            'POST',
+            token,
+          );
+
+          expect(status).toBe(200);
+          const response = yield* S.decodeUnknown(ValidateOverlapResponseSchema)(json);
+          expect(response.valid).toBe(true);
+          expect(response.overlap).toBe(false);
+          expect(response.lastCompletedEndDate).toBeUndefined();
+        }).pipe(Effect.provide(DatabaseLive));
+
+        await Effect.runPromise(program);
+      },
+      { timeout: 15000 },
+    );
+
+    test(
+      'should return valid=true when no overlap with last completed cycle',
+      async () => {
+        const program = Effect.gen(function* () {
+          const { token } = yield* createTestUserWithTracking();
+
+          // Create and complete first cycle (10-8 days ago)
+          const firstCycleDates = yield* generatePastDates(10, 8);
+          const firstCycle = yield* createCycleForUser(token, firstCycleDates);
+          yield* completeCycleHelper(firstCycle.id, token, firstCycleDates);
+
+          // Create second cycle after first (5-3 days ago, no overlap)
+          const secondCycleDates = yield* generatePastDates(5, 3);
+          const secondCycle = yield* createCycleForUser(token, secondCycleDates);
+
+          const { status, json } = yield* makeAuthenticatedRequest(
+            `${ENDPOINT}/${secondCycle.id}/validate-overlap`,
+            'POST',
+            token,
+          );
+
+          expect(status).toBe(200);
+          const response = yield* S.decodeUnknown(ValidateOverlapResponseSchema)(json);
+          expect(response.valid).toBe(true);
+          expect(response.overlap).toBe(false);
+        }).pipe(Effect.provide(DatabaseLive));
+
+        await Effect.runPromise(program);
+      },
+      { timeout: 15000 },
+    );
+
+    test(
+      'should return valid=true when start equals last completed end (boundary case)',
+      async () => {
+        const program = Effect.gen(function* () {
+          const { token } = yield* createTestUserWithTracking();
+
+          // Create and complete first cycle (10-8 days ago)
+          const firstCycleDates = yield* generatePastDates(10, 8);
+          const firstCycle = yield* createCycleForUser(token, firstCycleDates);
+          const completedCycle = yield* completeCycleHelper(firstCycle.id, token, firstCycleDates);
+
+          // Create second cycle with startDate = completedCycle.endDate
+          const secondCycleDates = {
+            startDate: new Date(completedCycle.endDate).toISOString(),
+            endDate: yield* Effect.sync(() => {
+              const endDate = new Date(completedCycle.endDate);
+              endDate.setDate(endDate.getDate() + 2);
+              return endDate.toISOString();
+            }),
+          };
+          const secondCycle = yield* createCycleForUser(token, secondCycleDates);
+
+          const { status, json } = yield* makeAuthenticatedRequest(
+            `${ENDPOINT}/${secondCycle.id}/validate-overlap`,
+            'POST',
+            token,
+          );
+
+          expect(status).toBe(200);
+          const response = yield* S.decodeUnknown(ValidateOverlapResponseSchema)(json);
+          expect(response.valid).toBe(true);
+          expect(response.overlap).toBe(false);
+        }).pipe(Effect.provide(DatabaseLive));
+
+        await Effect.runPromise(program);
+      },
+      { timeout: 15000 },
+    );
+
+    test(
+      'should return valid=false when active cycle overlaps with last completed cycle',
+      async () => {
+        const program = Effect.gen(function* () {
+          const { userId, token } = yield* createTestUserWithTracking();
+          const cycleRepo = yield* CycleRepository;
+
+          // Create and complete first cycle (10-8 days ago)
+          const firstCycleDates = yield* generatePastDates(10, 8);
+          const firstCycle = yield* createCycleForUser(token, firstCycleDates);
+          const completedCycle = yield* completeCycleHelper(firstCycle.id, token, firstCycleDates);
+
+          // Create second cycle with safe dates initially (5-3 days ago)
+          const safeDates = yield* generatePastDates(5, 3);
+          const secondCycle = yield* createCycleForUser(token, safeDates);
+
+          // Use repository to directly update cycle dates to create overlap (9-7 days ago)
+          // This overlaps with the first cycle which ended 8 days ago
+          const overlapDates = yield* generatePastDates(9, 7);
+          yield* cycleRepo.updateCycleDates(
+            userId,
+            secondCycle.id,
+            new Date(overlapDates.startDate),
+            new Date(overlapDates.endDate),
+          );
+
+          // Now validate - it should detect the overlap
+          const { status, json } = yield* makeAuthenticatedRequest(
+            `${ENDPOINT}/${secondCycle.id}/validate-overlap`,
+            'POST',
+            token,
+          );
+
+          expect(status).toBe(200);
+          const response = yield* S.decodeUnknown(ValidateOverlapResponseSchema)(json);
+          expect(response.valid).toBe(false);
+          expect(response.overlap).toBe(true);
+          expect(response.lastCompletedEndDate).toBeDefined();
+          expect(new Date(response.lastCompletedEndDate!).getTime()).toBe(
+            new Date(completedCycle.endDate).getTime(),
+          );
+        }).pipe(Effect.provide(CycleRepository.Default), Effect.provide(DatabaseLive));
+
+        await Effect.runPromise(program);
+      },
+      { timeout: 15000 },
+    );
+
+    test(
+      'should return valid=false when active cycle start is exactly 1ms before last completed end',
+      async () => {
+        const program = Effect.gen(function* () {
+          const { userId, token } = yield* createTestUserWithTracking();
+          const cycleRepo = yield* CycleRepository;
+
+          // Create and complete first cycle
+          const firstCycleDates = yield* generatePastDates(10, 8);
+          const firstCycle = yield* createCycleForUser(token, firstCycleDates);
+          const completedCycle = yield* completeCycleHelper(firstCycle.id, token, firstCycleDates);
+
+          // Create second cycle with safe dates initially
+          const safeDates = yield* generatePastDates(5, 3);
+          const secondCycle = yield* createCycleForUser(token, safeDates);
+
+          // Update to have startDate exactly 1ms before completedCycle.endDate (overlap by 1ms)
+          const lastCompletedEndTime = new Date(completedCycle.endDate).getTime();
+          const overlapStartDate = new Date(lastCompletedEndTime - 1);
+          const overlapEndDate = new Date(lastCompletedEndTime + 2 * 24 * 60 * 60 * 1000);
+
+          yield* cycleRepo.updateCycleDates(userId, secondCycle.id, overlapStartDate, overlapEndDate);
+
+          // Validate - should detect the overlap
+          const { status, json } = yield* makeAuthenticatedRequest(
+            `${ENDPOINT}/${secondCycle.id}/validate-overlap`,
+            'POST',
+            token,
+          );
+
+          expect(status).toBe(200);
+          const response = yield* S.decodeUnknown(ValidateOverlapResponseSchema)(json);
+          expect(response.valid).toBe(false);
+          expect(response.overlap).toBe(true);
+          expect(response.lastCompletedEndDate).toBeDefined();
+        }).pipe(Effect.provide(CycleRepository.Default), Effect.provide(DatabaseLive));
+
+        await Effect.runPromise(program);
+      },
+      { timeout: 15000 },
+    );
+
+    test(
+      'should return valid=true when active cycle start is exactly 1ms after last completed end',
+      async () => {
+        const program = Effect.gen(function* () {
+          const { userId, token } = yield* createTestUserWithTracking();
+          const cycleRepo = yield* CycleRepository;
+
+          // Create and complete first cycle
+          const firstCycleDates = yield* generatePastDates(10, 8);
+          const firstCycle = yield* createCycleForUser(token, firstCycleDates);
+          const completedCycle = yield* completeCycleHelper(firstCycle.id, token, firstCycleDates);
+
+          // Create second cycle with safe dates initially
+          const safeDates = yield* generatePastDates(5, 3);
+          const secondCycle = yield* createCycleForUser(token, safeDates);
+
+          // Update to have startDate exactly 1ms after completedCycle.endDate (no overlap)
+          const lastCompletedEndTime = new Date(completedCycle.endDate).getTime();
+          const noOverlapStartDate = new Date(lastCompletedEndTime + 1);
+          const noOverlapEndDate = new Date(lastCompletedEndTime + 2 * 24 * 60 * 60 * 1000);
+
+          yield* cycleRepo.updateCycleDates(userId, secondCycle.id, noOverlapStartDate, noOverlapEndDate);
+
+          // Validate - should be valid (no overlap)
+          const { status, json } = yield* makeAuthenticatedRequest(
+            `${ENDPOINT}/${secondCycle.id}/validate-overlap`,
+            'POST',
+            token,
+          );
+
+          expect(status).toBe(200);
+          const response = yield* S.decodeUnknown(ValidateOverlapResponseSchema)(json);
+          expect(response.valid).toBe(true);
+          expect(response.overlap).toBe(false);
+        }).pipe(Effect.provide(CycleRepository.Default), Effect.provide(DatabaseLive));
+
+        await Effect.runPromise(program);
+      },
+      { timeout: 15000 },
+    );
+  });
+
+  describe('Error Scenarios - Not Found (404)', () => {
+    test(
+      'should return 404 when user has no active cycle',
+      async () => {
+        const program = Effect.gen(function* () {
+          const { userId, token } = yield* createTestUserWithTracking();
+
+          // Create and complete a cycle
+          const cycle = yield* createCycleForUser(token);
+          const completeDates = yield* generateValidCycleDates();
+          yield* completeCycleHelper(cycle.id, token, completeDates);
+
+          // Try to validate the completed cycle (now no active cycle)
+          const { status, json } = yield* makeAuthenticatedRequest(
+            `${ENDPOINT}/${cycle.id}/validate-overlap`,
+            'POST',
+            token,
+          );
+
+          expectCycleNotFoundError(status, json, userId);
+        }).pipe(Effect.provide(DatabaseLive));
+
+        await Effect.runPromise(program);
+      },
+      { timeout: 15000 },
+    );
+
+    test(
+      'should return 404 when cycle ID does not exist',
+      async () => {
+        const program = Effect.gen(function* () {
+          const { userId, token } = yield* createTestUserWithTracking();
+
+          const { status, json } = yield* makeAuthenticatedRequest(
+            `${ENDPOINT}/${NON_EXISTENT_UUID}/validate-overlap`,
+            'POST',
+            token,
+          );
+
+          expectCycleNotFoundError(status, json, userId);
+        }).pipe(Effect.provide(DatabaseLive));
+
+        await Effect.runPromise(program);
+      },
+      { timeout: 15000 },
+    );
+
+    test(
+      "should return 404 when trying to validate another user's cycle",
+      async () => {
+        const program = Effect.gen(function* () {
+          const { cycleA, userB } = yield* setupTwoUserSecurityTest();
+
+          const { status, json } = yield* makeAuthenticatedRequest(
+            `${ENDPOINT}/${cycleA.id}/validate-overlap`,
+            'POST',
+            userB.token,
+          );
+
+          expectCycleNotFoundError(status, json, userB.userId);
+        }).pipe(Effect.provide(DatabaseLive));
+
+        await Effect.runPromise(program);
+      },
+      { timeout: 15000 },
+    );
+  });
+
+  describe('Error Scenarios - Conflict (409)', () => {
+    test(
+      'should return 409 when cycle ID does not match active cycle',
+      async () => {
+        const program = Effect.gen(function* () {
+          const { token } = yield* createTestUserWithTracking();
+
+          // Create and complete first cycle
+          const firstCycleDates = yield* generatePastDates(10, 8);
+          const firstCycle = yield* createCycleForUser(token, firstCycleDates);
+          yield* completeCycleHelper(firstCycle.id, token, firstCycleDates);
+
+          // Create second cycle (now active)
+          const secondCycleDates = yield* generatePastDates(5, 3);
+          const secondCycle = yield* createCycleForUser(token, secondCycleDates);
+
+          // Try to validate the first (completed) cycle while second is active
+          const { status, json } = yield* makeAuthenticatedRequest(
+            `${ENDPOINT}/${firstCycle.id}/validate-overlap`,
+            'POST',
+            token,
+          );
+
+          expect(status).toBe(409);
+          const error = json as ErrorResponse & { requestedCycleId?: string; activeCycleId?: string };
+          expect(error._tag).toBe('CycleIdMismatchError');
+          expect(error.requestedCycleId).toBe(firstCycle.id);
+          expect(error.activeCycleId).toBe(secondCycle.id);
+        }).pipe(Effect.provide(DatabaseLive));
+
+        await Effect.runPromise(program);
+      },
+      { timeout: 15000 },
+    );
+  });
+
+  describe('Error Scenarios - Unauthorized (401)', () => {
+    test(
+      'should return 401 when no authentication token is provided',
+      async () => {
+        const program = expectUnauthorizedNoToken(`${ENDPOINT}/${NON_EXISTENT_UUID}/validate-overlap`, 'POST');
+        await Effect.runPromise(program);
+      },
+      { timeout: 15000 },
+    );
+
+    test(
+      'should return 401 when invalid token is provided',
+      async () => {
+        const program = expectUnauthorizedInvalidToken(`${ENDPOINT}/${NON_EXISTENT_UUID}/validate-overlap`, 'POST');
+        await Effect.runPromise(program);
+      },
+      { timeout: 15000 },
+    );
+
+    test(
+      'should return 401 when expired token is provided',
+      async () => {
+        const program = expectUnauthorizedExpiredToken(`${ENDPOINT}/${NON_EXISTENT_UUID}/validate-overlap`, 'POST');
+        await Effect.runPromise(program.pipe(Effect.provide(DatabaseLive)));
+      },
+      { timeout: 15000 },
+    );
+  });
+
+  describe('Error Scenarios - Validation (400)', () => {
+    test(
+      'should return 400 for invalid UUID format',
+      async () => {
+        const program = expectBadRequestInvalidUUID('POST', '/validate-overlap');
+        await Effect.runPromise(program.pipe(Effect.provide(DatabaseLive)));
       },
       { timeout: 15000 },
     );

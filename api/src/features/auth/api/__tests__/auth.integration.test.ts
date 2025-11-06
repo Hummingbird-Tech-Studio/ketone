@@ -9,6 +9,7 @@ import {
   generateTestEmail,
   type ErrorResponse,
 } from '../../../../test-utils';
+import { getUnixTime } from 'date-fns';
 
 validateJwtSecret();
 
@@ -569,5 +570,142 @@ describe('POST /auth/update-password - Update Password', () => {
 
       await Effect.runPromise(program);
     });
+  });
+
+  describe('Timestamp Consistency Tests', () => {
+    test('should ensure passwordChangedAt is after createdAt after password update', async () => {
+      const program = Effect.gen(function* () {
+        const repository = yield* UserRepository;
+
+        const email = yield* generateTestEmail();
+        const password = yield* generateValidPassword();
+        const newPassword = 'NewPass456!';
+
+        // Signup and get user
+        const { json: signupJson } = yield* signupUser(email, password);
+        const userId = (signupJson as SignupResponse).user.id;
+
+        // Login and update password
+        const { json: loginJson } = yield* loginUser(email, password);
+        const token = (loginJson as LoginResponse).token;
+        yield* updatePassword(token, password, newPassword);
+
+        // Query database directly to verify timestamps
+        const user = yield* repository.findUserByIdWithPassword(userId);
+
+        if (!user) {
+          throw new Error('User not found after password update');
+        }
+
+        // CRITICAL: passwordChangedAt must be >= createdAt
+        const createdAtUnix = getUnixTime(user.createdAt);
+        const passwordChangedAtUnix = user.passwordChangedAt ? getUnixTime(user.passwordChangedAt) : 0;
+
+        console.log(`
+          Timestamp verification:
+          - createdAt: ${user.createdAt.toISOString()} (${createdAtUnix})
+          - passwordChangedAt: ${user.passwordChangedAt?.toISOString()} (${passwordChangedAtUnix})
+          - Difference: ${passwordChangedAtUnix - createdAtUnix} seconds
+        `);
+
+        // This catches the clock skew bug
+        expect(passwordChangedAtUnix).toBeGreaterThanOrEqual(createdAtUnix);
+        expect(user.passwordChangedAt).not.toBeNull();
+      });
+
+      await Effect.runPromise(
+        program.pipe(
+          Effect.provide(Layer.mergeAll(UserRepository.Default.pipe(Layer.provide(DatabaseLive)), PgLive)),
+        ),
+      );
+    });
+
+    test(
+      'should ensure multiple password updates have increasing timestamps',
+      async () => {
+        const program = Effect.gen(function* () {
+          const repository = yield* UserRepository;
+
+          const email = yield* generateTestEmail();
+          const password1 = yield* generateValidPassword();
+          const password2 = 'SecondPass123!';
+          const password3 = 'ThirdPass456!';
+
+          // Signup
+          const { json: signupJson } = yield* signupUser(email, password1);
+          const userId = (signupJson as SignupResponse).user.id;
+
+          // First password update
+          const { json: loginJson1 } = yield* loginUser(email, password1);
+          const token1 = (loginJson1 as LoginResponse).token;
+          yield* updatePassword(token1, password1, password2);
+
+          const user1 = yield* repository.findUserByIdWithPassword(userId);
+          const timestamp1 = user1?.passwordChangedAt ? getUnixTime(user1.passwordChangedAt) : 0;
+
+          // Small delay to ensure different timestamps
+          yield* Effect.sleep('100 millis');
+
+          // Second password update
+          const { json: loginJson2 } = yield* loginUser(email, password2);
+          const token2 = (loginJson2 as LoginResponse).token;
+          yield* updatePassword(token2, password2, password3);
+
+          const user2 = yield* repository.findUserByIdWithPassword(userId);
+          const timestamp2 = user2?.passwordChangedAt ? getUnixTime(user2.passwordChangedAt) : 0;
+
+          console.log(`
+          Multiple password update timestamps:
+          - First update: ${timestamp1}
+          - Second update: ${timestamp2}
+          - Difference: ${timestamp2 - timestamp1} seconds
+        `);
+
+          // Timestamps should be increasing (or at least equal due to second precision)
+          expect(timestamp2).toBeGreaterThanOrEqual(timestamp1);
+        });
+
+        await Effect.runPromise(
+          program.pipe(
+            Effect.provide(Layer.mergeAll(UserRepository.Default.pipe(Layer.provide(DatabaseLive)), PgLive)),
+          ),
+        );
+      },
+      { timeout: 10000 },
+    );
+
+    test(
+      'should invalidate token when passwordChangedAt > token.iat',
+      async () => {
+        const program = Effect.gen(function* () {
+          const email = yield* generateTestEmail();
+          const password1 = yield* generateValidPassword();
+          const password2 = 'NewPass456!';
+
+          yield* signupUser(email, password1);
+
+          // Get token with iat=T
+          const { json: loginJson } = yield* loginUser(email, password1);
+          const oldToken = (loginJson as LoginResponse).token;
+
+          // Update password (passwordChangedAt=T+n where n>0)
+          const { status: updateStatus } = yield* updatePassword(oldToken, password1, password2);
+          expect(updateStatus).toBe(200);
+
+          // Old token should now be invalid because passwordChangedAt > iat
+          const { status: retryStatus } = yield* updatePassword(oldToken, password2, 'Another123!');
+          expect(retryStatus).toBe(401);
+
+          // New token should work
+          const { json: newLoginJson } = yield* loginUser(email, password2);
+          const newToken = (newLoginJson as LoginResponse).token;
+          const { status: newTokenStatus } = yield* updatePassword(newToken, password2, 'Final123!');
+          expect(newTokenStatus).toBe(200);
+        });
+
+        await Effect.runPromise(program);
+      },
+      { timeout: 10000 },
+    );
   });
 });

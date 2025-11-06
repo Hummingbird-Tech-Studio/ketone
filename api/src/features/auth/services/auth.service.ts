@@ -2,7 +2,7 @@ import { Effect, Layer } from 'effect';
 import { getUnixTime } from 'date-fns';
 import { InvalidCredentialsError, UserAlreadyExistsError } from '../domain';
 import { UserRepository } from '../repositories';
-import { UserAuthCache, UserAuthCacheLive } from './user-auth-cache.service';
+import { UserAuthCache } from './user-auth-cache.service';
 import { JwtService } from './jwt.service';
 import { PasswordService } from './password.service';
 
@@ -181,5 +181,4 @@ export const AuthServiceLive = AuthService.Default.pipe(
   Layer.provide(UserRepository.Default),
   Layer.provide(PasswordService.Default),
   Layer.provide(JwtService.Default),
-  Layer.provide(UserAuthCacheLive),
 );

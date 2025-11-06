@@ -1,6 +1,6 @@
 import { HttpApiMiddleware, HttpApiSecurity } from '@effect/platform';
 import { Context, Effect, Layer, Option, Redacted, Schema as S } from 'effect';
-import { JwtService, UserAuthCache, UserAuthCacheLive } from '../../services';
+import { JwtService, UserAuthCache } from '../../services';
 
 /**
  * Authenticated User Context
@@ -103,7 +103,4 @@ const AuthenticationLiveBase = Layer.effect(
   }),
 );
 
-export const AuthenticationLive = AuthenticationLiveBase.pipe(
-  Layer.provide(JwtService.Default),
-  Layer.provide(UserAuthCacheLive),
-);
+export const AuthenticationLive = AuthenticationLiveBase.pipe(Layer.provide(JwtService.Default));

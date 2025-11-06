@@ -1,102 +1,114 @@
-import { Context, Effect, Layer } from 'effect';
-import Redis, { type Redis as RedisClient } from 'ioredis';
+import { Context, Effect, Layer, Schedule } from 'effect';
+import { RedisClient } from 'bun';
 
-/**
- * Redis Connection Configuration
- */
 export interface RedisConfig {
   readonly host: string;
   readonly port: number;
   readonly password?: string;
   readonly db?: number;
-  readonly maxRetriesPerRequest?: number;
-  readonly enableReadyCheck?: boolean;
-  readonly lazyConnect?: boolean;
 }
 
 /**
- * Redis Database Tag for Effect Context
+ * Extended Redis client with additional methods not directly supported by Bun's RedisClient.
+ * Uses the generic send() method to implement eval, multi, and other advanced features.
  */
-export class RedisDatabase extends Context.Tag('RedisDatabase')<RedisDatabase, RedisClient>() {}
+export class ExtendedRedisClient extends RedisClient {
+  /**
+   * Execute a Lua script using EVAL command
+   */
+  async eval(script: string, numKeys: number, ...args: (string | number)[]): Promise<any> {
+    return this.send('eval', [script, numKeys.toString(), ...args.map(String)]);
+  }
+
+  /**
+   * Start a Redis transaction (MULTI)
+   * Returns a pipeline object for chaining commands
+   */
+  multi(): RedisPipeline {
+    return new RedisPipeline(this);
+  }
+}
 
 /**
- * Default Redis configuration
- *
- * - host: Redis server hostname (default: localhost)
- * - port: Redis server port (default: 6379)
- * - password: Optional authentication password
- * - db: Database index (default: 0)
- * - maxRetriesPerRequest: Maximum retry attempts (default: 3)
- * - enableReadyCheck: Check connection before accepting commands (default: true)
- * - lazyConnect: Delay connection until first command (default: false)
+ * Pipeline for Redis transactions (MULTI/EXEC)
  */
+class RedisPipeline {
+  private commands: Array<{ cmd: string; args: any[] }> = [];
+
+  constructor(private client: RedisClient) {}
+
+  hset(key: string, ...args: any[]): this {
+    this.commands.push({ cmd: 'hset', args: [key, ...args] });
+    return this;
+  }
+
+  zadd(key: string, score: number | string, member: string): this {
+    this.commands.push({ cmd: 'zadd', args: [key, score, member] });
+    return this;
+  }
+
+  async exec(): Promise<any[]> {
+    // Start transaction
+    await this.client.send('multi', []);
+
+    // Queue all commands
+    for (const { cmd, args } of this.commands) {
+      await this.client.send(cmd, args.map(String));
+    }
+
+    // Execute transaction
+    return await this.client.send('exec', []);
+  }
+}
+
+export class RedisDatabase extends Context.Tag('RedisDatabase')<RedisDatabase, ExtendedRedisClient>() {}
+
 const defaultConfig: RedisConfig = {
-  host: process.env.REDIS_HOST || 'localhost',
-  port: Number(process.env.REDIS_PORT) || 6379,
-  password: process.env.REDIS_PASSWORD,
-  db: Number(process.env.REDIS_DB) || 0,
-  maxRetriesPerRequest: 3,
-  enableReadyCheck: true,
-  lazyConnect: false,
+  host: Bun.env.REDIS_HOST || 'localhost',
+  port: Number(Bun.env.REDIS_PORT) || 6379,
+  password: Bun.env.REDIS_PASSWORD,
+  db: Number(Bun.env.REDIS_DB) || 0,
+};
+
+/**
+ * Exponential backoff schedule for Redis connection retries
+ *
+ * - Base delay: 50ms
+ * - Exponential factor: 2 (50ms -> 100ms -> 200ms -> 400ms -> 800ms -> 1600ms)
+ * - Max delay: 2000ms (2 seconds)
+ * - Max attempts: 10
+ */
+const retrySchedule = Schedule.exponential('50 millis').pipe(
+  Schedule.union(Schedule.spaced('2 seconds')), // Cap maximum delay at 2 seconds
+  Schedule.compose(Schedule.recurs(10)), // Maximum 10 retry attempts
+);
+
+const buildRedisUrl = (config: RedisConfig): string => {
+  const auth = config.password ? `:${config.password}@` : '';
+  const db = config.db ? `/${config.db}` : '';
+  return `redis://${auth}${config.host}:${config.port}${db}`;
 };
 
 /**
  * Create Redis connection Effect
  *
- * Opens a Redis connection with the specified configuration.
+ * Opens a Redis connection with the specified configuration using Bun's native Redis client.
  * The connection is established with proper error handling and cleanup.
+ * Uses Effect's native exponential backoff retry strategy.
  */
 const makeRedisConnection = (config: RedisConfig) =>
   Effect.gen(function* () {
+    const url = buildRedisUrl(config);
     yield* Effect.logInfo(`🗄️  Connecting to Redis at: ${config.host}:${config.port}`);
 
-    const redis = yield* Effect.try({
-      try: () => {
-        const client = new Redis({
-          host: config.host,
-          port: config.port,
-          password: config.password,
-          db: config.db,
-          maxRetriesPerRequest: config.maxRetriesPerRequest,
-          enableReadyCheck: config.enableReadyCheck,
-          lazyConnect: config.lazyConnect,
-          retryStrategy: (times: number) => {
-            // Exponential backoff: 50ms, 100ms, 200ms, etc., up to 2 seconds
-            return Math.min(times * 50, 2000);
-          },
-        });
+    // Create extended Redis client with additional methods (eval, multi, etc.)
+    const client = new ExtendedRedisClient(url);
 
-        // Wait for connection to be ready
-        if (!config.lazyConnect) {
-          return client;
-        }
-
-        return client;
-      },
-      catch: (error) => {
-        console.error('❌ Failed to connect to Redis:', error);
-        return new Error(`Failed to connect to Redis: ${error}`);
-      },
-    });
-
-    // Wait for ready event
-    yield* Effect.async<void, Error>((resume) => {
-      const handleReady = () => {
-        resume(Effect.void);
-      };
-
-      const handleError = (error: Error) => {
-        resume(Effect.fail(new Error(`Redis connection error: ${error.message}`)));
-      };
-
-      redis.once('ready', handleReady);
-      redis.once('error', handleError);
-
-      // If already connected, resolve immediately
-      if (redis.status === 'ready') {
-        resume(Effect.void);
-      }
-    });
+    // Connect to Redis with retry logic using exponential backoff
+    yield* Effect.tryPromise({
+      try: () => client.connect(),
+      catch: (error) => new Error(`Failed to connect to Redis: ${error}`),
+    }).pipe(Effect.retry(retrySchedule));
 
     yield* Effect.logInfo('✅ Redis connected successfully');
 
@@ -104,31 +116,12 @@ const makeRedisConnection = (config: RedisConfig) =>
     yield* Effect.addFinalizer(() =>
       Effect.gen(function* () {
         yield* Effect.logInfo('🔒 Closing Redis connection');
-        yield* Effect.promise(() => redis.quit());
+        yield* Effect.sync(() => client.close());
         yield* Effect.logInfo('✅ Redis connection closed');
       }),
     );
 
-    return redis;
+    return client;
   });
 
-/**
- * Redis Live Layer
- *
- * Provides a Redis connection as an Effect Layer.
- * This layer can be composed with other layers in the Effect ecosystem.
- *
- * Uses Layer.scoped to properly handle the Effect.addFinalizer cleanup
- * when the layer is released.
- *
- * Usage:
- * ```typescript
- * const program = Effect.gen(function* () {
- *   const redis = yield* RedisDatabase;
- *   // Use redis...
- * });
- *
- * Effect.runPromise(program.pipe(Effect.provide(RedisLive)));
- * ```
- */
 export const RedisLive = Layer.scoped(RedisDatabase, makeRedisConnection(defaultConfig));

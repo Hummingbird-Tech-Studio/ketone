@@ -5,6 +5,7 @@ import { Api } from './api';
 import { DatabaseLive } from './db';
 import { AuthServiceLive } from './features/auth/services';
 import { AuthenticationLive } from './features/auth/api/middleware';
+import { UserAuthCacheLive } from './features/auth/services';
 import { CycleApiLive, CycleService } from './features/cycle-v1';
 import { RedisLive } from './db/providers/redis/connection';
 import { AuthApiLive } from './features/auth/api/auth-api-handler';
@@ -34,6 +35,7 @@ const HttpLive = HttpApiBuilder.serve().pipe(
   // Provide middleware and services
   Layer.provide(AuthenticationLive),
   Layer.provide(AuthServiceLive),
+  Layer.provide(UserAuthCacheLive), // ← Necessary: Shared between AuthService and Middleware
   // Cycle services: must provide in dependency order (services -> repository -> connection)
   Layer.provide(CycleService.Default),
   Layer.provide(RedisLive),

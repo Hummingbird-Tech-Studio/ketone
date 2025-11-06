@@ -114,7 +114,6 @@ export class CycleCompletionCache extends Effect.Service<CycleCompletionCache>()
         }),
     };
   }),
+  dependencies: [CycleRepository.Default],
   accessors: true,
 }) {}
-
-export const CycleCompletionCacheLive = CycleCompletionCache.Default;

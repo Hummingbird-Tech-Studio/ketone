@@ -1,4 +1,4 @@
-import { Effect, Layer, Context } from 'effect';
+import { Context, Effect, Layer } from 'effect';
 import Redis, { type Redis as RedisClient } from 'ioredis';
 
 /**
@@ -17,10 +17,7 @@ export interface RedisConfig {
 /**
  * Redis Database Tag for Effect Context
  */
-export class RedisDatabase extends Context.Tag('RedisDatabase')<
-  RedisDatabase,
-  RedisClient
->() {}
+export class RedisDatabase extends Context.Tag('RedisDatabase')<RedisDatabase, RedisClient>() {}
 
 /**
  * Default Redis configuration
@@ -51,9 +48,7 @@ const defaultConfig: RedisConfig = {
  */
 const makeRedisConnection = (config: RedisConfig) =>
   Effect.gen(function* () {
-    yield* Effect.logInfo(
-      `🗄️  Connecting to Redis at: ${config.host}:${config.port}`,
-    );
+    yield* Effect.logInfo(`🗄️  Connecting to Redis at: ${config.host}:${config.port}`);
 
     const redis = yield* Effect.try({
       try: () => {
@@ -67,8 +62,7 @@ const makeRedisConnection = (config: RedisConfig) =>
           lazyConnect: config.lazyConnect,
           retryStrategy: (times: number) => {
             // Exponential backoff: 50ms, 100ms, 200ms, etc., up to 2 seconds
-            const delay = Math.min(times * 50, 2000);
-            return delay;
+            return Math.min(times * 50, 2000);
           },
         });
 
@@ -124,6 +118,9 @@ const makeRedisConnection = (config: RedisConfig) =>
  * Provides a Redis connection as an Effect Layer.
  * This layer can be composed with other layers in the Effect ecosystem.
  *
+ * Uses Layer.scoped to properly handle the Effect.addFinalizer cleanup
+ * when the layer is released.
+ *
  * Usage:
  * ```typescript
  * const program = Effect.gen(function* () {
@@ -134,13 +131,4 @@ const makeRedisConnection = (config: RedisConfig) =>
  * Effect.runPromise(program.pipe(Effect.provide(RedisLive)));
  * ```
  */
-export const RedisLive = Layer.effect(
-  RedisDatabase,
-  makeRedisConnection(defaultConfig),
-);
-
-/**
- * Create Redis Layer with custom configuration
- */
-export const makeRedisLayer = (config: Partial<RedisConfig>) =>
-  Layer.effect(RedisDatabase, makeRedisConnection({ ...defaultConfig, ...config }));
+export const RedisLive = Layer.scoped(RedisDatabase, makeRedisConnection(defaultConfig));

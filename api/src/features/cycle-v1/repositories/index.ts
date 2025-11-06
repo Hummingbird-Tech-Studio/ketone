@@ -1,4 +1,6 @@
+import { Layer } from 'effect';
 import { CycleRepositoryRedis } from './cycle.repository.redis';
+import { RedisLive } from '../../../db/providers/redis/connection';
 
 // Export types and interfaces
 export * from './cycle.repository.interface';
@@ -21,11 +23,14 @@ export { CycleRepositoryRedis } from './cycle.repository.redis';
 export { CycleRepositoryRedis as CycleRepository } from './cycle.repository.redis';
 
 /**
- * Get the CycleRepository Layer
+ * CycleRepository Live Layer with all dependencies
  *
- * Returns the Redis repository layer (bare, without dependencies).
- * Dependencies (DatabaseLive and RedisLive) are provided at the application level.
+ * Provides the Redis-based CycleRepository with its RedisLive dependency already composed.
+ * This is the recommended way to use CycleRepository in your application.
+ *
+ * Dependencies provided:
+ * - RedisLive (Redis connection)
  */
-export function getCycleRepositoryLayer() {
-  return CycleRepositoryRedis.Default;
-}
+export const CycleRepositoryLive = CycleRepositoryRedis.Default.pipe(
+  Layer.provide(RedisLive)
+);

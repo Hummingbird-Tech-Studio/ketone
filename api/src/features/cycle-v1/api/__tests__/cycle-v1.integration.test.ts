@@ -1,7 +1,6 @@
 import { afterAll, describe, expect, test } from 'bun:test';
 import { Effect, Layer, Schema as S } from 'effect';
 import { DatabaseLive } from '../../../../db';
-import { RedisLive } from '../../../../db/providers/redis/connection';
 import {
   API_BASE_URL,
   createTestUser,
@@ -12,7 +11,7 @@ import {
   validateJwtSecret,
 } from '../../../../test-utils';
 import { CycleResponseSchema, ValidateOverlapResponseSchema } from '../schemas';
-import { CycleRepository, getCycleRepositoryLayer } from '../../repositories';
+import { CycleRepository, CycleRepositoryLive } from '../../repositories';
 
 validateJwtSecret();
 
@@ -20,9 +19,9 @@ const ENDPOINT = `${API_BASE_URL}/v1/cycles`;
 const NON_EXISTENT_UUID = '00000000-0000-0000-0000-000000000000';
 
 // Layer configuration for tests: Redis repository with all dependencies
-// getCycleRepositoryLayer() requires RedisDatabase, so we provide RedisLive first
+// CycleRepositoryLive already includes RedisLive
 const TestLayers = Layer.mergeAll(
-  getCycleRepositoryLayer().pipe(Layer.provide(RedisLive)),
+  CycleRepositoryLive,
   DatabaseLive,
 );
 

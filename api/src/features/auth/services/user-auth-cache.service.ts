@@ -11,25 +11,9 @@ const CACHE_CAPACITY = 50_000;
 const CACHE_TTL_HOURS = 24;
 const TIMESTAMP_SENTINEL = 0;
 
-/**
- * UserAuth Cache Service - In-memory cache for password change tracking
- *
- * Business Logic:
- * - Stores Unix timestamp (seconds) of when password was last changed
- * - If passwordChangedAt is null, uses createdAt as baseline
- * - Token is valid if: tokenIssuedAt >= passwordChangedAt
- * - Stale timestamp protection: ignores timestamps older than current value
- *
- * Cache Configuration:
- * - Capacity: 50,000 users (CACHE_CAPACITY)
- * - TTL: 24 hours (CACHE_TTL_HOURS)
- * - Lookup: Fetches from database on cache miss
- */
 export class UserAuthCache extends Effect.Service<UserAuthCache>()('UserAuthCache', {
   effect: Effect.gen(function* () {
     const userRepository = yield* UserRepository;
-
-    // Create cache with automatic DB lookup on miss
     const cache = yield* Cache.make<string, number, UserAuthCacheError>({
       capacity: CACHE_CAPACITY,
       timeToLive: Duration.hours(CACHE_TTL_HOURS),

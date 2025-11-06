@@ -1,14 +1,13 @@
-import { FetchHttpClient, HttpApiBuilder, HttpServer } from '@effect/platform';
+import { HttpApiBuilder, HttpServer } from '@effect/platform';
 import { BunHttpServer, BunRuntime } from '@effect/platform-bun';
-import { Layer } from 'effect';
+import { Effect, Layer } from 'effect';
 import { Api } from './api';
 import { DatabaseLive } from './db';
 import { AuthServiceLive } from './features/auth/services';
 import { AuthenticationLive } from './features/auth/api/middleware';
 import { UserAuthCacheLive } from './features/auth/services';
-import { CycleApiLive as CycleV2ApiLive } from './features/cycle-v1/api/cycle-api-handler';
-import { CycleServiceLive } from './features/cycle-v1';
-import { CycleRepository } from './features/cycle-v1/repositories';
+import { CycleApiLive, CycleService } from './features/cycle-v1';
+import { RedisLive } from './db/providers/redis/connection';
 import { AuthApiLive } from './features/auth/api/auth-api-handler';
 
 // ============================================================================
@@ -23,7 +22,7 @@ import { AuthApiLive } from './features/auth/api/auth-api-handler';
  */
 
 // Combine handlers
-const HandlersLive = Layer.mergeAll(CycleV2ApiLive, AuthApiLive);
+const HandlersLive = Layer.mergeAll(CycleApiLive, AuthApiLive);
 
 // Combine API with handlers
 const ApiLive = HttpApiBuilder.api(Api).pipe(Layer.provide(HandlersLive));
@@ -35,12 +34,13 @@ const HttpLive = HttpApiBuilder.serve().pipe(
   Layer.provide(ApiLive),
   // Provide middleware and services
   Layer.provide(AuthenticationLive),
-  Layer.provide(CycleServiceLive),
   Layer.provide(AuthServiceLive),
-  Layer.provide(UserAuthCacheLive),
-  Layer.provide(CycleRepository.Default),
+  Layer.provide(UserAuthCacheLive), // ← Necessary: Shared between AuthService and Middleware
+  // Cycle services: must provide in dependency order (services -> repository -> connection)
+  Layer.provide(CycleService.Default),
+  Layer.provide(RedisLive),
+  // Database layer: Postgres for auth
   Layer.provide(DatabaseLive),
-  Layer.provide(FetchHttpClient.layer),
   HttpServer.withLogAddress,
   Layer.provide(
     BunHttpServer.layer({
@@ -55,4 +55,4 @@ const HttpLive = HttpApiBuilder.serve().pipe(
 
 // Start Effect HTTP Server (port 3000)
 console.log('🚀 Starting Effect HTTP Server...');
-Layer.launch(HttpLive).pipe(BunRuntime.runMain);
+BunRuntime.runMain(Effect.scoped(Layer.launch(HttpLive)));

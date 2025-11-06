@@ -1,4 +1,4 @@
-import { Effect, Layer, Option } from 'effect';
+import { Effect, Option } from 'effect';
 import { type CycleRecord, CycleRepository, CycleRepositoryError } from '../repositories';
 import {
   CycleAlreadyInProgressError,
@@ -7,7 +7,7 @@ import {
   CycleNotFoundError,
   CycleOverlapError,
 } from '../domain';
-import { CycleCompletionCache, CycleCompletionCacheLive } from './cycle-completion-cache.service';
+import { CycleCompletionCache } from './cycle-completion-cache.service';
 
 export class CycleService extends Effect.Service<CycleService>()('CycleService', {
   effect: Effect.gen(function* () {
@@ -119,7 +119,7 @@ export class CycleService extends Effect.Service<CycleService>()('CycleService',
             );
           }
 
-          return yield * validateNoOverlapWithLastCompleted(userId, cycle.startDate).pipe(
+          return yield* validateNoOverlapWithLastCompleted(userId, cycle.startDate).pipe(
             Effect.map(() => ({ valid: true, overlap: false })),
             Effect.catchTag('CycleOverlapError', (error) =>
               Effect.succeed({
@@ -250,8 +250,6 @@ export class CycleService extends Effect.Service<CycleService>()('CycleService',
         }),
     };
   }),
-  dependencies: [CycleCompletionCache.Default],
+  dependencies: [CycleRepository.Default, CycleCompletionCache.Default],
   accessors: true,
 }) {}
-
-export const CycleServiceLive = CycleService.Default.pipe(Layer.provide(CycleCompletionCacheLive));

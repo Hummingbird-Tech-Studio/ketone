@@ -23,6 +23,5 @@
   "workspaces": [
     "api",
     "web"
-  ],
-  "dependencies": {}
+  ]
 }

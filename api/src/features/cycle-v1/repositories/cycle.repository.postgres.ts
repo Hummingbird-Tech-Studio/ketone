@@ -5,12 +5,13 @@ import { CycleRepositoryError } from './errors';
 import { CycleInvalidStateError, CycleAlreadyInProgressError } from '../domain';
 import { type CycleData, CycleRecordSchema } from './schemas';
 import { and, desc, eq } from 'drizzle-orm';
+import type { ICycleRepository } from './cycle.repository.interface';
 
-export class CycleRepository extends Effect.Service<CycleRepository>()('CycleRepository', {
+export class CycleRepositoryPostgres extends Effect.Service<CycleRepositoryPostgres>()('CycleRepository', {
   effect: Effect.gen(function* () {
     const drizzle = yield* PgDrizzle.PgDrizzle;
 
-    return {
+    const repository: ICycleRepository = {
       getCycleById: (userId: string, cycleId: string) =>
         Effect.gen(function* () {
           const results = yield* drizzle
@@ -251,6 +252,8 @@ export class CycleRepository extends Effect.Service<CycleRepository>()('CycleRep
           );
         }),
     };
+
+    return repository;
   }),
   accessors: true,
 }) {}

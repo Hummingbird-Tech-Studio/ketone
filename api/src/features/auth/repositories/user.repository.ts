@@ -1,14 +1,9 @@
 import * as PgDrizzle from '@effect/sql-drizzle/Pg';
 import { Effect } from 'effect';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { usersTable } from '../../../db';
 import { UserAlreadyExistsError } from '../domain';
 import { UserRepositoryError } from './errors';
-
-/**
- * User Repository Service
- * Handles database operations for users
- */
 
 const UNIQUE_CONSTRAINT_VIOLATION_CODE = '23505';
 
@@ -125,9 +120,7 @@ export class UserRepository extends Effect.Service<UserRepository>()('UserReposi
             .where(eq(usersTable.email, canonicalEmail))
             .limit(1)
             .pipe(
-              Effect.tapError((error) =>
-                Effect.logError('❌ Database error in findUserByEmail (auth lookup)', error),
-              ),
+              Effect.tapError((error) => Effect.logError('❌ Database error in findUserByEmail (auth lookup)', error)),
               Effect.mapError(
                 (error) =>
                   new UserRepositoryError({
@@ -188,13 +181,14 @@ export class UserRepository extends Effect.Service<UserRepository>()('UserReposi
         Effect.gen(function* () {
           yield* Effect.logInfo(`[UserRepository] Updating password for user ${userId}`);
 
-          const now = new Date();
+          // Use Postgres NOW() to ensure consistent timestamps with createdAt (which also uses NOW())
+          // This prevents clock skew issues between JavaScript Date and Postgres server time
           const results = yield* drizzle
             .update(usersTable)
             .set({
               passwordHash: newPasswordHash,
-              passwordChangedAt: now, // Set timestamp to invalidate existing tokens
-              updatedAt: now,
+              passwordChangedAt: sql`NOW()`,
+              updatedAt: sql`NOW()`,
             })
             .where(eq(usersTable.id, userId))
             .returning({

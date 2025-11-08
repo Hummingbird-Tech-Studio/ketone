@@ -394,7 +394,7 @@ export const CycleApiLive = HttpApiBuilder.group(Api, 'cycle-v1', (handlers) =>
             Effect.catchAll((error) =>
               Effect.gen(function* () {
                 yield* Effect.logError(`[Handler] WebSocket error: ${error}`);
-                return Effect.fail(
+                yield* Effect.fail(
                   new CycleRepositoryErrorSchema({
                     message: 'WebSocket connection error',
                     cause: error,

@@ -1,6 +1,8 @@
 import { check, index, pgTable, pgEnum, timestamp, uniqueIndex, uuid, varchar } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
+const ONE_HOUR_MS = 3600000;
+
 export const cycleStatusEnum = pgEnum('cycle_status', ['InProgress', 'Completed']);
 
 /**
@@ -47,7 +49,7 @@ export const cyclesTable = pgTable(
     // CHECK constraint: minimum duration of 1 hour (3,600,000 milliseconds)
     check(
       'chk_cycles_min_duration',
-      sql`(EXTRACT(EPOCH FROM (${table.endDate} - ${table.startDate})) * 1000) >= 3600000`
+      sql`(EXTRACT(EPOCH FROM (${table.endDate} - ${table.startDate})) * 1000) >= ${ONE_HOUR_MS}`
     ),
   ],
 );

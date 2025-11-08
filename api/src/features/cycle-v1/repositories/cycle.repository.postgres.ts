@@ -274,8 +274,8 @@ export class CycleRepositoryPostgres extends Effect.Service<CycleRepositoryPostg
           if (results.length === 0) {
             return yield* Effect.fail(
               new CycleInvalidStateError({
-                message: 'Cannot update dates of a cycle that is not completed',
-                currentState: 'Unknown or InProgress',
+                message: 'Cannot update completed cycle: cycle may not exist, belong to another user, or not be in completed state',
+                currentState: 'NotFound, NotOwned, or NotCompleted',
                 expectedState: 'Completed',
               }),
             );

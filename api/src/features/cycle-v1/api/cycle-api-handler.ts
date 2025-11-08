@@ -1,8 +1,7 @@
 import { HttpApiBuilder, HttpServerRequest, HttpServerResponse } from '@effect/platform';
-import { Effect, Option, Stream } from 'effect';
+import { Effect, Stream } from 'effect';
 import { Api } from '../../../api';
 import { CycleService } from '../services';
-import { CycleCompletionCache } from '../services';
 import {
   CycleRepositoryErrorSchema,
   CycleAlreadyInProgressErrorSchema,
@@ -11,13 +10,11 @@ import {
   CycleInvalidStateErrorSchema,
   CycleOverlapErrorSchema,
 } from './schemas';
-import { CurrentUser, UnauthorizedErrorSchema } from '../../auth/api/middleware';
-import { JwtService, UserAuthCache } from '../../auth/services';
+import { CurrentUser, authenticateWebSocket } from '../../auth/api/middleware';
 
 export const CycleApiLive = HttpApiBuilder.group(Api, 'cycle-v1', (handlers) =>
   Effect.gen(function* () {
     const cycleService = yield* CycleService;
-    const cycleCompletionCache = yield* CycleCompletionCache;
 
     return handlers
       .handle('getCycle', ({ path }) =>
@@ -350,57 +347,8 @@ export const CycleApiLive = HttpApiBuilder.group(Api, 'cycle-v1', (handlers) =>
       .handle('getValidationStream', () =>
         Effect.gen(function* () {
           const request = yield* HttpServerRequest.HttpServerRequest;
-          const jwtService = yield* JwtService;
-          const userAuthCache = yield* UserAuthCache;
-
-          // Extract token from query parameter for WebSocket authentication
-          // WebSocket API doesn't support custom headers in browsers
-          const url = new URL(request.url, `http://${request.headers.host || 'localhost'}`);
-          const tokenParam = url.searchParams.get('token');
-
-          if (!tokenParam) {
-            yield* Effect.logWarning('[Handler] WebSocket upgrade failed - no token provided');
-            return yield* Effect.fail(
-              new UnauthorizedErrorSchema({
-                message: 'Authentication token required',
-              }),
-            );
-          }
-
-          // Verify JWT token
-          const payload = yield* jwtService.verifyToken(tokenParam).pipe(
-            Effect.catchAll((error) =>
-              Effect.gen(function* () {
-                yield* Effect.logWarning('[Handler] WebSocket token verification failed', error);
-                return yield* Effect.fail(
-                  new UnauthorizedErrorSchema({
-                    message: 'Invalid or expired token',
-                  }),
-                );
-              }),
-            ),
-          );
-
-          const userId = payload.userId;
-
-          // Check if token is still valid (not invalidated by password change)
-          const tokenTimestamp = Option.getOrElse(payload.passwordChangedAt, () => payload.iat);
-          const isTokenValid = yield* userAuthCache.validateToken(userId, tokenTimestamp).pipe(
-            Effect.catchAll((error) =>
-              Effect.logWarning(`[Handler] Failed to validate token via cache, allowing request: ${error}`).pipe(
-                Effect.as(true),
-              ),
-            ),
-          );
-
-          if (!isTokenValid) {
-            yield* Effect.logWarning(`[Handler] Token invalidated due to password change for user ${userId}`);
-            return yield* Effect.fail(
-              new UnauthorizedErrorSchema({
-                message: 'Token invalidated due to password change',
-              }),
-            );
-          }
+          const authenticatedUser = yield* authenticateWebSocket(request);
+          const userId = authenticatedUser.userId;
 
           yield* Effect.logInfo(
             `[Handler] GET /api/v1/cycles/validation-stream - WebSocket upgrade requested for user ${userId}`,
@@ -418,19 +366,19 @@ export const CycleApiLive = HttpApiBuilder.group(Api, 'cycle-v1', (handlers) =>
 
           yield* Effect.logInfo(`[Handler] WebSocket connection established for user ${userId}`);
 
-          // Subscribe to changes in the user's last completion date
-          const changeStream = yield* cycleCompletionCache.subscribeToChanges(userId).pipe(
-            Effect.catchAll((error) => {
-              return Effect.gen(function* () {
-                yield* Effect.logError(`[Handler] Error subscribing to validation changes: ${error}`);
-                return Effect.fail(
-                  new CycleRepositoryErrorSchema({
-                    message: 'Failed to subscribe to validation changes',
-                    cause: error,
-                  }),
-                );
-              });
-            }),
+          // Get validation stream from service
+          const validationStream = yield* cycleService.getValidationStream(userId).pipe(
+            Effect.tapError((error) =>
+              Effect.logError(`[Handler] Error getting validation stream: ${error.message}`),
+            ),
+            Effect.catchAll((error) =>
+              Effect.fail(
+                new CycleRepositoryErrorSchema({
+                  message: 'Failed to get validation stream',
+                  cause: error,
+                }),
+              ),
+            ),
           );
 
           // Send stream updates to WebSocket client
@@ -438,18 +386,9 @@ export const CycleApiLive = HttpApiBuilder.group(Api, 'cycle-v1', (handlers) =>
             Effect.gen(function* () {
               const write = yield* socket.writer;
 
-              yield* Stream.runForEach(changeStream, (lastCompletionDateOption) => {
-                const data = Option.match(lastCompletionDateOption, {
-                  onNone: () => JSON.stringify({ lastCompletionDate: null }),
-                  onSome: (date) => JSON.stringify({ lastCompletionDate: date.toISOString() }),
-                });
-
-                return write(data);
-              }).pipe(
+              yield* Stream.runForEach(validationStream, (data) => write(data)).pipe(
                 Effect.onExit((exit) =>
-                  Effect.logInfo(
-                    `[Handler] WebSocket connection closed for user ${userId}: ${exit._tag}`,
-                  ),
+                  Effect.logInfo(`[Handler] WebSocket connection closed for user ${userId}: ${exit._tag}`),
                 ),
               );
             }),

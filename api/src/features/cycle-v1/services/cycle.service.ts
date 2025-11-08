@@ -1,4 +1,4 @@
-import { Effect, Option } from 'effect';
+import { Effect, Option, Stream } from 'effect';
 import { type CycleRecord, CycleRepository, CycleRepositoryError } from '../repositories';
 import {
   CycleAlreadyInProgressError,
@@ -7,7 +7,7 @@ import {
   CycleNotFoundError,
   CycleOverlapError,
 } from '../domain';
-import { CycleCompletionCache } from './cycle-completion-cache.service';
+import { CycleCompletionCache, CycleCompletionCacheError } from './cycle-completion-cache.service';
 
 export class CycleService extends Effect.Service<CycleService>()('CycleService', {
   effect: Effect.gen(function* () {
@@ -305,6 +305,27 @@ export class CycleService extends Effect.Service<CycleService>()('CycleService',
           }
 
           return updatedCycle;
+        }),
+
+      /**
+       * Get a stream of validation updates for a user
+       * Returns a stream of JSON strings containing the last completion date
+       * The stream emits the current value first, then all future changes
+       */
+      getValidationStream: (
+        userId: string,
+      ): Effect.Effect<Stream.Stream<string>, CycleCompletionCacheError> =>
+        Effect.gen(function* () {
+          yield* Effect.logInfo(`[CycleService] Creating validation stream for user ${userId}`);
+
+          const changeStream = yield* cycleCompletionCache.subscribeToChanges(userId);
+
+          return Stream.map(changeStream, (lastCompletionDateOption) =>
+            Option.match(lastCompletionDateOption, {
+              onNone: () => JSON.stringify({ lastCompletionDate: null }),
+              onSome: (date) => JSON.stringify({ lastCompletionDate: date.toISOString() }),
+            }),
+          );
         }),
     };
   }),

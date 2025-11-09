@@ -1,13 +1,11 @@
 import { HttpApiBuilder, HttpServer } from '@effect/platform';
-import { BunHttpServer, BunRuntime } from '@effect/platform-bun';
+import { BunHttpServer, BunRuntime, BunKeyValueStore } from '@effect/platform-bun';
 import { Effect, Layer } from 'effect';
 import { Api } from './api';
 import { DatabaseLive } from './db';
-import { AuthServiceLive, JwtService } from './features/auth/services';
+import { AuthService, JwtService, UserAuthCache } from './features/auth/services';
 import { AuthenticationLive } from './features/auth/api/middleware';
-import { UserAuthCacheLive } from './features/auth/services';
-import { CycleApiLive, CycleService } from './features/cycle-v1';
-import { CycleCompletionCache } from './features/cycle-v1';
+import { CycleApiLive, CycleService, CYCLE_KV_STORAGE_PATH } from './features/cycle-v1';
 import { AuthApiLive } from './features/auth/api/auth-api-handler';
 
 // ============================================================================
@@ -24,28 +22,32 @@ import { AuthApiLive } from './features/auth/api/auth-api-handler';
 // Combine handlers
 const HandlersLive = Layer.mergeAll(CycleApiLive, AuthApiLive);
 
-// Combine API with handlers and provide auth services needed by handlers
-const ApiLive = HttpApiBuilder.api(Api).pipe(
-  Layer.provide(HandlersLive),
-  Layer.provide(JwtService.Default),
-  Layer.provide(AuthServiceLive),
-  Layer.provide(UserAuthCacheLive),
-  Layer.provide(CycleService.Default),
-  Layer.provide(CycleCompletionCache.Default),
-  Layer.provide(DatabaseLive),
+// Infrastructure layers (for database, file system, etc.)
+const KeyValueStoreLive = BunKeyValueStore.layerFileSystem(CYCLE_KV_STORAGE_PATH);
+
+// Service layers - use .Default which automatically includes all dependencies
+const ServiceLayers = Layer.mergeAll(
+  JwtService.Default, // No dependencies - standalone service
+  UserAuthCache.Default, // Needed by AuthenticationLive middleware - includes UserRepository
+  AuthService.Default, // Includes UserRepository, PasswordService, JwtService, UserAuthCache
+  CycleService.Default, // Includes CycleRepository, CycleCompletionCache, CycleKVStore
 );
+
+// Combine API with handlers and provide service layers
+const ApiLive = HttpApiBuilder.api(Api).pipe(Layer.provide(HandlersLive), Layer.provide(ServiceLayers));
 
 const HttpLive = HttpApiBuilder.serve().pipe(
   // Add CORS middleware
   Layer.provide(HttpApiBuilder.middlewareCors()),
   // Provide unified API
   Layer.provide(ApiLive),
-  // Provide middleware
+  // Provide middleware (AuthenticationLive needs JwtService and UserAuthCache)
   Layer.provide(AuthenticationLive),
-  // Auth services - shared by middleware and handlers (including WebSocket)
-  Layer.provide(UserAuthCacheLive),
-  // Database - provided once for all services
+  // Provide service layers (must come after middleware that depends on services)
+  Layer.provide(ServiceLayers),
+  // Provide infrastructure layers at top level (shared by all services and middleware)
   Layer.provide(DatabaseLive),
+  Layer.provide(KeyValueStoreLive),
   HttpServer.withLogAddress,
   Layer.provide(
     BunHttpServer.layer({

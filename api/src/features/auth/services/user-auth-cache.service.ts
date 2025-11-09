@@ -1,4 +1,4 @@
-import { Cache, Data, Duration, Effect, Layer } from 'effect';
+import { Cache, Data, Duration, Effect } from 'effect';
 import { getUnixTime } from 'date-fns';
 import { UserRepository } from '../repositories';
 
@@ -101,7 +101,6 @@ export class UserAuthCache extends Effect.Service<UserAuthCache>()('UserAuthCach
         }),
     };
   }),
+  dependencies: [UserRepository.Default],
   accessors: true,
 }) {}
-
-export const UserAuthCacheLive = UserAuthCache.Default.pipe(Layer.provide(UserRepository.Default));

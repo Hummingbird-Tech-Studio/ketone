@@ -38,10 +38,14 @@ export class Authentication extends HttpApiMiddleware.Tag<Authentication>()('Aut
 }) {}
 
 /**
- * Authentication Middleware Implementation (Base)
+ * Authentication Middleware Implementation
  * Verifies JWT tokens and provides authenticated user context
+ *
+ * Note: Uses custom layer configuration because HttpApiMiddleware requires
+ * Layer.effect pattern for middleware implementation, which is different
+ * from Effect.Service pattern used for business logic services.
  */
-const AuthenticationLiveBase = Layer.effect(
+export const AuthenticationLive = Layer.effect(
   Authentication,
   Effect.gen(function* () {
     const jwtService = yield* JwtService;
@@ -99,8 +103,6 @@ const AuthenticationLiveBase = Layer.effect(
     };
   }),
 );
-
-export const AuthenticationLive = AuthenticationLiveBase.pipe(Layer.provide(JwtService.Default));
 
 /**
  * Authenticate WebSocket Connection

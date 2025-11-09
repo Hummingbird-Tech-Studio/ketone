@@ -1,7 +1,7 @@
 import { Effect, Layer, Option, Schema as S } from 'effect';
 import { KeyValueStore } from '@effect/platform';
 import { BunKeyValueStore } from '@effect/platform-bun';
-import { CycleRecordSchema, type CycleRecord } from '../repositories';
+import { type CycleRecord } from '../repositories';
 
 /**
  * Error type for CycleKVStore operations
@@ -133,55 +133,6 @@ export class CycleKVStore extends Effect.Service<CycleKVStore>()('CycleKVStore',
 
           yield* Effect.logDebug(`[CycleKVStore] Removed in-progress cycle for user ${userId}`);
         }),
-
-      /**
-       * Check if a user has an in-progress cycle
-       *
-       * @deprecated This method is no longer used. The "one InProgress cycle per user" constraint
-       * is now enforced by PostgreSQL's partial unique index (idx_cycles_user_active).
-       * The constraint violation will be caught when attempting to create a cycle in Postgres.
-       *
-       * @param userId - The ID of the user
-       * @returns Effect that resolves to true if the user has an in-progress cycle, false otherwise
-       */
-      hasInProgressCycle: (userId: string): Effect.Effect<boolean, CycleKVStoreError> =>
-        Effect.gen(function* () {
-          const key = makeKey(userId);
-
-          return yield* kv.has(key).pipe(
-            Effect.catchAll((error) =>
-              Effect.gen(function* () {
-                yield* Effect.logError(
-                  `[CycleKVStore] Failed to check in-progress cycle for user ${userId}: ${error.message}`,
-                );
-
-                return yield* Effect.fail(
-                  new CycleKVStoreError({
-                    message: `Failed to check in-progress cycle for user ${userId}`,
-                    cause: error,
-                  }),
-                );
-              }),
-            ),
-          );
-        }),
-
-      /**
-       * Get all in-progress cycles (useful for recovery/debugging)
-       *
-       * @returns Effect that resolves to an array of all in-progress cycles
-       */
-      getAllInProgressCycles: (): Effect.Effect<CycleRecord[], CycleKVStoreError> =>
-        Effect.gen(function* () {
-          // Note: KeyValueStore doesn't have a native "list all keys" method
-          // This would require maintaining a separate index or iterating all keys
-          // For now, we'll return an empty array and log a warning
-          yield* Effect.logWarning(
-            '[CycleKVStore] getAllInProgressCycles not fully implemented - requires key iteration support',
-          );
-
-          return [];
-        }),
     };
   }),
   accessors: true,
@@ -190,9 +141,10 @@ export class CycleKVStore extends Effect.Service<CycleKVStore>()('CycleKVStore',
 /**
  * Layer for CycleKVStore with file system persistence
  *
+ * Note: Requires custom layer configuration to provide BunKeyValueStore
+ * infrastructure layer with file system backing. This is different from
+ * business logic services that only depend on other services.
+ *
  * Storage location: /api/.data/cycles/
  */
-export const CycleKVStoreLive = Layer.provide(
-  CycleKVStore.Default,
-  BunKeyValueStore.layerFileSystem('.data/cycles'),
-);
+export const CycleKVStoreLive = Layer.provide(CycleKVStore.Default, BunKeyValueStore.layerFileSystem('.data/cycles'));

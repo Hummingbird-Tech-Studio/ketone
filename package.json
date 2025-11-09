@@ -17,9 +17,6 @@
     "typecheck:api": "bun --cwd api run typecheck",
     "typecheck:web": "bun --cwd web run typecheck"
   },
-  "devDependencies": {
-    "concurrently": "^9.2.1"
-  },
   "workspaces": [
     "api",
     "web"

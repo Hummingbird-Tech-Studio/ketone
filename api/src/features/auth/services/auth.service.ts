@@ -1,4 +1,4 @@
-import { Effect, Layer } from 'effect';
+import { Effect } from 'effect';
 import { getUnixTime } from 'date-fns';
 import { InvalidCredentialsError, UserAlreadyExistsError } from '../domain';
 import { UserRepository } from '../repositories';
@@ -174,11 +174,6 @@ export class AuthService extends Effect.Service<AuthService>()('AuthService', {
         }),
     };
   }),
+  dependencies: [UserRepository.Default, PasswordService.Default, JwtService.Default, UserAuthCache.Default],
   accessors: true,
 }) {}
-
-export const AuthServiceLive = AuthService.Default.pipe(
-  Layer.provide(UserRepository.Default),
-  Layer.provide(PasswordService.Default),
-  Layer.provide(JwtService.Default),
-);

@@ -5,11 +5,9 @@
   "description": "Ketone monorepo - Web, API, and Sidecar",
   "packageManager": "bun@1.0.0",
   "scripts": {
-    "dev": "bun run dev:all",
     "dev:api": "cd api && bun --watch --env-file=../.env.local src/index.ts",
     "dev:web": "bun --cwd web run dev",
     "build": "bun run build:all",
-    "build:all": "bun run build:api && bun run build:web && bun run build:sidecar",
     "build:api": "bun --cwd api run build",
     "build:web": "bun --cwd web run build",
     "typecheck": "bun run typecheck:api && bun run typecheck:web",

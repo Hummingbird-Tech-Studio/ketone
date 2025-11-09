@@ -8,7 +8,6 @@ import { AuthenticationLive } from './features/auth/api/middleware';
 import { UserAuthCacheLive } from './features/auth/services';
 import { CycleApiLive, CycleService } from './features/cycle-v1';
 import { CycleCompletionCache } from './features/cycle-v1';
-import { RedisLive } from './db/providers/redis/connection';
 import { AuthApiLive } from './features/auth/api/auth-api-handler';
 
 // ============================================================================
@@ -33,7 +32,6 @@ const ApiLive = HttpApiBuilder.api(Api).pipe(
   Layer.provide(UserAuthCacheLive),
   Layer.provide(CycleService.Default),
   Layer.provide(CycleCompletionCache.Default),
-  Layer.provide(RedisLive),
   Layer.provide(DatabaseLive),
 );
 
@@ -45,13 +43,7 @@ const HttpLive = HttpApiBuilder.serve().pipe(
   // Provide middleware
   Layer.provide(AuthenticationLive),
   // Auth services - shared by middleware and handlers (including WebSocket)
-  Layer.provide(JwtService.Default),
-  Layer.provide(AuthServiceLive),
   Layer.provide(UserAuthCacheLive),
-  // Cycle services
-  Layer.provide(CycleService.Default),
-  Layer.provide(CycleCompletionCache.Default),
-  Layer.provide(RedisLive),
   // Database - provided once for all services
   Layer.provide(DatabaseLive),
   HttpServer.withLogAddress,

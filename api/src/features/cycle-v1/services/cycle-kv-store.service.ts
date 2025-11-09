@@ -139,6 +139,11 @@ export class CycleKVStore extends Effect.Service<CycleKVStore>()('CycleKVStore',
 }) {}
 
 /**
+ * Storage path for cycle KeyValueStore data
+ */
+export const CYCLE_KV_STORAGE_PATH = '.data/cycles';
+
+/**
  * Layer for CycleKVStore with file system persistence
  *
  * Note: Requires custom layer configuration to provide BunKeyValueStore
@@ -147,4 +152,7 @@ export class CycleKVStore extends Effect.Service<CycleKVStore>()('CycleKVStore',
  *
  * Storage location: /api/.data/cycles/
  */
-export const CycleKVStoreLive = Layer.provide(CycleKVStore.Default, BunKeyValueStore.layerFileSystem('.data/cycles'));
+export const CycleKVStoreLive = Layer.provide(
+  CycleKVStore.Default,
+  BunKeyValueStore.layerFileSystem(CYCLE_KV_STORAGE_PATH),
+);

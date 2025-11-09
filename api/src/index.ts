@@ -5,7 +5,7 @@ import { Api } from './api';
 import { DatabaseLive } from './db';
 import { AuthService, JwtService, UserAuthCache } from './features/auth/services';
 import { AuthenticationLive } from './features/auth/api/middleware';
-import { CycleApiLive, CycleService } from './features/cycle-v1';
+import { CycleApiLive, CycleService, CYCLE_KV_STORAGE_PATH } from './features/cycle-v1';
 import { AuthApiLive } from './features/auth/api/auth-api-handler';
 
 // ============================================================================
@@ -23,7 +23,7 @@ import { AuthApiLive } from './features/auth/api/auth-api-handler';
 const HandlersLive = Layer.mergeAll(CycleApiLive, AuthApiLive);
 
 // Infrastructure layers (for database, file system, etc.)
-const KeyValueStoreLive = BunKeyValueStore.layerFileSystem('.data/cycles');
+const KeyValueStoreLive = BunKeyValueStore.layerFileSystem(CYCLE_KV_STORAGE_PATH);
 
 // Service layers - use .Default which automatically includes all dependencies
 const ServiceLayers = Layer.mergeAll(

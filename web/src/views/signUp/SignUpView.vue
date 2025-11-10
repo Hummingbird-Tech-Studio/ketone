@@ -101,11 +101,11 @@
 </template>
 
 <script setup lang="ts">
-import { onUnmounted } from 'vue';
-import { useSelector } from '@xstate/vue';
-import { configure, useForm, Field } from 'vee-validate';
-import { Schema } from 'effect';
 import { Event, signUpActor, SignUpState } from '@/views/signUp/actors/signUpActor';
+import { useSelector } from '@xstate/vue';
+import { Schema } from 'effect';
+import { configure, Field, useForm } from 'vee-validate';
+import { onUnmounted } from 'vue';
 
 type PasswordRule = { type: 'min'; value: number; message: string } | { type: 'regex'; value: RegExp; message: string };
 

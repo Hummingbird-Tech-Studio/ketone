@@ -1,4 +1,6 @@
+import { AuthTokenService } from '@/services/auth/auth-token.service';
 import { runWithUi } from '@/utils/effects/helpers';
+import { Effect } from 'effect';
 import { assertEvent, assign, emit, fromCallback, setup, type EventObject } from 'xstate';
 import { programSignUp, type SignUpSuccess } from '../services/signUp.service';
 
@@ -56,6 +58,24 @@ export const signUpMachine = setup({
   actions: {
     onDoneSubmitting: emit(({ event }) => {
       assertEvent(event, Event.ON_DONE);
+
+      // Store authentication token using Effect service
+      const storeTokenProgram = Effect.gen(function* () {
+        const authTokenService = yield* AuthTokenService;
+        yield* authTokenService.setToken(event.result.token);
+      }).pipe(Effect.provide(AuthTokenService.Default));
+
+      // Run the effect to store the token
+      runWithUi(
+        storeTokenProgram,
+        () => {
+          // Token stored successfully
+        },
+        (error) => {
+          // Log error but don't block the flow
+          console.error('Failed to store auth token:', error);
+        },
+      );
 
       return {
         type: Emit.SIGN_UP_SUCCESS,

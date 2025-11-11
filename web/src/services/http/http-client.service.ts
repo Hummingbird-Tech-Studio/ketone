@@ -16,3 +16,8 @@ export const HttpClientLive = FetchHttpClient.layer;
  */
 export { HttpClient, HttpClientRequest, HttpClientResponse };
 export type { HttpClientError };
+
+/**
+ * Export HTTP Interceptor utilities
+ */
+export { create401Interceptor, HttpClientWith401Interceptor } from './http-interceptor';

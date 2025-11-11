@@ -7,8 +7,13 @@ import {
 } from '@/services/http/http-client.service';
 import type { HttpBodyError } from '@effect/platform/HttpBody';
 import type { HttpClientError } from '@effect/platform/HttpClientError';
+import { SignupResponseSchema } from '@ketone/shared';
 import { Effect, Layer, Match, Schema as S } from 'effect';
 
+// TODO:
+// - UI redirect
+// - User should log in after sign up
+// - Store web token in localStorage
 /**
  * Sign-Up Specific Error Types
  */
@@ -27,34 +32,18 @@ export class ServerError extends S.TaggedError<ServerError>()('ServerError', {
 }) {}
 
 /**
- * Response Types (matching API schemas)
+ * Response Types
  */
-export class UserResponse extends S.Class<UserResponse>('UserResponse')({
-  id: S.String,
-  email: S.String,
-  createdAt: S.DateFromString,
-  updatedAt: S.DateFromString,
-}) {}
-
-export class SignUpSuccess extends S.Class<SignUpSuccess>('SignUpSuccess')({
-  user: UserResponse,
-}) {}
-
-/**
- * Union type for all possible errors
- */
+export type SignUpSuccess = SignupResponseSchema;
 export type SignUpError = HttpClientError | HttpBodyError | ValidationError | UserAlreadyExistsError | ServerError;
 
-/**
- * Handle sign-up response based on status code
- */
 const handleSignUpResponse = (
   response: HttpClientResponse.HttpClientResponse,
   email: string,
 ): Effect.Effect<SignUpSuccess, SignUpError> =>
   Match.value(response.status).pipe(
     Match.when(201, () =>
-      HttpClientResponse.schemaBodyJson(SignUpSuccess)(response).pipe(
+      HttpClientResponse.schemaBodyJson(SignupResponseSchema)(response).pipe(
         Effect.mapError(
           (error) =>
             new ValidationError({

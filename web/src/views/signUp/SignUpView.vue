@@ -46,7 +46,7 @@
       />
       <Message
         class="signUp__password__errorMessage"
-        v-if="requiredError(errors[0])"
+        v-if="requiredError(value)"
         severity="error"
         variant="simple"
         size="small"
@@ -54,7 +54,7 @@
         {{ errorMessage }}
       </Message>
 
-      <template v-if="errors.length > 0 && !requiredError(errors[0])">
+      <template v-if="errors.length > 0 && !requiredError(value)">
         <div class="signUp__passwordRequirements">Create a password that contains at least:</div>
         <ul class="signUp__passwordRequirements signUp__passwordRequirements__list">
           <li
@@ -193,8 +193,8 @@ const onSubmit = handleSubmit((values) => {
   submit(values);
 });
 
-function requiredError(field: string | undefined) {
-  return field === 'Please enter your password';
+function requiredError(value: string | undefined) {
+  return !value || value.trim() === '';
 }
 
 function handleSignUpEmit(emitType: EmitType) {

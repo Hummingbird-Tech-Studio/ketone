@@ -1,4 +1,10 @@
 <template>
+  <div class="cycle__status" v-if="cycleData">
+    <div class="cycle__status__timer">
+      <Timer :cycleActor="actorRef" :startDate="cycleData.startDate" :endDate="cycleData.endDate" />
+    </div>
+  </div>
+
   <div class="cycle-view">
     <h1>Cycle View</h1>
 
@@ -35,8 +41,9 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
-import { useCycle } from './composables/useCycle';
 import { Emit } from './actors/cycle.actor';
+import Timer from './components/Timer/Timer.vue';
+import { useCycle } from './composables/useCycle';
 
 // Use cycle composable
 const { loading, cycleData, loadActiveCycle, actorRef } = useCycle();
@@ -66,6 +73,130 @@ onMounted(() => {
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/variables' as *;
+
+.cycle {
+  &__status {
+    height: 112px;
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+    margin-bottom: 16px;
+  }
+
+  &__progress {
+    height: 84px;
+    display: flex;
+    justify-content: center;
+    margin-bottom: 16px;
+
+    &__bar {
+      width: 335px;
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      padding: 0 8px 0 38px;
+    }
+
+    @media only screen and (min-width: $breakpoint-tablet-min-width) {
+      &__bar {
+        width: 628px;
+        height: 84px;
+      }
+    }
+
+    @media only screen and (min-width: $breakpoint-desktop-min-width) {
+      &__bar {
+        width: 864px;
+        height: 84px;
+      }
+    }
+  }
+
+  &__schedule {
+    display: flex;
+    flex-wrap: wrap;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 16px;
+
+    &__durationSection {
+      flex: 0 0 100%;
+      margin: 0 auto;
+      display: flex;
+      justify-content: center;
+
+      &__duration {
+        width: 200px;
+        height: 40px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+    }
+
+    &__scheduler {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 110px;
+      width: 268px;
+    }
+
+    @media only screen and (min-width: $breakpoint-tablet-min-width) {
+      flex-direction: row;
+      align-items: center;
+    }
+
+    @media only screen and (min-width: $breakpoint-desktop-min-width) {
+      &__durationSection {
+        order: 2;
+        flex: unset;
+        margin: unset;
+      }
+
+      &__scheduler {
+        order: 1;
+
+        &--goal {
+          order: 3;
+        }
+      }
+    }
+  }
+
+  &__actions {
+    height: 50px;
+    display: flex;
+    justify-content: center;
+
+    &__button {
+      display: flex;
+      justify-content: center;
+      width: 250px;
+      height: auto;
+    }
+
+    @media only screen and (min-width: $breakpoint-tablet-min-width) {
+      &__button {
+        width: 450px;
+      }
+    }
+
+    @media only screen and (min-width: $breakpoint-desktop-min-width) {
+      height: 80px;
+
+      &__button {
+        align-self: flex-end;
+        width: 568px;
+        height: 80px;
+      }
+    }
+  }
+}
+
 .cycle-view {
   display: flex;
   flex-direction: column;

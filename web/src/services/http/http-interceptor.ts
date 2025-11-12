@@ -1,4 +1,5 @@
 import { authenticationActor, Event } from '@/actors/authenticationActor';
+import { HttpStatus } from '@/shared/constants/http-status';
 import { HttpClient, HttpClientError } from '@effect/platform';
 import { Effect, Layer } from 'effect';
 
@@ -10,7 +11,7 @@ export const create401Interceptor = (client: HttpClient.HttpClient) =>
   HttpClient.transform(client, (effect) =>
     effect.pipe(
       Effect.tap((response) => {
-        if (response.status === 401) {
+        if (response.status === HttpStatus.Unauthorized) {
           return Effect.sync(() => authenticationActor.send({ type: Event.DEAUTHENTICATE }));
         }
         return Effect.void;
@@ -18,7 +19,7 @@ export const create401Interceptor = (client: HttpClient.HttpClient) =>
       Effect.tapError((error) => {
         if (HttpClientError.isHttpClientError(error)) {
           const httpError = error as HttpClientError.ResponseError;
-          if (httpError.response?.status === 401) {
+          if (httpError.response?.status === HttpStatus.Unauthorized) {
             return Effect.sync(() => authenticationActor.send({ type: Event.DEAUTHENTICATE }));
           }
         }

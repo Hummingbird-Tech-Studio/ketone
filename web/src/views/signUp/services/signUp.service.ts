@@ -5,6 +5,7 @@ import {
   HttpClientRequest,
   HttpClientResponse,
 } from '@/services/http/http-client.service';
+import { HttpStatus } from '@/shared/constants/http-status';
 import type { HttpBodyError } from '@effect/platform/HttpBody';
 import type { HttpClientError } from '@effect/platform/HttpClientError';
 import { SignupResponseSchema } from '@ketone/shared';
@@ -38,7 +39,7 @@ const handleSignUpResponse = (
   email: string,
 ): Effect.Effect<SignUpSuccess, SignUpError> =>
   Match.value(response.status).pipe(
-    Match.when(201, () =>
+    Match.when(HttpStatus.Created, () =>
       HttpClientResponse.schemaBodyJson(SignupResponseSchema)(response).pipe(
         Effect.mapError(
           (error) =>
@@ -49,7 +50,7 @@ const handleSignUpResponse = (
         ),
       ),
     ),
-    Match.when(409, () =>
+    Match.when(HttpStatus.Conflict, () =>
       response.json.pipe(
         Effect.flatMap((body) => {
           const errorData = body as { message?: string; email?: string };
@@ -62,7 +63,7 @@ const handleSignUpResponse = (
         }),
       ),
     ),
-    Match.when(400, () =>
+    Match.when(HttpStatus.BadRequest, () =>
       response.json.pipe(
         Effect.flatMap((body) => {
           const errorData = body as { message?: string };

@@ -9,28 +9,48 @@ export enum CycleState {
 }
 
 export enum Event {
+  TICK = 'TICK',
   LOAD = 'LOAD',
   ON_SUCCESS = 'ON_SUCCESS',
   ON_ERROR = 'ON_ERROR',
 }
 
 type EventType =
+  | { type: Event.TICK }
   | { type: Event.LOAD }
   | { type: Event.ON_SUCCESS; result: GetCycleSuccess }
   | { type: Event.ON_ERROR; error: string };
 
 export enum Emit {
+  TICK = 'TICK',
   CYCLE_LOADED = 'CYCLE_LOADED',
   CYCLE_ERROR = 'CYCLE_ERROR',
 }
 
 export type EmitType =
+  | { type: Emit.TICK }
   | { type: Emit.CYCLE_LOADED; result: GetCycleSuccess }
   | { type: Emit.CYCLE_ERROR; error: string };
 
 type Context = {
   cycleData: GetCycleSuccess | null;
 };
+
+const timerLogic = fromCallback(({ sendBack, receive }) => {
+  const intervalId = setInterval(() => {
+    sendBack({ type: Event.TICK });
+  }, 100);
+
+  receive((event) => {
+    if (event.type === 'xstate.stop') {
+      clearInterval(intervalId);
+    }
+  });
+
+  return () => {
+    clearInterval(intervalId);
+  };
+});
 
 const cycleLogic = fromCallback<EventObject, void>(({ sendBack }) => {
   runWithUi(
@@ -76,6 +96,7 @@ export const cycleMachine = setup({
     }),
   },
   actors: {
+    timerActor: timerLogic,
     cycleActor: cycleLogic,
   },
 }).createMachine({
@@ -107,7 +128,14 @@ export const cycleMachine = setup({
       },
     },
     [CycleState.InProgress]: {
+      invoke: {
+        id: 'timerActor',
+        src: 'timerActor',
+      },
       on: {
+        [Event.TICK]: {
+          actions: emit({ type: Emit.TICK }),
+        },
         [Event.LOAD]: CycleState.Loading,
       },
     },

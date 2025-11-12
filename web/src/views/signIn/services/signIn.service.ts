@@ -5,6 +5,7 @@ import {
   HttpClientRequest,
   HttpClientResponse,
 } from '@/services/http/http-client.service';
+import { HttpStatus } from '@/shared/constants/http-status';
 import type { HttpBodyError } from '@effect/platform/HttpBody';
 import type { HttpClientError } from '@effect/platform/HttpClientError';
 import { LoginResponseSchema } from '@ketone/shared';
@@ -36,7 +37,7 @@ const handleSignInResponse = (
   response: HttpClientResponse.HttpClientResponse,
 ): Effect.Effect<SignInSuccess, SignInError> =>
   Match.value(response.status).pipe(
-    Match.when(200, () =>
+    Match.when(HttpStatus.Ok, () =>
       HttpClientResponse.schemaBodyJson(LoginResponseSchema)(response).pipe(
         Effect.mapError(
           (error) =>
@@ -47,7 +48,7 @@ const handleSignInResponse = (
         ),
       ),
     ),
-    Match.when(401, () =>
+    Match.when(HttpStatus.Unauthorized, () =>
       response.json.pipe(
         Effect.flatMap((body) => {
           const errorData = body as { message?: string };
@@ -59,7 +60,7 @@ const handleSignInResponse = (
         }),
       ),
     ),
-    Match.when(400, () =>
+    Match.when(HttpStatus.BadRequest, () =>
       response.json.pipe(
         Effect.flatMap((body) => {
           const errorData = body as { message?: string };

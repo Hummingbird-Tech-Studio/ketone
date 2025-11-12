@@ -8,6 +8,7 @@ import {
   HttpClientWith401Interceptor,
   UnauthorizedError,
 } from '@/services/http/http-client.service';
+import { HttpStatus } from '@/shared/constants/http-status';
 import type { HttpBodyError } from '@effect/platform/HttpBody';
 import type { HttpClientError } from '@effect/platform/HttpClientError';
 import { CycleResponseSchema } from '@ketone/shared';
@@ -52,7 +53,7 @@ const handleGetCycleResponse = (
   cycleId: string,
 ): Effect.Effect<GetCycleSuccess, GetCycleError> =>
   Match.value(response.status).pipe(
-    Match.when(200, () =>
+    Match.when(HttpStatus.Ok, () =>
       HttpClientResponse.schemaBodyJson(CycleResponseSchema)(response).pipe(
         Effect.mapError(
           (error) =>
@@ -63,7 +64,7 @@ const handleGetCycleResponse = (
         ),
       ),
     ),
-    Match.when(404, () =>
+    Match.when(HttpStatus.NotFound, () =>
       response.json.pipe(
         Effect.flatMap((body) => {
           const errorData = body as { message?: string };
@@ -76,7 +77,7 @@ const handleGetCycleResponse = (
         }),
       ),
     ),
-    Match.when(401, () =>
+    Match.when(HttpStatus.Unauthorized, () =>
       response.json.pipe(
         Effect.flatMap((body) => {
           const errorData = body as { message?: string };

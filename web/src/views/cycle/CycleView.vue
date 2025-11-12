@@ -14,15 +14,15 @@
     </div>
 
     <!-- Success State -->
-    <div v-else-if="cycle" class="cycle-data">
+    <div v-else-if="cycleData" class="cycle-data">
       <h2>Cycle Details</h2>
       <div class="cycle-info">
-        <p><strong>ID:</strong> {{ cycle.id }}</p>
-        <p><strong>Status:</strong> {{ cycle.status }}</p>
-        <p><strong>Start Date:</strong> {{ formatDate(cycle.startDate) }}</p>
-        <p><strong>End Date:</strong> {{ formatDate(cycle.endDate) }}</p>
-        <p><strong>Created At:</strong> {{ formatDate(cycle.createdAt) }}</p>
-        <p><strong>Updated At:</strong> {{ formatDate(cycle.updatedAt) }}</p>
+        <p><strong>ID:</strong> {{ cycleData.id }}</p>
+        <p><strong>Status:</strong> {{ cycleData.status }}</p>
+        <p><strong>Start Date:</strong> {{ formatDate(cycleData.startDate) }}</p>
+        <p><strong>End Date:</strong> {{ formatDate(cycleData.endDate) }}</p>
+        <p><strong>Created At:</strong> {{ formatDate(cycleData.createdAt) }}</p>
+        <p><strong>Updated At:</strong> {{ formatDate(cycleData.updatedAt) }}</p>
       </div>
     </div>
 
@@ -34,36 +34,25 @@
 </template>
 
 <script setup lang="ts">
-import { Effect } from 'effect';
 import { onMounted, ref } from 'vue';
-import { getActiveCycleProgram, type GetCycleSuccess, NoCycleInProgressError } from './services/cycle.service';
+import { useCycle } from './composables/useCycle';
+import { Emit } from './actors/cycle.actor';
 
-// Reactive state
-const cycle = ref<GetCycleSuccess | null>(null);
-const loading = ref(false);
+// Use cycle composable
+const { loading, cycleData, loadActiveCycle, actorRef } = useCycle();
+
+// Error handling through emitted events
 const error = ref<string | null>(null);
 
-// Load active cycle for the authenticated user
-const loadActiveCycle = async () => {
-  loading.value = true;
+// Listen to cycle error events
+actorRef.on(Emit.CYCLE_ERROR, (event) => {
+  error.value = event.error;
+});
+
+// Clear error when cycle is loaded successfully
+actorRef.on(Emit.CYCLE_LOADED, () => {
   error.value = null;
-  cycle.value = null;
-
-  try {
-    cycle.value = await Effect.runPromise(getActiveCycleProgram());
-  } catch (err) {
-    console.error('Failed to load active cycle:', err);
-
-    // Check if the error is specifically "no cycle in progress"
-    if (err instanceof NoCycleInProgressError) {
-      error.value = 'You do not have an active cycle. Please create a new cycle to get started.';
-    } else {
-      error.value = err instanceof Error ? err.message : 'Unknown error occurred';
-    }
-  } finally {
-    loading.value = false;
-  }
-};
+});
 
 // Format date for display
 const formatDate = (date: Date) => {

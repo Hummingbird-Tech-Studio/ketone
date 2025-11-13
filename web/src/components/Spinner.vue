@@ -1,4 +1,4 @@
-domain<template>
+<template>
   <div class="spinner">
     <div
       v-for="n in 3"

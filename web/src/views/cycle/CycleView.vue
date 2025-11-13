@@ -40,7 +40,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { onMounted, onUnmounted, ref } from 'vue';
 import { Emit } from './actors/cycle.actor';
 import Timer from './components/Timer/Timer.vue';
 import { useCycle } from './composables/useCycle';
@@ -51,15 +51,16 @@ const { loading, cycleData, loadActiveCycle, actorRef } = useCycle();
 // Error handling through emitted events
 const error = ref<string | null>(null);
 
-// Listen to cycle error events
-actorRef.on(Emit.CYCLE_ERROR, (event) => {
-  error.value = event.error;
-});
-
-// Clear error when cycle is loaded successfully
-actorRef.on(Emit.CYCLE_LOADED, () => {
-  error.value = null;
-});
+const subscriptions = [
+  // Listen to cycle error events
+  actorRef.on(Emit.CYCLE_ERROR, (event) => {
+    error.value = event.error;
+  }),
+  // Clear error when cycle is loaded successfully
+  actorRef.on(Emit.CYCLE_LOADED, () => {
+    error.value = null;
+  }),
+];
 
 // Format date for display
 const formatDate = (date: Date) => {
@@ -69,6 +70,10 @@ const formatDate = (date: Date) => {
 // Load active cycle on mount
 onMounted(() => {
   loadActiveCycle();
+});
+
+onUnmounted(() => {
+  subscriptions.forEach((sub) => sub.unsubscribe());
 });
 </script>
 

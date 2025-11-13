@@ -1,8 +1,22 @@
 <template>
-  <div class="cycle__status" v-if="cycleData">
+  <div class="cycle__status">
     <div class="cycle__status__timer">
-      <Timer :cycleActor="actorRef" :startDate="cycleData.startDate" :endDate="cycleData.endDate" />
+      <Timer :loading="showSkeleton" :cycleActor="actorRef" :startDate="startDate" :endDate="endDate" />
     </div>
+  </div>
+
+  <div class="cycle__progress">
+    <ProgressBar
+      class="cycle__progress__bar"
+      :loading="showSkeleton"
+      :cycleActor="actorRef"
+      :completed="completed"
+      :startDate="startDate"
+      :endDate="endDate"
+      :finishing="finishing"
+      :idle="idle"
+      :inProgress="inProgress"
+    />
   </div>
 
   <div class="cycle-view">
@@ -42,11 +56,24 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from 'vue';
 import { Emit } from './actors/cycle.actor';
+import ProgressBar from './components/ProgressBar/ProgressBar.vue';
 import Timer from './components/Timer/Timer.vue';
 import { useCycle } from './composables/useCycle';
 
 // Use cycle composable
-const { loading, cycleData, loadActiveCycle, actorRef } = useCycle();
+const {
+  idle,
+  inProgress,
+  loading,
+  finishing,
+  completed,
+  cycleData,
+  startDate,
+  endDate,
+  showSkeleton,
+  loadActiveCycle,
+  actorRef,
+} = useCycle();
 
 // Error handling through emitted events
 const error = ref<string | null>(null);
@@ -87,6 +114,10 @@ onUnmounted(() => {
     gap: 20px;
     justify-content: center;
     margin-bottom: 16px;
+
+    &__timer {
+      height: 110px;
+    }
   }
 
   &__progress {

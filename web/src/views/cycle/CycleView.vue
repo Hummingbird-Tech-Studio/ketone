@@ -27,7 +27,6 @@
           :completed="completed"
           :cycleActor="actorRef"
           :endDate="endDate"
-          :initialDuration="initialDuration"
           :startDate="startDate"
         />
       </div>
@@ -89,7 +88,6 @@ const {
   showSkeleton,
   loadActiveCycle,
   actorRef,
-  initialDuration,
 } = useCycle();
 
 // Error handling through emitted events

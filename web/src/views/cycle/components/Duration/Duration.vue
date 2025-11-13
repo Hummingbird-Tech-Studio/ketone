@@ -46,7 +46,6 @@ interface Props {
   completed: boolean;
   cycleActor: Actor<AnyActorLogic>;
   endDate: Date;
-  initialDuration: number;
   startDate: Date;
 }
 

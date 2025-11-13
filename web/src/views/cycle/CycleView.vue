@@ -1,4 +1,10 @@
 <template>
+  <div class="cycle__status" v-if="cycleData">
+    <div class="cycle__status__timer">
+      <Timer :cycleActor="actorRef" :startDate="cycleData.startDate" :endDate="cycleData.endDate" />
+    </div>
+  </div>
+
   <div class="cycle-view">
     <h1>Cycle View</h1>
 
@@ -14,71 +20,188 @@
     </div>
 
     <!-- Success State -->
-    <div v-else-if="cycle" class="cycle-data">
+    <div v-else-if="cycleData" class="cycle-data">
       <h2>Cycle Details</h2>
       <div class="cycle-info">
-        <p><strong>ID:</strong> {{ cycle.id }}</p>
-        <p><strong>Status:</strong> {{ cycle.status }}</p>
-        <p><strong>Start Date:</strong> {{ formatDate(cycle.startDate) }}</p>
-        <p><strong>End Date:</strong> {{ formatDate(cycle.endDate) }}</p>
-        <p><strong>Created At:</strong> {{ formatDate(cycle.createdAt) }}</p>
-        <p><strong>Updated At:</strong> {{ formatDate(cycle.updatedAt) }}</p>
+        <p><strong>ID:</strong> {{ cycleData.id }}</p>
+        <p><strong>Status:</strong> {{ cycleData.status }}</p>
+        <p><strong>Start Date:</strong> {{ formatDate(cycleData.startDate) }}</p>
+        <p><strong>End Date:</strong> {{ formatDate(cycleData.endDate) }}</p>
+        <p><strong>Created At:</strong> {{ formatDate(cycleData.createdAt) }}</p>
+        <p><strong>Updated At:</strong> {{ formatDate(cycleData.updatedAt) }}</p>
       </div>
     </div>
 
     <!-- No Cycle State -->
     <div v-else class="no-cycle">
-      <p>No cycle loaded. Please provide a cycle ID in the route params.</p>
-      <p>Example: /cycle?id=your-cycle-id</p>
+      <p>No cycle available.</p>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
-import { useRoute } from 'vue-router';
-import { Effect } from 'effect';
-import { getCycleProgram, type GetCycleSuccess } from './services/cycle.service';
+import { onMounted, onUnmounted, ref } from 'vue';
+import { Emit } from './actors/cycle.actor';
+import Timer from './components/Timer/Timer.vue';
+import { useCycle } from './composables/useCycle';
 
-const route = useRoute();
+// Use cycle composable
+const { loading, cycleData, loadActiveCycle, actorRef } = useCycle();
 
-// Reactive state
-const cycle = ref<GetCycleSuccess | null>(null);
-const loading = ref(false);
+// Error handling through emitted events
 const error = ref<string | null>(null);
 
-// Load cycle from the service
-const loadCycle = async (cycleId: string) => {
-  loading.value = true;
-  error.value = null;
-  cycle.value = null;
-
-  try {
-    const result = await Effect.runPromise(getCycleProgram(cycleId));
-    cycle.value = result;
-  } catch (err) {
-    console.error('Failed to load cycle:', err);
-    error.value = err instanceof Error ? err.message : 'Unknown error occurred';
-  } finally {
-    loading.value = false;
-  }
-};
+const subscriptions = [
+  // Listen to cycle error events
+  actorRef.on(Emit.CYCLE_ERROR, (event) => {
+    error.value = event.error;
+  }),
+  // Clear error when cycle is loaded successfully
+  actorRef.on(Emit.CYCLE_LOADED, () => {
+    error.value = null;
+  }),
+];
 
 // Format date for display
 const formatDate = (date: Date) => {
   return new Date(date).toLocaleString();
 };
 
-// Load cycle on mount if cycleId is provided in query params
+// Load active cycle on mount
 onMounted(() => {
-  const cycleId = route.query.id as string;
-  if (cycleId) {
-    loadCycle(cycleId);
-  }
+  loadActiveCycle();
+});
+
+onUnmounted(() => {
+  subscriptions.forEach((sub) => sub.unsubscribe());
 });
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/variables' as *;
+
+.cycle {
+  &__status {
+    height: 112px;
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+    margin-bottom: 16px;
+  }
+
+  &__progress {
+    height: 84px;
+    display: flex;
+    justify-content: center;
+    margin-bottom: 16px;
+
+    &__bar {
+      width: 335px;
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      padding: 0 8px 0 38px;
+    }
+
+    @media only screen and (min-width: $breakpoint-tablet-min-width) {
+      &__bar {
+        width: 628px;
+        height: 84px;
+      }
+    }
+
+    @media only screen and (min-width: $breakpoint-desktop-min-width) {
+      &__bar {
+        width: 864px;
+        height: 84px;
+      }
+    }
+  }
+
+  &__schedule {
+    display: flex;
+    flex-wrap: wrap;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 16px;
+
+    &__durationSection {
+      flex: 0 0 100%;
+      margin: 0 auto;
+      display: flex;
+      justify-content: center;
+
+      &__duration {
+        width: 200px;
+        height: 40px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+    }
+
+    &__scheduler {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 110px;
+      width: 268px;
+    }
+
+    @media only screen and (min-width: $breakpoint-tablet-min-width) {
+      flex-direction: row;
+      align-items: center;
+    }
+
+    @media only screen and (min-width: $breakpoint-desktop-min-width) {
+      &__durationSection {
+        order: 2;
+        flex: unset;
+        margin: unset;
+      }
+
+      &__scheduler {
+        order: 1;
+
+        &--goal {
+          order: 3;
+        }
+      }
+    }
+  }
+
+  &__actions {
+    height: 50px;
+    display: flex;
+    justify-content: center;
+
+    &__button {
+      display: flex;
+      justify-content: center;
+      width: 250px;
+      height: auto;
+    }
+
+    @media only screen and (min-width: $breakpoint-tablet-min-width) {
+      &__button {
+        width: 450px;
+      }
+    }
+
+    @media only screen and (min-width: $breakpoint-desktop-min-width) {
+      height: 80px;
+
+      &__button {
+        align-self: flex-end;
+        width: 568px;
+        height: 80px;
+      }
+    }
+  }
+}
+
 .cycle-view {
   display: flex;
   flex-direction: column;

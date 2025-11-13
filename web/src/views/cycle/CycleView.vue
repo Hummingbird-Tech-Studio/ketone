@@ -31,6 +31,14 @@
         />
       </div>
     </div>
+
+    <div class="cycle__schedule__scheduler">
+      <Scheduler :view="start" :date="startDate" :onClick="handleStartDateEditing" :actor="actorRef" :disabled="idle" />
+    </div>
+
+    <div class="cycle__schedule__scheduler cycle__schedule__scheduler--goal">
+      <Scheduler :view="goal" :date="endDate" :onClick="handleEndDateEditing" :actor="actorRef" />
+    </div>
   </div>
 
   <div class="cycle-view">
@@ -68,14 +76,15 @@
 </template>
 
 <script setup lang="ts">
+import { goal, start } from '@/views/cycle/domain/domain';
 import { onMounted, onUnmounted, ref } from 'vue';
 import { Emit } from './actors/cycle.actor';
 import Duration from './components/Duration/Duration.vue';
 import ProgressBar from './components/ProgressBar/ProgressBar.vue';
+import Scheduler from './components/Scheduler/Scheduler.vue';
 import Timer from './components/Timer/Timer.vue';
 import { useCycle } from './composables/useCycle';
 
-// Use cycle composable
 const {
   idle,
   inProgress,
@@ -89,6 +98,14 @@ const {
   loadActiveCycle,
   actorRef,
 } = useCycle();
+
+function handleStartDateEditing() {
+  // TODO
+}
+
+function handleEndDateEditing() {
+  // TODO
+}
 
 // Error handling through emitted events
 const error = ref<string | null>(null);

@@ -26,7 +26,7 @@
 import { formatTime } from '@/utils';
 import { Emit } from '@/views/cycle/actors/cycle.actor';
 import { useActor, useSelector } from '@xstate/vue';
-import { computed, ref } from 'vue';
+import { computed, onUnmounted, ref } from 'vue';
 import { Actor, type AnyActorLogic, assign, setup } from 'xstate';
 
 const SECONDS_PER_MINUTE = 60;
@@ -126,7 +126,7 @@ function updateRemainingTime() {
   remainingTime.value = calculateTime(remainingSeconds);
 }
 
-props.cycleActor.on(Emit.TICK, () => {
+const tickSubscription = props.cycleActor.on(Emit.TICK, () => {
   updateElapsedTime();
   updateRemainingTime();
 });
@@ -134,6 +134,10 @@ props.cycleActor.on(Emit.TICK, () => {
 function toggleTimer() {
   send({ type: Event.TOGGLE });
 }
+
+onUnmounted(() => {
+  tickSubscription.unsubscribe();
+});
 </script>
 
 <style scoped lang="scss">

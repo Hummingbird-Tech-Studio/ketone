@@ -22,8 +22,14 @@
         :draggable="false"
         @hide="handleCloseDialog"
       >
-        <DatePicker v-model="date" inline showButtonBar placeholder="Basic">
-          <template #buttonbar="{ todayCallback, saveCallback }">
+        <DatePicker
+          :modelValue="localDate"
+          @update:modelValue="handleDateChange"
+          inline
+          showButtonBar
+          placeholder="Basic"
+        >
+          <template #buttonbar>
             <div class="scheduler__buttonbar">
               <div class="scheduler__time">
                 <button class="scheduler__time-display" aria-label="Set time" @click="openTimePickerDialog">
@@ -33,8 +39,8 @@
               </div>
               <Divider class="scheduler__divider" />
               <div class="scheduler__actions">
-                <Button class="scheduler__button" size="small" label="Now" variant="outlined" @click="todayCallback" />
-                <Button class="scheduler__button" size="small" label="Save" variant="outlined" @click="saveCallback" />
+                <Button class="scheduler__button" size="small" label="Now" variant="outlined" @click="handleNow" />
+                <Button class="scheduler__button" size="small" label="Save" variant="outlined" @click="handleSave" />
               </div>
             </div>
           </template>
@@ -69,12 +75,18 @@
 
 <script setup lang="ts">
 import TimePicker from '@/components/TimePicker/TimePicker.vue';
+import type { TimeValue } from '@/shared/types/time';
 import { formatDate, formatHour } from '@/utils';
 import type { SchedulerView } from '@/views/cycle/domain/domain';
-import type { TimeValue } from '@/shared/types/time';
 import { computed, ref, toRefs } from 'vue';
 
 const CALENDAR_DIALOG_WIDTH = 350;
+const HOURS_IN_12H_FORMAT = 12;
+
+const Period = {
+  AM: 'AM',
+  PM: 'PM',
+} as const;
 
 const props = defineProps<{
   view: SchedulerView;
@@ -86,27 +98,37 @@ const props = defineProps<{
 
 const { view, date, disabled, onDateChange, onEditStart } = toRefs(props);
 
-const hours = computed(() => date.value.getHours() % 12 || 12);
-const minutes = computed(() => date.value.getMinutes().toString().padStart(2, '0'));
-const meridian = computed(() => {
-  return date.value.getHours() >= 12 ? 'PM' : 'AM';
-});
+const localDate = ref(new Date(date.value));
 const open = ref(false);
-
 const isTimePickerOpen = ref(false);
 const selectedTimeValue = ref<TimeValue | null>(null);
 
+const hours = computed(() => localDate.value.getHours() % HOURS_IN_12H_FORMAT || HOURS_IN_12H_FORMAT);
+const minutes = computed(() => localDate.value.getMinutes().toString().padStart(2, '0'));
+const meridian = computed(() => {
+  return localDate.value.getHours() >= HOURS_IN_12H_FORMAT ? Period.PM : Period.AM;
+});
 const currentTimeValue = computed<TimeValue>(() => ({
   hours: hours.value,
   minutes: parseInt(minutes.value),
   period: meridian.value,
 }));
 
+function normalizeHourValue(hours: number, period: 'AM' | 'PM'): number {
+  if (period === Period.AM && hours === HOURS_IN_12H_FORMAT) return 0;
+  if (period === Period.PM && hours !== HOURS_IN_12H_FORMAT) return hours + HOURS_IN_12H_FORMAT;
+  return hours;
+}
+
 function handleClick() {
   if (disabled.value) {
     return;
   }
+
+  // Reset local date to current prop value when opening dialog
+  localDate.value = new Date(date.value);
   open.value = true;
+
   if (onEditStart?.value) {
     onEditStart.value();
   }
@@ -114,6 +136,19 @@ function handleClick() {
 
 function handleCloseDialog() {
   open.value = false;
+}
+
+function handleDateChange(newDate: Date | null) {
+  if (!newDate) return;
+
+  const hours = localDate.value.getHours();
+  const minutes = localDate.value.getMinutes();
+  const seconds = localDate.value.getSeconds();
+  const milliseconds = localDate.value.getMilliseconds();
+  const date = new Date(newDate);
+
+  date.setHours(hours, minutes, seconds, milliseconds);
+  localDate.value = date;
 }
 
 function openTimePickerDialog() {
@@ -137,23 +172,24 @@ function saveTimeSelection() {
   }
 
   // Convert 12-hour to 24-hour format
-  const { hours: hours12, minutes: mins, period } = selectedTimeValue.value;
-  let hour24 = hours12;
+  const { hours, minutes, period } = selectedTimeValue.value;
+  const hour = normalizeHourValue(hours, period);
+  const newDate = new Date(localDate.value);
 
-  if (period === 'AM' && hours12 === 12) {
-    hour24 = 0;
-  } else if (period === 'PM' && hours12 !== 12) {
-    hour24 = hours12 + 12;
-  }
-
-  // Update the date with the new time
-  const newDate = new Date(date.value);
-  newDate.setHours(hour24, mins, 0, 0);
-
-  // Emit date change event to parent
-  onDateChange.value(newDate);
+  newDate.setHours(hour, minutes, 0, 0);
+  localDate.value = newDate;
 
   closeTimePickerDialog();
+}
+
+function handleNow() {
+  localDate.value = new Date();
+}
+
+function handleSave() {
+  // Commit the local date changes to the parent
+  onDateChange.value(localDate.value);
+  handleCloseDialog();
 }
 </script>
 

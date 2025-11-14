@@ -36,6 +36,7 @@
 
     <div class="cycle__schedule__scheduler">
       <Scheduler
+        :loading="showSkeleton"
         :view="start"
         :date="startDate"
         :disabled="idle"
@@ -45,13 +46,19 @@
     </div>
 
     <div class="cycle__schedule__scheduler cycle__schedule__scheduler--goal">
-      <Scheduler :view="goal" :date="endDate" @update:date="updateEndDate" @edit-start="handleEndDateEditing" />
+      <Scheduler
+        :loading="showSkeleton"
+        :view="goal"
+        :date="endDate"
+        @update:date="updateEndDate"
+        @edit-start="handleEndDateEditing"
+      />
     </div>
   </div>
 
   <div class="cycle__actions">
     <div class="cycle__actions__button">
-      <ActionButton :buttonText="buttonText" :isLoading="loading" @click="handleButtonClick" />
+      <ActionButton :loading="showSkeleton" :buttonText="buttonText" :isLoading="loading" @click="handleButtonClick" />
     </div>
   </div>
 </template>

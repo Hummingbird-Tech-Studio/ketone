@@ -1,13 +1,14 @@
 <template>
-  <div>
+  <div class="action-button-wrapper">
+    <Skeleton v-if="loading" width="128px" height="36px" border-radius="20px" />
     <Button
+      v-else
       :label="buttonText"
       :loading="isLoading"
       aria-label="Start Fasting Cycle"
       rounded
       @click="$emit('click')"
       outlined
-      fluid
     />
   </div>
 </template>
@@ -16,6 +17,7 @@
 interface Props {
   buttonText: string;
   isLoading?: boolean;
+  loading?: boolean;
 }
 
 interface Emits {
@@ -25,3 +27,11 @@ interface Emits {
 defineProps<Props>();
 defineEmits<Emits>();
 </script>
+
+<style scoped lang="scss">
+.action-button-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+</style>

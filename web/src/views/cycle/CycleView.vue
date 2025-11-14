@@ -1,7 +1,7 @@
 <template>
   <div class="cycle__status">
     <div class="cycle__status__timer">
-      <Timer :loading="showSkeleton" :cycleActor="actorRef" :startDate="startDate" :endDate="endDate" />
+      <Timer :loading="showSkeleton" :elapsed="elapsedTime" :remaining="remainingTime" />
     </div>
   </div>
 
@@ -9,7 +9,8 @@
     <ProgressBar
       class="cycle__progress__bar"
       :loading="showSkeleton"
-      :cycleActor="actorRef"
+      :progressPercentage="progressPercentage"
+      :stage="stage"
       :completed="completed"
       :startDate="startDate"
       :endDate="endDate"
@@ -25,9 +26,10 @@
         <Duration
           :loading="showSkeleton"
           :completed="completed"
-          :cycleActor="actorRef"
-          :endDate="endDate"
-          :startDate="startDate"
+          :duration="duration"
+          :canDecrement="canDecrement"
+          :onIncrement="incrementDuration"
+          :onDecrement="decrementDuration"
         />
       </div>
     </div>
@@ -80,9 +82,12 @@ import { goal, start } from '@/views/cycle/domain/domain';
 import { onMounted, onUnmounted, ref } from 'vue';
 import { Emit } from './actors/cycle.actor';
 import Duration from './components/Duration/Duration.vue';
+import { useDuration } from './components/Duration/useDuration';
 import ProgressBar from './components/ProgressBar/ProgressBar.vue';
+import { useProgressBar } from './components/ProgressBar/useProgressBar';
 import Scheduler from './components/Scheduler/Scheduler.vue';
 import Timer from './components/Timer/Timer.vue';
+import { useTimer } from './components/Timer/useTimer';
 import { useCycle } from './composables/useCycle';
 
 const {
@@ -98,6 +103,27 @@ const {
   loadActiveCycle,
   actorRef,
 } = useCycle();
+
+// Timer logic
+const { elapsedTime, remainingTime } = useTimer({
+  cycleActor: actorRef,
+  startDate,
+  endDate,
+});
+
+// ProgressBar logic
+const { progressPercentage, stage } = useProgressBar({
+  cycleActor: actorRef,
+  startDate,
+  endDate,
+});
+
+// Duration logic
+const { duration, canDecrement, incrementDuration, decrementDuration } = useDuration({
+  cycleActor: actorRef,
+  startDate,
+  endDate,
+});
 
 function handleStartDateEditing() {
   // TODO

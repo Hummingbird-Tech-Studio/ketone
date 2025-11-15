@@ -3,11 +3,12 @@ import { runWithUi } from '@/utils/effects/helpers';
 import { addHours } from 'date-fns';
 import { Match } from 'effect';
 import { assertEvent, assign, emit, fromCallback, setup, type EventObject } from 'xstate';
-import { getActiveCycleProgram, type GetCycleSuccess } from '../services/cycle.service';
+import { createCycleProgram, getActiveCycleProgram, type GetCycleSuccess } from '../services/cycle.service';
 
 export enum CycleState {
   Idle = 'Idle',
   Loading = 'Loading',
+  Creating = 'Creating',
   InProgress = 'InProgress',
   Finishing = 'Finishing',
   Completed = 'Completed',
@@ -16,6 +17,7 @@ export enum CycleState {
 export enum Event {
   TICK = 'TICK',
   LOAD = 'LOAD',
+  CREATE = 'CREATE',
   INCREMENT_DURATION = 'INCREMENT_DURATION',
   DECREASE_DURATION = 'DECREASE_DURATION',
   UPDATE_START_DATE = 'UPDATE_START_DATE',
@@ -28,6 +30,7 @@ export enum Event {
 type EventType =
   | { type: Event.TICK }
   | { type: Event.LOAD }
+  | { type: Event.CREATE }
   | { type: Event.INCREMENT_DURATION }
   | { type: Event.DECREASE_DURATION; date: Date }
   | { type: Event.UPDATE_START_DATE; date: Date }
@@ -96,6 +99,29 @@ const cycleLogic = fromCallback<EventObject, void>(({ sendBack }) => {
       Match.value(error).pipe(
         Match.when({ _tag: 'NoCycleInProgressError' }, (err) => {
           sendBack({ type: Event.NO_CYCLE_IN_PROGRESS, message: err.message });
+        }),
+        Match.orElse((err) => {
+          const errorMessage = 'message' in err && typeof err.message === 'string' ? err.message : String(err);
+          sendBack({ type: Event.ON_ERROR, error: errorMessage });
+        }),
+      );
+    },
+  );
+});
+
+const createCycleLogic = fromCallback<EventObject, { startDate: Date; endDate: Date }>(({ sendBack, input }) => {
+  runWithUi(
+    createCycleProgram(input.startDate, input.endDate),
+    (result) => {
+      sendBack({ type: Event.ON_SUCCESS, result });
+    },
+    (error) => {
+      Match.value(error).pipe(
+        Match.when({ _tag: 'CycleAlreadyInProgressError' }, (err) => {
+          sendBack({ type: Event.ON_ERROR, error: err.message });
+        }),
+        Match.when({ _tag: 'CycleOverlapError' }, (err) => {
+          sendBack({ type: Event.ON_ERROR, error: err.message });
         }),
         Match.orElse((err) => {
           const errorMessage = 'message' in err && typeof err.message === 'string' ? err.message : String(err);
@@ -200,6 +226,7 @@ export const cycleMachine = setup({
   actors: {
     timerActor: timerLogic,
     cycleActor: cycleLogic,
+    createCycleActor: createCycleLogic,
   },
 }).createMachine({
   id: 'cycle',
@@ -214,6 +241,7 @@ export const cycleMachine = setup({
     [CycleState.Idle]: {
       on: {
         [Event.LOAD]: CycleState.Loading,
+        [Event.CREATE]: CycleState.Creating,
         [Event.INCREMENT_DURATION]: {
           actions: ['onIncrementDuration'],
         },
@@ -240,8 +268,27 @@ export const cycleMachine = setup({
           target: CycleState.InProgress,
         },
         [Event.NO_CYCLE_IN_PROGRESS]: {
-          actions: 'emitNoCycleInProgress',
           target: CycleState.Idle,
+        },
+        [Event.ON_ERROR]: {
+          actions: 'emitCycleError',
+          target: CycleState.Idle,
+        },
+      },
+    },
+    [CycleState.Creating]: {
+      invoke: {
+        id: 'createCycleActor',
+        src: 'createCycleActor',
+        input: ({ context }) => ({
+          startDate: context.startDate,
+          endDate: context.endDate,
+        }),
+      },
+      on: {
+        [Event.ON_SUCCESS]: {
+          actions: ['setCycleData', 'emitCycleLoaded'],
+          target: CycleState.InProgress,
         },
         [Event.ON_ERROR]: {
           actions: 'emitCycleError',

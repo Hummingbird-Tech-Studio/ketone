@@ -41,14 +41,12 @@ type EventType =
 
 export enum Emit {
   TICK = 'TICK',
-  CYCLE_LOADED = 'CYCLE_LOADED',
   NO_CYCLE_IN_PROGRESS = 'NO_CYCLE_IN_PROGRESS',
   CYCLE_ERROR = 'CYCLE_ERROR',
 }
 
 export type EmitType =
   | { type: Emit.TICK }
-  | { type: Emit.CYCLE_LOADED; result: GetCycleSuccess }
   | { type: Emit.NO_CYCLE_IN_PROGRESS; message: string }
   | { type: Emit.CYCLE_ERROR; error: string };
 
@@ -116,18 +114,8 @@ const createCycleLogic = fromCallback<EventObject, { startDate: Date; endDate: D
       sendBack({ type: Event.ON_SUCCESS, result });
     },
     (error) => {
-      Match.value(error).pipe(
-        Match.when({ _tag: 'CycleAlreadyInProgressError' }, (err) => {
-          sendBack({ type: Event.ON_ERROR, error: err.message });
-        }),
-        Match.when({ _tag: 'CycleOverlapError' }, (err) => {
-          sendBack({ type: Event.ON_ERROR, error: err.message });
-        }),
-        Match.orElse((err) => {
-          const errorMessage = 'message' in err && typeof err.message === 'string' ? err.message : String(err);
-          sendBack({ type: Event.ON_ERROR, error: errorMessage });
-        }),
-      );
+      const errorMessage = 'message' in error && typeof error.message === 'string' ? error.message : String(error);
+      sendBack({ type: Event.ON_ERROR, error: errorMessage });
     },
   );
 });
@@ -180,14 +168,6 @@ export const cycleMachine = setup({
         endDate: newEnd,
         initialDuration: calculateDurationInHours(context.startDate, newEnd),
       };
-    }),
-    emitCycleLoaded: emit(({ event }) => {
-      assertEvent(event, Event.ON_SUCCESS);
-
-      return {
-        type: Emit.CYCLE_LOADED,
-        result: event.result,
-      } as const;
     }),
     emitNoCycleInProgress: emit(({ event }) => {
       assertEvent(event, Event.NO_CYCLE_IN_PROGRESS);
@@ -264,7 +244,7 @@ export const cycleMachine = setup({
       },
       on: {
         [Event.ON_SUCCESS]: {
-          actions: ['setCycleData', 'emitCycleLoaded'],
+          actions: ['setCycleData'],
           target: CycleState.InProgress,
         },
         [Event.NO_CYCLE_IN_PROGRESS]: {
@@ -287,7 +267,7 @@ export const cycleMachine = setup({
       },
       on: {
         [Event.ON_SUCCESS]: {
-          actions: ['setCycleData', 'emitCycleLoaded'],
+          actions: ['setCycleData'],
           target: CycleState.InProgress,
         },
         [Event.ON_ERROR]: {

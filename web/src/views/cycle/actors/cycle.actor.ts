@@ -1,6 +1,7 @@
 import { MILLISECONDS_PER_HOUR, MIN_FASTING_DURATION } from '@/shared/constants';
 import { runWithUi } from '@/utils/effects/helpers';
 import { addHours } from 'date-fns';
+import { Match } from 'effect';
 import { assertEvent, assign, emit, fromCallback, setup, type EventObject } from 'xstate';
 import { getActiveCycleProgram, type GetCycleSuccess } from '../services/cycle.service';
 
@@ -20,6 +21,7 @@ export enum Event {
   UPDATE_START_DATE = 'UPDATE_START_DATE',
   UPDATE_END_DATE = 'UPDATE_END_DATE',
   ON_SUCCESS = 'ON_SUCCESS',
+  NO_CYCLE_IN_PROGRESS = 'NO_CYCLE_IN_PROGRESS',
   ON_ERROR = 'ON_ERROR',
 }
 
@@ -31,17 +33,20 @@ type EventType =
   | { type: Event.UPDATE_START_DATE; date: Date }
   | { type: Event.UPDATE_END_DATE; date: Date }
   | { type: Event.ON_SUCCESS; result: GetCycleSuccess }
+  | { type: Event.NO_CYCLE_IN_PROGRESS; message: string }
   | { type: Event.ON_ERROR; error: string };
 
 export enum Emit {
   TICK = 'TICK',
   CYCLE_LOADED = 'CYCLE_LOADED',
+  NO_CYCLE_IN_PROGRESS = 'NO_CYCLE_IN_PROGRESS',
   CYCLE_ERROR = 'CYCLE_ERROR',
 }
 
 export type EmitType =
   | { type: Emit.TICK }
   | { type: Emit.CYCLE_LOADED; result: GetCycleSuccess }
+  | { type: Emit.NO_CYCLE_IN_PROGRESS; message: string }
   | { type: Emit.CYCLE_ERROR; error: string };
 
 type CycleMetadata = {
@@ -88,8 +93,15 @@ const cycleLogic = fromCallback<EventObject, void>(({ sendBack }) => {
       sendBack({ type: Event.ON_SUCCESS, result });
     },
     (error) => {
-      const errorMessage = 'message' in error && typeof error.message === 'string' ? error.message : String(error);
-      sendBack({ type: Event.ON_ERROR, error: errorMessage });
+      Match.value(error).pipe(
+        Match.when({ _tag: 'NoCycleInProgressError' }, (err) => {
+          sendBack({ type: Event.NO_CYCLE_IN_PROGRESS, message: err.message });
+        }),
+        Match.orElse((err) => {
+          const errorMessage = 'message' in err && typeof err.message === 'string' ? err.message : String(err);
+          sendBack({ type: Event.ON_ERROR, error: errorMessage });
+        }),
+      );
     },
   );
 });
@@ -149,6 +161,14 @@ export const cycleMachine = setup({
       return {
         type: Emit.CYCLE_LOADED,
         result: event.result,
+      } as const;
+    }),
+    emitNoCycleInProgress: emit(({ event }) => {
+      assertEvent(event, Event.NO_CYCLE_IN_PROGRESS);
+
+      return {
+        type: Emit.NO_CYCLE_IN_PROGRESS,
+        message: event.message,
       } as const;
     }),
     emitCycleError: emit(({ event }) => {
@@ -218,6 +238,10 @@ export const cycleMachine = setup({
         [Event.ON_SUCCESS]: {
           actions: ['setCycleData', 'emitCycleLoaded'],
           target: CycleState.InProgress,
+        },
+        [Event.NO_CYCLE_IN_PROGRESS]: {
+          actions: 'emitNoCycleInProgress',
+          target: CycleState.Idle,
         },
         [Event.ON_ERROR]: {
           actions: 'emitCycleError',

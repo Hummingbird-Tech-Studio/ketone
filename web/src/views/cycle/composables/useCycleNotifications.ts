@@ -9,14 +9,6 @@ export function useCycleNotifications(cycleActor: Actor<AnyActorLogic>) {
 
   function handleCycleEmit(emitType: EmitType) {
     Match.value(emitType).pipe(
-      Match.when({ type: Emit.NO_CYCLE_IN_PROGRESS }, (emit) => {
-        toast.add({
-          severity: 'info',
-          summary: 'No Active Cycle',
-          detail: emit.message,
-          life: 5000,
-        });
-      }),
       Match.when({ type: Emit.CYCLE_ERROR }, (emit) => {
         toast.add({
           severity: 'error',

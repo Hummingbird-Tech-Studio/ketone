@@ -54,7 +54,15 @@
                 <Divider class="scheduler__divider" />
                 <div class="scheduler__actions">
                   <Button class="scheduler__button" size="small" label="Now" variant="outlined" @click="handleNow" />
-                  <Button class="scheduler__button" size="small" label="Save" variant="outlined" @click="handleSave" />
+                  <Button
+                    class="scheduler__button"
+                    size="small"
+                    label="Save"
+                    variant="outlined"
+                    :loading="updating"
+                    :disabled="updating"
+                    @click="handleSave"
+                  />
                 </div>
               </div>
             </template>
@@ -97,6 +105,7 @@ import {
   checkIsEndDateBeforeStartDate,
   checkIsStartDateInFuture,
   cycleMachine,
+  Emit,
   getEndDateBeforeStartValidationMessage,
   getInvalidDurationValidationMessage,
   getStartDateInFutureValidationMessage,
@@ -104,7 +113,7 @@ import {
 import type { SchedulerView } from '@/views/cycle/domain/domain';
 import { startOfMinute } from 'date-fns';
 import { useToast } from 'primevue/usetoast';
-import { computed, ref, toRefs } from 'vue';
+import { computed, onUnmounted, ref, toRefs } from 'vue';
 import type { ActorRefFrom } from 'xstate';
 
 const CALENDAR_DIALOG_WIDTH = 350;
@@ -118,6 +127,7 @@ interface Props {
   actorRef: ActorRefFrom<typeof cycleMachine>;
   disabled?: boolean;
   loading?: boolean;
+  updating?: boolean;
 }
 
 interface Emits {
@@ -128,7 +138,7 @@ interface Emits {
 const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
 
-const { view, date, actorRef, disabled } = toRefs(props);
+const { view, date, actorRef, disabled, updating } = toRefs(props);
 const toast = useToast();
 
 const localDate = ref(new Date(date.value));
@@ -258,8 +268,17 @@ function handleSave() {
   }
 
   emit('update:date', normalizedDate);
-  handleCloseDialog();
 }
+
+const subscription = actorRef.value.on(Emit.UPDATE_COMPLETE, () => {
+  if (open.value) {
+    handleCloseDialog();
+  }
+});
+
+onUnmounted(() => {
+  subscription.unsubscribe();
+});
 </script>
 
 <style scoped lang="scss">

@@ -73,6 +73,74 @@ function calculateDurationInHours(startDate: Date, endDate: Date): number {
   return Math.max(MIN_FASTING_DURATION, hours);
 }
 
+function calculateNewDates(
+  eventType: Event,
+  currentStart: Date,
+  currentEnd: Date,
+  eventDate?: Date,
+): { startDate: Date; endDate: Date } {
+  switch (eventType) {
+    case Event.INCREMENT_DURATION:
+      return {
+        startDate: currentStart,
+        endDate: addHours(currentEnd, 1),
+      };
+
+    case Event.DECREASE_DURATION: {
+      const minEnd = addHours(currentStart, MIN_FASTING_DURATION);
+      return {
+        startDate: currentStart,
+        endDate: eventDate! < minEnd ? minEnd : eventDate!,
+      };
+    }
+
+    case Event.UPDATE_START_DATE: {
+      const minEnd = addHours(eventDate!, MIN_FASTING_DURATION);
+      return {
+        startDate: eventDate!,
+        endDate: new Date(Math.max(currentEnd.getTime(), minEnd.getTime())),
+      };
+    }
+
+    case Event.UPDATE_END_DATE: {
+      const minEnd = addHours(currentStart, MIN_FASTING_DURATION);
+      return {
+        startDate: currentStart,
+        endDate: eventDate! < minEnd ? minEnd : eventDate!,
+      };
+    }
+
+    default:
+      return { startDate: currentStart, endDate: currentEnd };
+  }
+}
+
+type UpdateCycleInput = {
+  cycleId: string;
+  eventType: Event;
+  currentStart: Date;
+  currentEnd: Date;
+  eventDate?: Date;
+};
+
+function buildUpdateCycleInput(context: Context, event: EventType): UpdateCycleInput {
+  const base = {
+    cycleId: context.cycleMetadata!.id,
+    eventType: event.type,
+    currentStart: context.startDate,
+    currentEnd: context.endDate,
+  };
+
+  switch (event.type) {
+    case Event.DECREASE_DURATION:
+    case Event.UPDATE_START_DATE:
+    case Event.UPDATE_END_DATE:
+      return { ...base, eventDate: event.date };
+    default:
+      return base;
+  }
+}
+
 const timerLogic = fromCallback(({ sendBack, receive }) => {
   const intervalId = setInterval(() => {
     sendBack({ type: Event.TICK });
@@ -122,20 +190,25 @@ const createCycleLogic = fromCallback<EventObject, { startDate: Date; endDate: D
   );
 });
 
-const updateCycleLogic = fromCallback<EventObject, { cycleId: string; startDate: Date; endDate: Date }>(
-  ({ sendBack, input }) => {
-    runWithUi(
-      updateCycleProgram(input.cycleId, input.startDate, input.endDate),
-      (result) => {
-        sendBack({ type: Event.ON_SUCCESS, result });
-      },
-      (error) => {
-        const errorMessage = 'message' in error && typeof error.message === 'string' ? error.message : String(error);
-        sendBack({ type: Event.ON_ERROR, error: errorMessage });
-      },
-    );
-  },
-);
+const updateCycleLogic = fromCallback<EventObject, UpdateCycleInput>(({ sendBack, input }) => {
+  const { startDate, endDate } = calculateNewDates(
+    input.eventType,
+    input.currentStart,
+    input.currentEnd,
+    input.eventDate,
+  );
+
+  runWithUi(
+    updateCycleProgram(input.cycleId, startDate, endDate),
+    (result) => {
+      sendBack({ type: Event.ON_SUCCESS, result });
+    },
+    (error) => {
+      const errorMessage = 'message' in error && typeof error.message === 'string' ? error.message : String(error);
+      sendBack({ type: Event.ON_ERROR, error: errorMessage });
+    },
+  );
+});
 
 export const cycleMachine = setup({
   types: {
@@ -145,45 +218,60 @@ export const cycleMachine = setup({
   },
   actions: {
     onIncrementDuration: assign(({ context }) => {
-      const newEnd = addHours(context.endDate, 1);
+      const { startDate, endDate } = calculateNewDates(Event.INCREMENT_DURATION, context.startDate, context.endDate);
 
       return {
-        endDate: newEnd,
-        initialDuration: calculateDurationInHours(context.startDate, newEnd),
+        startDate,
+        endDate,
+        initialDuration: calculateDurationInHours(startDate, endDate),
       };
     }),
     onDecrementDuration: assign(({ context, event }) => {
       assertEvent(event, Event.DECREASE_DURATION);
-      const candidate = event.date;
-      const minEnd = addHours(context.startDate, MIN_FASTING_DURATION);
-      const newEnd = candidate < minEnd ? minEnd : candidate;
+
+      const { startDate, endDate } = calculateNewDates(
+        Event.DECREASE_DURATION,
+        context.startDate,
+        context.endDate,
+        event.date,
+      );
 
       return {
-        endDate: newEnd,
-        initialDuration: calculateDurationInHours(context.startDate, newEnd),
+        startDate,
+        endDate,
+        initialDuration: calculateDurationInHours(startDate, endDate),
       };
     }),
     onUpdateStartDate: assign(({ context, event }) => {
       assertEvent(event, Event.UPDATE_START_DATE);
-      const newStart = event.date;
-      const minEnd = addHours(newStart, MIN_FASTING_DURATION);
-      const newEnd = new Date(Math.max(context.endDate.getTime(), minEnd.getTime()));
+
+      const { startDate, endDate } = calculateNewDates(
+        Event.UPDATE_START_DATE,
+        context.startDate,
+        context.endDate,
+        event.date,
+      );
 
       return {
-        startDate: newStart,
-        endDate: newEnd,
-        initialDuration: calculateDurationInHours(newStart, newEnd),
+        startDate,
+        endDate,
+        initialDuration: calculateDurationInHours(startDate, endDate),
       };
     }),
     onUpdateEndDate: assign(({ context, event }) => {
       assertEvent(event, Event.UPDATE_END_DATE);
-      const candidate = event.date;
-      const minEnd = addHours(context.startDate, MIN_FASTING_DURATION);
-      const newEnd = candidate < minEnd ? minEnd : candidate;
+
+      const { startDate, endDate } = calculateNewDates(
+        Event.UPDATE_END_DATE,
+        context.startDate,
+        context.endDate,
+        event.date,
+      );
 
       return {
-        endDate: newEnd,
-        initialDuration: calculateDurationInHours(context.startDate, newEnd),
+        startDate,
+        endDate,
+        initialDuration: calculateDurationInHours(startDate, endDate),
       };
     }),
     emitCycleError: emit(({ event }) => {
@@ -314,36 +402,7 @@ export const cycleMachine = setup({
         {
           id: 'updateCycleActor',
           src: 'updateCycleActor',
-          input: ({ context, event }) => {
-            let startDate = context.startDate;
-            let endDate = context.endDate;
-
-            if (event.type === Event.INCREMENT_DURATION) {
-              endDate = addHours(endDate, 1);
-            } else if (event.type === Event.DECREASE_DURATION) {
-              assertEvent(event, Event.DECREASE_DURATION);
-              const candidate = event.date;
-              const minEnd = addHours(startDate, MIN_FASTING_DURATION);
-              endDate = candidate < minEnd ? minEnd : candidate;
-            } else if (event.type === Event.UPDATE_START_DATE) {
-              assertEvent(event, Event.UPDATE_START_DATE);
-              const newStart = event.date;
-              const minEnd = addHours(newStart, MIN_FASTING_DURATION);
-              startDate = newStart;
-              endDate = new Date(Math.max(endDate.getTime(), minEnd.getTime()));
-            } else if (event.type === Event.UPDATE_END_DATE) {
-              assertEvent(event, Event.UPDATE_END_DATE);
-              const candidate = event.date;
-              const minEnd = addHours(startDate, MIN_FASTING_DURATION);
-              endDate = candidate < minEnd ? minEnd : candidate;
-            }
-
-            return {
-              cycleId: context.cycleMetadata!.id,
-              startDate,
-              endDate,
-            };
-          },
+          input: ({ context, event }) => buildUpdateCycleInput(context, event),
         },
       ],
       on: {

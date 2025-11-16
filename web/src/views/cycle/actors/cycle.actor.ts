@@ -64,12 +64,14 @@ export enum Emit {
   TICK = 'TICK',
   CYCLE_ERROR = 'CYCLE_ERROR',
   VALIDATION_INFO = 'VALIDATION_INFO',
+  UPDATE_COMPLETE = 'UPDATE_COMPLETE',
 }
 
 export type EmitType =
   | { type: Emit.TICK }
   | { type: Emit.CYCLE_ERROR; error: string }
-  | { type: Emit.VALIDATION_INFO; summary: string; detail: string };
+  | { type: Emit.VALIDATION_INFO; summary: string; detail: string }
+  | { type: Emit.UPDATE_COMPLETE };
 
 type CycleMetadata = {
   id: string;
@@ -440,6 +442,11 @@ export const cycleMachine = setup({
         detail,
       } as const;
     }),
+    emitUpdateComplete: emit(() => {
+      return {
+        type: Emit.UPDATE_COMPLETE,
+      } as const;
+    }),
     setCycleData: assign(({ event }) => {
       assertEvent(event, Event.ON_SUCCESS);
       const { id, userId, status, createdAt, updatedAt, startDate, endDate } = event.result;
@@ -580,7 +587,7 @@ export const cycleMachine = setup({
           actions: emit({ type: Emit.TICK }),
         },
         [Event.ON_SUCCESS]: {
-          actions: 'setCycleData',
+          actions: ['setCycleData', 'emitUpdateComplete'],
           target: CycleState.InProgress,
         },
         [Event.ON_ERROR]: {

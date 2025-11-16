@@ -42,6 +42,7 @@
         :date="startDate"
         :actorRef="actorRef"
         :disabled="idle"
+        :updating="updating"
         @update:date="updateStartDate"
         @edit-start="handleStartDateEditing"
       />
@@ -53,6 +54,7 @@
         :view="goal"
         :date="endDate"
         :actorRef="actorRef"
+        :updating="updating"
         @update:date="updateEndDate"
         @edit-start="handleEndDateEditing"
       />

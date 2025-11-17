@@ -64,6 +64,8 @@
       <ActionButton :loading="showSkeleton" :buttonText="buttonText" :isLoading="loading" @click="handleButtonClick" />
     </div>
   </div>
+
+  <CycleSummary :visible="isSummaryModalOpen" @update:visible="closeSummaryModal" @complete="handleComplete" />
 </template>
 
 <script setup lang="ts">
@@ -71,6 +73,7 @@ import { goal, start } from '@/views/cycle/domain/domain';
 import { onMounted, ref } from 'vue';
 import ActionButton from './components/ActionButton/ActionButton.vue';
 import { useActionButton } from './components/ActionButton/useActionButton';
+import CycleSummary from './components/CycleSummary/CycleSummary.vue';
 import Duration from './components/Duration/Duration.vue';
 import { useDuration } from './components/Duration/useDuration';
 import ProgressBar from './components/ProgressBar/ProgressBar.vue';
@@ -131,7 +134,7 @@ const endScheduler = useScheduler({
   schedulerRef: endSchedulerRef,
 });
 
-const { buttonText, handleButtonClick } = useActionButton({
+const { buttonText, handleButtonClick, isSummaryModalOpen, closeSummaryModal, handleComplete } = useActionButton({
   cycleActor: actorRef,
   idle,
   completed,

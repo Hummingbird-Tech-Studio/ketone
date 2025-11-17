@@ -5,6 +5,7 @@ import { addHours, startOfMinute } from 'date-fns';
 import { Match } from 'effect';
 import { assertEvent, assign, emit, fromCallback, setup, type EventObject } from 'xstate';
 import {
+  completeCycleProgram,
   createCycleProgram,
   getActiveCycleProgram,
   updateCycleProgram,
@@ -47,6 +48,7 @@ export enum Event {
   DECREASE_DURATION = 'DECREASE_DURATION',
   UPDATE_START_DATE = 'UPDATE_START_DATE',
   UPDATE_END_DATE = 'UPDATE_END_DATE',
+  COMPLETE = 'COMPLETE',
   ON_SUCCESS = 'ON_SUCCESS',
   NO_CYCLE_IN_PROGRESS = 'NO_CYCLE_IN_PROGRESS',
   ON_ERROR = 'ON_ERROR',
@@ -60,6 +62,7 @@ type EventType =
   | { type: Event.DECREASE_DURATION; date: Date }
   | { type: Event.UPDATE_START_DATE; date: Date }
   | { type: Event.UPDATE_END_DATE; date: Date }
+  | { type: Event.COMPLETE }
   | { type: Event.ON_SUCCESS; result: GetCycleSuccess }
   | { type: Event.NO_CYCLE_IN_PROGRESS; message: string }
   | { type: Event.ON_ERROR; error: string };
@@ -234,6 +237,21 @@ const updateCycleLogic = fromCallback<EventObject, UpdateCycleInput>(({ sendBack
     },
   );
 });
+
+const completeCycleLogic = fromCallback<EventObject, { cycleId: string; startDate: Date; endDate: Date }>(
+  ({ sendBack, input }) => {
+    runWithUi(
+      completeCycleProgram(input.cycleId, input.startDate, input.endDate),
+      (result) => {
+        sendBack({ type: Event.ON_SUCCESS, result });
+      },
+      (error) => {
+        const errorMessage = 'message' in error && typeof error.message === 'string' ? error.message : String(error);
+        sendBack({ type: Event.ON_ERROR, error: errorMessage });
+      },
+    );
+  },
+);
 
 /**
  * Checks if a start date is in the future.
@@ -578,6 +596,7 @@ export const cycleMachine = setup({
     cycleActor: cycleLogic,
     createCycleActor: createCycleLogic,
     updateCycleActor: updateCycleLogic,
+    completeCycleActor: completeCycleLogic,
   },
 }).createMachine({
   id: 'cycle',
@@ -657,6 +676,7 @@ export const cycleMachine = setup({
           actions: emit({ type: Emit.TICK }),
         },
         [Event.LOAD]: CycleState.Loading,
+        [Event.COMPLETE]: CycleState.Finishing,
         [Event.INCREMENT_DURATION]: CycleState.Updating,
         [Event.DECREASE_DURATION]: {
           guard: 'isInitialDurationValid',
@@ -720,7 +740,31 @@ export const cycleMachine = setup({
         },
       },
     },
-    [CycleState.Finishing]: {},
-    [CycleState.Completed]: {},
+    [CycleState.Finishing]: {
+      invoke: {
+        id: 'completeCycleActor',
+        src: 'completeCycleActor',
+        input: ({ context }) => ({
+          cycleId: context.cycleMetadata!.id,
+          startDate: context.startDate,
+          endDate: context.endDate,
+        }),
+      },
+      on: {
+        [Event.ON_SUCCESS]: {
+          actions: ['setCycleData'],
+          target: CycleState.Completed,
+        },
+        [Event.ON_ERROR]: {
+          actions: 'emitCycleError',
+          target: CycleState.InProgress,
+        },
+      },
+    },
+    [CycleState.Completed]: {
+      on: {
+        [Event.LOAD]: CycleState.Loading,
+      },
+    },
   },
 });

@@ -1,5 +1,5 @@
 import { Event } from '@/views/cycle/actors/cycle.actor';
-import { computed, type Ref } from 'vue';
+import { computed, ref, type Ref } from 'vue';
 import type { Actor, AnyActorLogic } from 'xstate';
 
 interface UseActionButtonParams {
@@ -10,6 +10,8 @@ interface UseActionButtonParams {
 }
 
 export function useActionButton({ cycleActor, idle, completed, inProgress }: UseActionButtonParams) {
+  const isSummaryModalOpen = ref(false);
+
   const buttonText = computed(() => {
     if (idle.value) {
       return 'Start Fasting';
@@ -28,7 +30,7 @@ export function useActionButton({ cycleActor, idle, completed, inProgress }: Use
     }
 
     if (inProgress.value) {
-      console.warn('Complete cycle action not yet implemented in cycle actor');
+      isSummaryModalOpen.value = true;
     }
 
     if (completed.value) {
@@ -36,8 +38,19 @@ export function useActionButton({ cycleActor, idle, completed, inProgress }: Use
     }
   }
 
+  function closeSummaryModal() {
+    isSummaryModalOpen.value = false;
+  }
+
+  function handleComplete() {
+    closeSummaryModal();
+  }
+
   return {
     buttonText,
     handleButtonClick,
+    isSummaryModalOpen,
+    closeSummaryModal,
+    handleComplete,
   };
 }

@@ -111,7 +111,6 @@ type DatePickerValue = Date | Date[] | (Date | null)[] | null | undefined;
 interface Props {
   view: SchedulerView;
   date: Date;
-  open: boolean;
   disabled?: boolean;
   loading?: boolean;
   updating?: boolean;
@@ -119,26 +118,28 @@ interface Props {
 
 interface Emits {
   (e: 'update:date', date: Date): void;
-  (e: 'edit-start'): void;
-  (e: 'open-dialog'): void;
-  (e: 'close-dialog'): void;
 }
 
 const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
 
-const { view, date, open, disabled, updating } = toRefs(props);
+const { view, date, disabled, updating } = toRefs(props);
 
+const open = ref(false);
 const localDate = ref(new Date(date.value));
 const isTimePickerOpen = ref(false);
 const selectedTimeValue = ref<TimeValue | null>(null);
+
+defineExpose({
+  close,
+});
 
 // Watch for date prop changes to sync localDate
 watch(date, (newDate) => {
   localDate.value = new Date(newDate);
 });
 
-// Watch for open prop changes to reset local date when dialog opens
+// Watch for open state changes to reset local date when dialog opens
 watch(open, (isOpen) => {
   if (isOpen) {
     localDate.value = new Date(date.value);
@@ -167,13 +168,12 @@ function handleClick() {
     return;
   }
 
-  emit('open-dialog');
-  emit('edit-start');
+  open.value = true;
 }
 
 function handleDialogVisibilityChange(visible: boolean) {
   if (!visible) {
-    emit('close-dialog');
+    open.value = false;
   }
 }
 
@@ -227,6 +227,10 @@ function handleNow() {
 
 function handleSave() {
   emit('update:date', localDate.value);
+}
+
+function close() {
+  open.value = false;
 }
 </script>
 

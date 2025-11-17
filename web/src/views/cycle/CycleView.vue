@@ -37,28 +37,24 @@
 
     <div class="cycle__schedule__scheduler">
       <Scheduler
+        ref="startSchedulerRef"
         :loading="showSkeleton"
         :view="start"
         :date="startDate"
-        :open="startScheduler.open.value"
         :disabled="idle"
         :updating="updating"
         @update:date="startScheduler.updateDate"
-        @open-dialog="startScheduler.openDialog"
-        @close-dialog="startScheduler.closeDialog"
       />
     </div>
 
     <div class="cycle__schedule__scheduler cycle__schedule__scheduler--goal">
       <Scheduler
+        ref="endSchedulerRef"
         :loading="showSkeleton"
         :view="goal"
         :date="endDate"
-        :open="endScheduler.open.value"
         :updating="updating"
         @update:date="endScheduler.updateDate"
-        @open-dialog="endScheduler.openDialog"
-        @close-dialog="endScheduler.closeDialog"
       />
     </div>
   </div>
@@ -72,7 +68,7 @@
 
 <script setup lang="ts">
 import { goal, start } from '@/views/cycle/domain/domain';
-import { onMounted } from 'vue';
+import { onMounted, ref } from 'vue';
 import ActionButton from './components/ActionButton/ActionButton.vue';
 import { useActionButton } from './components/ActionButton/useActionButton';
 import Duration from './components/Duration/Duration.vue';
@@ -120,14 +116,19 @@ const { duration, canDecrement, incrementDuration, decrementDuration } = useDura
   endDate,
 });
 
+const startSchedulerRef = ref<{ close: () => void } | null>(null);
+const endSchedulerRef = ref<{ close: () => void } | null>(null);
+
 const startScheduler = useScheduler({
   cycleActor: actorRef,
   view: start,
+  schedulerRef: startSchedulerRef,
 });
 
 const endScheduler = useScheduler({
   cycleActor: actorRef,
   view: goal,
+  schedulerRef: endSchedulerRef,
 });
 
 const { buttonText, handleButtonClick } = useActionButton({

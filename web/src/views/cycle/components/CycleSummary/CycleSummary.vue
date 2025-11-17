@@ -17,10 +17,10 @@
         <div class="cycle-summary__scheduler">
           <div class="cycle-summary__scheduler-header">
             <div class="cycle-summary__scheduler-title">Start:</div>
-            <DatePickerDialog :view="start" :date="startDate" :updating="isSaving" />
+            <DatePickerDialog :view="start" :date="localStartDate" :updating="isSaving" :actor-ref="actorRef" :on-save="updateLocalStartDate" />
           </div>
-          <div class="cycle-summary__scheduler-hour">{{ formatHour(startDate) }}</div>
-          <div class="cycle-summary__scheduler-date">{{ formatDate(startDate) }}</div>
+          <div class="cycle-summary__scheduler-hour">{{ formatHour(localStartDate) }}</div>
+          <div class="cycle-summary__scheduler-date">{{ formatDate(localStartDate) }}</div>
         </div>
       </div>
 
@@ -30,10 +30,10 @@
         <div class="cycle-summary__scheduler">
           <div class="cycle-summary__scheduler-header">
             <div class="cycle-summary__scheduler-title">End:</div>
-            <DatePickerDialog :view="goal" :date="endDate" :updating="isSaving" />
+            <DatePickerDialog :view="goal" :date="localEndDate" :updating="isSaving" :actor-ref="actorRef" :on-save="updateLocalEndDate" />
           </div>
-          <div class="cycle-summary__scheduler-hour">{{ formatHour(endDate) }}</div>
-          <div class="cycle-summary__scheduler-date">{{ formatDate(endDate) }}</div>
+          <div class="cycle-summary__scheduler-hour">{{ formatHour(localEndDate) }}</div>
+          <div class="cycle-summary__scheduler-date">{{ formatDate(localEndDate) }}</div>
         </div>
       </div>
     </div>
@@ -48,15 +48,19 @@
 </template>
 
 <script setup lang="ts">
+import { toRef } from 'vue';
 import { formatDate, formatHour } from '@/utils';
 import { goal, start } from '@/views/cycle/domain/domain';
 import Button from 'primevue/button';
 import Dialog from 'primevue/dialog';
 import DatePickerDialog from '../DatePickerDialog/DatePickerDialog.vue';
 import { useCycleSummary } from './useCycleSummary';
+import type { ActorRefFrom } from 'xstate';
+import type { cycleMachine } from '../../actors/cycle.actor';
 
 const props = defineProps<{
   visible: boolean;
+  actorRef: ActorRefFrom<typeof cycleMachine>;
 }>();
 
 const emit = defineEmits<{
@@ -64,7 +68,11 @@ const emit = defineEmits<{
   (e: 'complete'): void;
 }>();
 
-const { startDate, endDate, totalFastingTime, isSaving, handleClose, handleSave } = useCycleSummary(props, emit);
+const { localStartDate, localEndDate, totalFastingTime, isSaving, updateLocalStartDate, updateLocalEndDate, handleClose, handleSave } = useCycleSummary(
+  emit,
+  props.actorRef,
+  toRef(props, 'visible')
+);
 </script>
 
 <style scoped lang="scss">

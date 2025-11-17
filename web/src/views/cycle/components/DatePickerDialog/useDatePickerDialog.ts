@@ -15,6 +15,7 @@ interface UseDatePickerDialogParams {
   date: Ref<Date>;
   disabled?: Ref<boolean>;
   updating?: Ref<boolean>;
+  onSave?: (date: Date) => void;
 }
 
 export function useDatePickerDialog({
@@ -23,6 +24,7 @@ export function useDatePickerDialog({
   date,
   disabled,
   updating,
+  onSave,
 }: UseDatePickerDialogParams) {
   const open = ref(false);
   const localDate = ref(new Date(date.value));
@@ -125,18 +127,29 @@ export function useDatePickerDialog({
   }
 
   function handleSave() {
-    const event = view.value._tag === 'Start' ? Event.UPDATE_START_DATE : Event.UPDATE_END_DATE;
-    cycleActor.send({ type: event, date: startOfMinute(localDate.value) });
+    const savedDate = startOfMinute(localDate.value);
+
+    if (onSave) {
+      // Controlled mode: call the callback instead of sending event to actor
+      onSave(savedDate);
+      close();
+    } else {
+      // Default mode: send event to actor
+      const event = view.value._tag === 'Start' ? Event.UPDATE_START_DATE : Event.UPDATE_END_DATE;
+      cycleActor.send({ type: event, date: savedDate });
+    }
   }
 
   function close() {
     open.value = false;
   }
 
-  // Listen for UPDATE_COMPLETE event to close the dialog
-  const subscription = cycleActor.on(Emit.UPDATE_COMPLETE, () => {
-    close();
-  });
+  // Listen for UPDATE_COMPLETE event to close the dialog (only in default mode)
+  const subscription = onSave
+    ? { unsubscribe: () => {} }
+    : cycleActor.on(Emit.UPDATE_COMPLETE, () => {
+        close();
+      });
 
   onUnmounted(() => {
     subscription.unsubscribe();

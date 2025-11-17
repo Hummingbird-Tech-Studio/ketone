@@ -65,7 +65,7 @@
     </div>
   </div>
 
-  <CycleSummary :visible="isSummaryModalOpen" @update:visible="closeSummaryModal" @complete="handleComplete" />
+  <CycleSummary :visible="isSummaryModalOpen" :actor-ref="actorRef" @update:visible="closeSummaryModal" @complete="handleComplete" />
 </template>
 
 <script setup lang="ts">

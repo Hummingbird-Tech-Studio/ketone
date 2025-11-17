@@ -80,27 +80,28 @@
 <script setup lang="ts">
 import TimePicker from '@/components/TimePicker/TimePicker.vue';
 import type { SchedulerView } from '@/views/cycle/domain/domain';
-import { useCycle } from '@/views/cycle/composables/useCycle';
 import { useDatePickerDialog } from './useDatePickerDialog';
 import Button from 'primevue/button';
 import DatePicker from 'primevue/datepicker';
 import Dialog from 'primevue/dialog';
 import Divider from 'primevue/divider';
 import { toRefs } from 'vue';
+import type { ActorRefFrom } from 'xstate';
+import type { cycleMachine } from '../../actors/cycle.actor';
 
 const CALENDAR_DIALOG_WIDTH = 350;
 
 interface Props {
   view: SchedulerView;
   date: Date;
+  actorRef: ActorRefFrom<typeof cycleMachine>;
   disabled?: boolean;
   updating?: boolean;
+  onSave?: (date: Date) => void;
 }
 
 const props = defineProps<Props>();
-const { view, date, disabled, updating } = toRefs(props);
-
-const { actorRef } = useCycle();
+const { view, date, actorRef, disabled, updating, onSave } = toRefs(props);
 
 const {
   open,
@@ -121,11 +122,12 @@ const {
   handleSave,
   close,
 } = useDatePickerDialog({
-  cycleActor: actorRef,
+  cycleActor: actorRef.value,
   view,
   date,
   disabled,
   updating,
+  onSave: onSave?.value,
 });
 
 defineExpose({

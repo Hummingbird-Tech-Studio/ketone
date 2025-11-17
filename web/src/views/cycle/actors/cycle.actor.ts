@@ -34,7 +34,9 @@ export enum CycleState {
   Idle = 'Idle',
   Loading = 'Loading',
   Creating = 'Creating',
+  Active = 'Active',
   InProgress = 'InProgress',
+  ConfirmingCompletion = 'ConfirmingCompletion',
   Updating = 'Updating',
   Finishing = 'Finishing',
   Completed = 'Completed',
@@ -48,6 +50,8 @@ export enum Event {
   DECREASE_DURATION = 'DECREASE_DURATION',
   UPDATE_START_DATE = 'UPDATE_START_DATE',
   UPDATE_END_DATE = 'UPDATE_END_DATE',
+  CONFIRM_COMPLETION = 'CONFIRM_COMPLETION',
+  CANCEL_COMPLETION = 'CANCEL_COMPLETION',
   COMPLETE = 'COMPLETE',
   ON_SUCCESS = 'ON_SUCCESS',
   NO_CYCLE_IN_PROGRESS = 'NO_CYCLE_IN_PROGRESS',
@@ -62,6 +66,8 @@ type EventType =
   | { type: Event.DECREASE_DURATION; date: Date }
   | { type: Event.UPDATE_START_DATE; date: Date }
   | { type: Event.UPDATE_END_DATE; date: Date }
+  | { type: Event.CONFIRM_COMPLETION }
+  | { type: Event.CANCEL_COMPLETION }
   | { type: Event.COMPLETE }
   | { type: Event.ON_SUCCESS; result: GetCycleSuccess }
   | { type: Event.NO_CYCLE_IN_PROGRESS; message: string }
@@ -635,7 +641,7 @@ export const cycleMachine = setup({
       on: {
         [Event.ON_SUCCESS]: {
           actions: ['setCycleData'],
-          target: CycleState.InProgress,
+          target: CycleState.Active,
         },
         [Event.NO_CYCLE_IN_PROGRESS]: {
           target: CycleState.Idle,
@@ -658,7 +664,7 @@ export const cycleMachine = setup({
       on: {
         [Event.ON_SUCCESS]: {
           actions: ['setCycleData'],
-          target: CycleState.InProgress,
+          target: CycleState.Active,
         },
         [Event.ON_ERROR]: {
           actions: 'emitCycleError',
@@ -666,10 +672,27 @@ export const cycleMachine = setup({
         },
       },
     },
-    [CycleState.InProgress]: {
+    [CycleState.Active]: {
       invoke: {
         id: 'timerActor',
         src: 'timerActor',
+      },
+      initial: CycleState.InProgress,
+      states: {
+        [CycleState.InProgress]: {
+          on: {
+            [Event.CONFIRM_COMPLETION]: CycleState.ConfirmingCompletion,
+          },
+        },
+        [CycleState.ConfirmingCompletion]: {
+          on: {
+            [Event.CANCEL_COMPLETION]: CycleState.InProgress,
+          },
+        },
+        hist: {
+          type: 'history',
+          history: 'shallow',
+        },
       },
       on: {
         [Event.TICK]: {
@@ -677,7 +700,9 @@ export const cycleMachine = setup({
         },
         [Event.LOAD]: CycleState.Loading,
         [Event.COMPLETE]: CycleState.Finishing,
-        [Event.INCREMENT_DURATION]: CycleState.Updating,
+        [Event.INCREMENT_DURATION]: {
+          target: CycleState.Updating,
+        },
         [Event.DECREASE_DURATION]: {
           guard: 'isInitialDurationValid',
           target: CycleState.Updating,
@@ -732,11 +757,11 @@ export const cycleMachine = setup({
         },
         [Event.ON_SUCCESS]: {
           actions: ['setCycleData', 'emitUpdateComplete'],
-          target: CycleState.InProgress,
+          target: `${CycleState.Active}.hist`,
         },
         [Event.ON_ERROR]: {
           actions: 'emitCycleError',
-          target: CycleState.InProgress,
+          target: `${CycleState.Active}.hist`,
         },
       },
     },
@@ -757,7 +782,7 @@ export const cycleMachine = setup({
         },
         [Event.ON_ERROR]: {
           actions: 'emitCycleError',
-          target: CycleState.InProgress,
+          target: CycleState.Active,
         },
       },
     },

@@ -1,5 +1,5 @@
 import { Event } from '@/views/cycle/actors/cycle.actor';
-import { computed, ref, type Ref } from 'vue';
+import { computed, type Ref } from 'vue';
 import type { Actor, AnyActorLogic } from 'xstate';
 
 interface UseActionButtonParams {
@@ -7,11 +7,16 @@ interface UseActionButtonParams {
   idle: Ref<boolean>;
   completed: Ref<boolean>;
   inProgress: Ref<boolean>;
+  confirmingCompletion: Ref<boolean>;
 }
 
-export function useActionButton({ cycleActor, idle, completed, inProgress }: UseActionButtonParams) {
-  const isSummaryModalOpen = ref(false);
-
+export function useActionButton({
+  cycleActor,
+  idle,
+  completed,
+  inProgress,
+  confirmingCompletion,
+}: UseActionButtonParams) {
   const buttonText = computed(() => {
     if (idle.value) {
       return 'Start Fasting';
@@ -30,7 +35,7 @@ export function useActionButton({ cycleActor, idle, completed, inProgress }: Use
     }
 
     if (inProgress.value) {
-      isSummaryModalOpen.value = true;
+      cycleActor.send({ type: Event.CONFIRM_COMPLETION });
     }
 
     if (completed.value) {
@@ -39,17 +44,17 @@ export function useActionButton({ cycleActor, idle, completed, inProgress }: Use
   }
 
   function closeSummaryModal() {
-    isSummaryModalOpen.value = false;
+    cycleActor.send({ type: Event.CANCEL_COMPLETION });
   }
 
   function handleComplete() {
-    closeSummaryModal();
+    // Modal will close automatically when state transitions
   }
 
   return {
     buttonText,
     handleButtonClick,
-    isSummaryModalOpen,
+    confirmingCompletion,
     closeSummaryModal,
     handleComplete,
   };

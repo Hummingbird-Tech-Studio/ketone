@@ -97,6 +97,7 @@ const {
   showSkeleton,
   loadActiveCycle,
   actorRef,
+  confirmingCompletion,
 } = useCycle();
 
 useCycleNotifications(actorRef);
@@ -134,11 +135,12 @@ const endScheduler = useScheduler({
   schedulerRef: endSchedulerRef,
 });
 
-const { buttonText, handleButtonClick, isSummaryModalOpen, closeSummaryModal, handleComplete } = useActionButton({
+const { buttonText, handleButtonClick, confirmingCompletion: isSummaryModalOpen, closeSummaryModal, handleComplete } = useActionButton({
   cycleActor: actorRef,
   idle,
   completed,
   inProgress,
+  confirmingCompletion,
 });
 
 onMounted(() => {

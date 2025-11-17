@@ -1,7 +1,6 @@
-import { ref, computed } from 'vue';
+import { computed } from 'vue';
 import { useCycle } from '../../composables/useCycle';
 import { Event } from '../../actors/cycle.actor';
-import { formatFullDateTime } from '@/utils/formatting/helpers';
 
 interface Props {
   visible: boolean;
@@ -15,8 +14,6 @@ interface Emits {
 export function useCycleSummary(props: Props, emit: Emits) {
   const { startDate, endDate, actorRef, updating } = useCycle();
 
-  const isStartSchedulerOpen = ref(false);
-  const isEndSchedulerOpen = ref(false);
   const isSaving = computed(() => updating.value);
 
   // Calculate total fasting time in HH:MM:SS format
@@ -38,33 +35,6 @@ export function useCycleSummary(props: Props, emit: Emits) {
     return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
   });
 
-  // Format dates for display
-  const formattedStartDate = computed(() => {
-    if (!startDate.value) return '';
-    return formatFullDateTime(startDate.value);
-  });
-
-  const formattedEndDate = computed(() => {
-    if (!endDate.value) return '';
-    return formatFullDateTime(endDate.value);
-  });
-
-  function openStartScheduler() {
-    isStartSchedulerOpen.value = true;
-  }
-
-  function openEndScheduler() {
-    isEndSchedulerOpen.value = true;
-  }
-
-  function closeStartScheduler() {
-    isStartSchedulerOpen.value = false;
-  }
-
-  function closeEndScheduler() {
-    isEndSchedulerOpen.value = false;
-  }
-
   function handleClose() {
     emit('update:visible', false);
   }
@@ -79,15 +49,7 @@ export function useCycleSummary(props: Props, emit: Emits) {
     startDate,
     endDate,
     totalFastingTime,
-    formattedStartDate,
-    formattedEndDate,
-    isStartSchedulerOpen,
-    isEndSchedulerOpen,
     isSaving,
-    openStartScheduler,
-    openEndScheduler,
-    closeStartScheduler,
-    closeEndScheduler,
     handleClose,
     handleSave,
   };

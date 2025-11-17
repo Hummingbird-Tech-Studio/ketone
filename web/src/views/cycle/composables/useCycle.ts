@@ -17,7 +17,10 @@ export function useCycle() {
   const idle = useSelector(actorRef, (state) => state.matches(CycleState.Idle));
   const loading = useSelector(actorRef, (state) => state.matches(CycleState.Loading));
   const creating = useSelector(actorRef, (state) => state.matches(CycleState.Creating));
-  const inProgress = useSelector(actorRef, (state) => state.matches(CycleState.InProgress));
+  const inProgress = useSelector(actorRef, (state) => state.matches({ [CycleState.Active]: CycleState.InProgress }));
+  const confirmingCompletion = useSelector(actorRef, (state) =>
+    state.matches({ [CycleState.Active]: CycleState.ConfirmingCompletion }),
+  );
   const updating = useSelector(actorRef, (state) => state.matches(CycleState.Updating));
   const finishing = useSelector(actorRef, (state) => state.matches(CycleState.Finishing));
   const completed = useSelector(actorRef, (state) => state.matches(CycleState.Completed));
@@ -49,6 +52,7 @@ export function useCycle() {
     loading,
     creating,
     inProgress,
+    confirmingCompletion,
     updating,
     finishing,
     completed,

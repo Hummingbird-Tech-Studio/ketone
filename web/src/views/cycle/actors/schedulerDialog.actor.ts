@@ -121,7 +121,7 @@ export const schedulerDialogMachine = setup({
     },
     [State.ValidationError]: {
       on: {
-        [Event.CLOSE]: State.Open,
+        [Event.CLOSE]: State.Closed,
         [Event.SUBMIT]: {
           target: State.Submitting,
           actions: 'setDate',

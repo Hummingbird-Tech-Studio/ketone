@@ -35,6 +35,7 @@ export enum CycleState {
   Creating = 'Creating',
   InProgress = 'InProgress',
   Updating = 'Updating',
+  ConfirmCompletion = 'ConfirmCompletion',
   Finishing = 'Finishing',
   Completed = 'Completed',
 }
@@ -47,6 +48,8 @@ export enum Event {
   DECREASE_DURATION = 'DECREASE_DURATION',
   UPDATE_START_DATE = 'UPDATE_START_DATE',
   UPDATE_END_DATE = 'UPDATE_END_DATE',
+  CONFIRM_COMPLETION = 'CONFIRM_COMPLETION',
+  CANCEL_COMPLETION = 'CANCEL_COMPLETION',
   ON_SUCCESS = 'ON_SUCCESS',
   NO_CYCLE_IN_PROGRESS = 'NO_CYCLE_IN_PROGRESS',
   ON_ERROR = 'ON_ERROR',
@@ -60,6 +63,8 @@ type EventType =
   | { type: Event.DECREASE_DURATION; date: Date }
   | { type: Event.UPDATE_START_DATE; date: Date }
   | { type: Event.UPDATE_END_DATE; date: Date }
+  | { type: Event.CONFIRM_COMPLETION }
+  | { type: Event.CANCEL_COMPLETION }
   | { type: Event.ON_SUCCESS; result: GetCycleSuccess }
   | { type: Event.NO_CYCLE_IN_PROGRESS; message: string }
   | { type: Event.ON_ERROR; error: string };
@@ -662,6 +667,7 @@ export const cycleMachine = setup({
           guard: 'isInitialDurationValid',
           target: CycleState.Updating,
         },
+        [Event.CONFIRM_COMPLETION]: CycleState.ConfirmCompletion,
         [Event.UPDATE_START_DATE]: [
           {
             guard: 'isStartDateInFuture',
@@ -718,6 +724,41 @@ export const cycleMachine = setup({
           actions: 'emitCycleError',
           target: CycleState.InProgress,
         },
+      },
+    },
+    [CycleState.ConfirmCompletion]: {
+      on: {
+        [Event.CANCEL_COMPLETION]: CycleState.InProgress,
+        [Event.UPDATE_START_DATE]: [
+          {
+            guard: 'isStartDateInFuture',
+            actions: ['emitStartDateInFutureValidation'],
+          },
+          {
+            guard: 'isEndDateBeforeStartDate',
+            actions: ['emitEndDateBeforeStartValidation'],
+          },
+          {
+            guard: 'hasInvalidDuration',
+            actions: ['emitInvalidDurationValidation'],
+          },
+          {
+            target: CycleState.Updating,
+          },
+        ],
+        [Event.UPDATE_END_DATE]: [
+          {
+            guard: 'isStartDateAfterEndDate',
+            actions: ['emitStartDateAfterEndValidation'],
+          },
+          {
+            guard: 'hasInvalidDurationForEndDate',
+            actions: ['emitInvalidDurationForEndDateValidation'],
+          },
+          {
+            target: CycleState.Updating,
+          },
+        ],
       },
     },
     [CycleState.Finishing]: {},

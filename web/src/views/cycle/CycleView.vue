@@ -36,22 +36,11 @@
     </div>
 
     <div class="cycle__schedule__scheduler">
-      <Scheduler
-        :loading="showSkeleton"
-        :view="start"
-        :date="startDate"
-        :disabled="idle"
-        @click="handleStartClick"
-      />
+      <Scheduler :loading="showSkeleton" :view="start" :date="startDate" :disabled="idle" @click="handleStartClick" />
     </div>
 
     <div class="cycle__schedule__scheduler cycle__schedule__scheduler--goal">
-      <Scheduler
-        :loading="showSkeleton"
-        :view="goal"
-        :date="endDate"
-        @click="handleEndClick"
-      />
+      <Scheduler :loading="showSkeleton" :view="goal" :date="endDate" @click="handleEndClick" />
     </div>
   </div>
 
@@ -78,7 +67,11 @@ import { startOfMinute } from 'date-fns';
 import { Match } from 'effect';
 import { onMounted, onUnmounted } from 'vue';
 import { Emit as CycleEmit, type EmitType as CycleEmitType, Event as CycleEvent } from './actors/cycle.actor';
-import { Emit as DialogEmit, type EmitType as DialogEmitType, Event as DialogEvent } from './actors/schedulerDialog.actor';
+import {
+  Emit as DialogEmit,
+  type EmitType as DialogEmitType,
+  Event as DialogEvent,
+} from './actors/schedulerDialog.actor';
 import ActionButton from './components/ActionButton/ActionButton.vue';
 import { useActionButton } from './components/ActionButton/useActionButton';
 import Duration from './components/Duration/Duration.vue';
@@ -180,8 +173,8 @@ function handleCycleEmit(emitType: CycleEmitType) {
     Match.when({ type: CycleEmit.UPDATE_COMPLETE }, () => {
       dialog.actorRef.send({ type: DialogEvent.UPDATE_COMPLETE });
     }),
-    Match.when({ type: CycleEmit.VALIDATION_INFO }, (emit) => {
-      dialog.actorRef.send({ type: DialogEvent.VALIDATION_FAILED, summary: emit.summary, detail: emit.detail });
+    Match.when({ type: CycleEmit.VALIDATION_INFO }, () => {
+      dialog.actorRef.send({ type: DialogEvent.VALIDATION_FAILED });
     }),
     Match.orElse(() => {}),
   );

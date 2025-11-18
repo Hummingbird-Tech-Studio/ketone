@@ -34,7 +34,6 @@ type Context = {
   view: SchedulerView;
   initialDate: Date | null;
   pendingDate: Date | null;
-  validationError: { summary: string; detail: string } | null;
 };
 
 type EventType =
@@ -42,7 +41,7 @@ type EventType =
   | { type: Event.CLOSE }
   | { type: Event.SUBMIT; date: Date }
   | { type: Event.UPDATE_COMPLETE }
-  | { type: Event.VALIDATION_FAILED; summary: string; detail: string };
+  | { type: Event.VALIDATION_FAILED };
 
 type EmitType =
   | { type: Emit.REQUEST_UPDATE; view: SchedulerView; date: Date }
@@ -84,18 +83,6 @@ export const schedulerDialogMachine = setup({
     onClearPendingDate: assign({
       pendingDate: null,
     }),
-    onSaveValidationError: assign({
-      validationError: ({ event }) => {
-        assertEvent(event, Event.VALIDATION_FAILED);
-        return {
-          summary: event.summary,
-          detail: event.detail,
-        };
-      },
-    }),
-    onClearValidationError: assign({
-      validationError: null,
-    }),
     emitUpdateRequest: emit(({ context }) => ({
       type: Emit.REQUEST_UPDATE,
       view: context.view,
@@ -115,11 +102,10 @@ export const schedulerDialogMachine = setup({
     view: input.view,
     initialDate: null,
     pendingDate: null,
-    validationError: null,
   }),
   states: {
     [State.Closed]: {
-      entry: ['onClearPendingDate', 'onClearValidationError'],
+      entry: ['onClearPendingDate'],
       on: {
         [Event.OPEN]: {
           target: State.Open,
@@ -148,7 +134,6 @@ export const schedulerDialogMachine = setup({
         },
         [Event.VALIDATION_FAILED]: {
           target: State.ValidationError,
-          actions: ['onSaveValidationError'],
         },
       },
     },
@@ -156,11 +141,10 @@ export const schedulerDialogMachine = setup({
       on: {
         [Event.CLOSE]: {
           target: State.Open,
-          actions: ['onClearValidationError'],
         },
         [Event.SUBMIT]: {
           target: State.Submitting,
-          actions: ['onClearValidationError', 'onSavePendingDate'],
+          actions: ['onSavePendingDate'],
         },
       },
     },

@@ -54,9 +54,9 @@
   />
 
   <ConfirmCompletion
-    :visible="confirmDialogVisible"
+    :visible="confirmCompletion"
     :actorRef="actorRef"
-    @update:visible="handleConfirmDialogVisibilityChange"
+    @update:visible="handleConfirmDialogVisibility"
     @complete="handleComplete"
   />
 
@@ -72,7 +72,7 @@ import DateTimePickerDialog from '@/components/DateTimePickerDialog/DateTimePick
 import { goal, start } from '@/views/cycle/domain/domain';
 import { startOfMinute } from 'date-fns';
 import { Match } from 'effect';
-import { onMounted, onUnmounted, ref } from 'vue';
+import { onMounted, onUnmounted } from 'vue';
 import { Emit as CycleEmit, type EmitType as CycleEmitType, Event as CycleEvent } from './actors/cycle.actor';
 import {
   Emit as DialogEmit,
@@ -100,6 +100,7 @@ const {
   loading,
   finishing,
   completed,
+  confirmCompletion,
   startDate,
   endDate,
   showSkeleton,
@@ -127,18 +128,11 @@ const { duration, canDecrement, incrementDuration, decrementDuration } = useDura
   endDate,
 });
 
-const confirmDialogVisible = ref(false);
-
-function handleFinishFasting() {
-  confirmDialogVisible.value = true;
-}
-
 const { buttonText, handleButtonClick } = useActionButton({
   cycleActor: actorRef,
   idle,
   completed,
   inProgress,
-  onFinishFasting: handleFinishFasting,
 });
 
 const timePickerDialog = useSchedulerDialog(start);
@@ -161,13 +155,15 @@ function handleDateUpdate(newDate: Date) {
   timePickerDialog.submit(newDate);
 }
 
-function handleConfirmDialogVisibilityChange(value: boolean) {
-  confirmDialogVisible.value = value;
+function handleConfirmDialogVisibility(value: boolean) {
+  if (!value) {
+    actorRef.send({ type: CycleEvent.CANCEL_COMPLETION });
+  }
 }
 
 function handleComplete() {
-  // TODO: Implement complete cycle logic
-  confirmDialogVisible.value = false;
+  // TODO: Implement complete cycle logic (COMPLETE_CYCLE event)
+  actorRef.send({ type: CycleEvent.CANCEL_COMPLETION });
 }
 
 function handleDialogEmit(emitType: DialogEmitType) {

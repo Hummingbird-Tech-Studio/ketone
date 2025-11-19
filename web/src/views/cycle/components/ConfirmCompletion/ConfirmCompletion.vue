@@ -73,10 +73,9 @@
 
 <script setup lang="ts">
 import DateTimePickerDialog from '@/components/DateTimePickerDialog/DateTimePickerDialog.vue';
-import { useSelector } from '@xstate/vue';
 import { startOfMinute } from 'date-fns';
 import { Match } from 'effect';
-import { computed, onUnmounted, toRef, watch } from 'vue';
+import { computed, onUnmounted, toRef } from 'vue';
 import type { ActorRefFrom } from 'xstate';
 import {
   Emit as CycleEmit,
@@ -119,17 +118,6 @@ const {
 
 const timePickerDialog = useSchedulerDialog(start);
 
-const pendingStartDate = useSelector(actorRef, (state) => state.context.pendingStartDate);
-const pendingEndDate = useSelector(actorRef, (state) => state.context.pendingEndDate);
-
-// When pendingDates change, notify schedulerDialog that update is complete
-watch([pendingStartDate, pendingEndDate], () => {
-  // If schedulerDialog is in Submitting state, notify completion
-  if (timePickerDialog.submitting.value) {
-    timePickerDialog.actorRef.send({ type: DialogEvent.UPDATE_COMPLETE });
-  }
-});
-
 // DatePicker state (from schedulerDialog)
 const datePickerVisible = timePickerDialog.visible;
 const datePickerTitle = computed(() => timePickerDialog.currentView.value.name);
@@ -165,7 +153,7 @@ function handleSave() {
 function handleDialogEmit(emitType: DialogEmitType) {
   Match.value(emitType).pipe(
     Match.when({ type: DialogEmit.REQUEST_UPDATE }, (emit) => {
-      const event = emit.view._tag === 'Start' ? CycleEvent.EDIT_START_DATE : CycleEvent.EDIT_END_DATE;
+      const event = emit.view._tag === 'Start' ? CycleEvent.REQUEST_START_CHANGE : CycleEvent.REQUEST_END_CHANGE;
       actorRef.send({ type: event, date: startOfMinute(emit.date) });
     }),
   );
@@ -173,6 +161,9 @@ function handleDialogEmit(emitType: DialogEmitType) {
 
 function handleCycleEmit(emitType: CycleEmitType) {
   Match.value(emitType).pipe(
+    Match.when({ type: CycleEmit.UPDATE_COMPLETE }, () => {
+      timePickerDialog.actorRef.send({ type: DialogEvent.UPDATE_COMPLETE });
+    }),
     Match.when({ type: CycleEmit.VALIDATION_INFO }, () => {
       // Notify schedulerDialog that validation failed
       timePickerDialog.actorRef.send({ type: DialogEvent.VALIDATION_FAILED });

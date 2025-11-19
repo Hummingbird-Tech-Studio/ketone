@@ -49,10 +49,8 @@ export enum Event {
   CREATE = 'CREATE',
   INCREMENT_DURATION = 'INCREMENT_DURATION',
   DECREASE_DURATION = 'DECREASE_DURATION',
-  UPDATE_START_DATE = 'UPDATE_START_DATE',
-  UPDATE_END_DATE = 'UPDATE_END_DATE',
-  EDIT_START_DATE = 'EDIT_START_DATE',
-  EDIT_END_DATE = 'EDIT_END_DATE',
+  REQUEST_START_CHANGE = 'REQUEST_START_CHANGE',
+  REQUEST_END_CHANGE = 'REQUEST_END_CHANGE',
   SAVE_EDITED_DATES = 'SAVE_EDITED_DATES',
   CONFIRM_COMPLETION = 'CONFIRM_COMPLETION',
   CANCEL_COMPLETION = 'CANCEL_COMPLETION',
@@ -67,10 +65,8 @@ type EventType =
   | { type: Event.CREATE }
   | { type: Event.INCREMENT_DURATION }
   | { type: Event.DECREASE_DURATION; date: Date }
-  | { type: Event.UPDATE_START_DATE; date: Date }
-  | { type: Event.UPDATE_END_DATE; date: Date }
-  | { type: Event.EDIT_START_DATE; date: Date }
-  | { type: Event.EDIT_END_DATE; date: Date }
+  | { type: Event.REQUEST_START_CHANGE; date: Date }
+  | { type: Event.REQUEST_END_CHANGE; date: Date }
   | { type: Event.SAVE_EDITED_DATES }
   | { type: Event.CONFIRM_COMPLETION }
   | { type: Event.CANCEL_COMPLETION }
@@ -135,7 +131,7 @@ function calculateNewDates(
       };
     }
 
-    case Event.UPDATE_START_DATE: {
+    case Event.REQUEST_START_CHANGE: {
       const minEnd = addHours(eventDate!, MIN_FASTING_DURATION);
       return {
         startDate: eventDate!,
@@ -143,7 +139,7 @@ function calculateNewDates(
       };
     }
 
-    case Event.UPDATE_END_DATE: {
+    case Event.REQUEST_END_CHANGE: {
       const minEnd = addHours(currentStart, MIN_FASTING_DURATION);
       return {
         startDate: currentStart,
@@ -174,8 +170,8 @@ function buildUpdateCycleInput(context: Context, event: EventType): UpdateCycleI
 
   switch (event.type) {
     case Event.DECREASE_DURATION:
-    case Event.UPDATE_START_DATE:
-    case Event.UPDATE_END_DATE:
+    case Event.REQUEST_START_CHANGE:
+    case Event.REQUEST_END_CHANGE:
       return { ...base, eventDate: event.date };
     default:
       return base;
@@ -355,7 +351,6 @@ function getStartDateInFutureValidationMessage(endDate: Date): { summary: string
 
 /**
  * Generates the validation message for when an end date is in the future.
- * @param newEndDate - The proposed new end date
  * @returns Object containing summary and detailed error message
  */
 function getEndDateInFutureValidationMessage(): { summary: string; detail: string } {
@@ -477,10 +472,10 @@ export const cycleMachine = setup({
       };
     }),
     onUpdateStartDate: assign(({ context, event }) => {
-      assertEvent(event, Event.UPDATE_START_DATE);
+      assertEvent(event, Event.REQUEST_START_CHANGE);
 
       const { startDate, endDate } = calculateNewDates(
-        Event.UPDATE_START_DATE,
+        Event.REQUEST_START_CHANGE,
         context.startDate,
         context.endDate,
         event.date,
@@ -493,10 +488,10 @@ export const cycleMachine = setup({
       };
     }),
     onUpdateEndDate: assign(({ context, event }) => {
-      assertEvent(event, Event.UPDATE_END_DATE);
+      assertEvent(event, Event.REQUEST_END_CHANGE);
 
       const { startDate, endDate } = calculateNewDates(
-        Event.UPDATE_END_DATE,
+        Event.REQUEST_END_CHANGE,
         context.startDate,
         context.endDate,
         event.date,
@@ -599,14 +594,14 @@ export const cycleMachine = setup({
       };
     }),
     onEditStartDate: assign(({ event }) => {
-      assertEvent(event, Event.EDIT_START_DATE);
+      assertEvent(event, Event.REQUEST_START_CHANGE);
 
       return {
         pendingStartDate: event.date,
       };
     }),
     onEditEndDate: assign(({ event }) => {
-      assertEvent(event, Event.EDIT_END_DATE);
+      assertEvent(event, Event.REQUEST_END_CHANGE);
 
       return {
         pendingEndDate: event.date,
@@ -627,27 +622,27 @@ export const cycleMachine = setup({
       return context.initialDuration > MIN_FASTING_DURATION;
     },
     isEndDateBeforeStartDate: ({ event }, params: { endDate: Date }) => {
-      assertEvent(event, [Event.UPDATE_START_DATE, Event.EDIT_START_DATE]);
+      assertEvent(event, Event.REQUEST_START_CHANGE);
       return checkIsEndDateBeforeStartDate(params.endDate, event.date);
     },
     hasInvalidDuration: ({ event }, params: { endDate: Date }) => {
-      assertEvent(event, [Event.UPDATE_START_DATE, Event.EDIT_START_DATE]);
+      assertEvent(event, Event.REQUEST_START_CHANGE);
       return checkHasInvalidDuration(params.endDate, event.date);
     },
     isStartDateInFuture: ({ event }) => {
-      assertEvent(event, [Event.UPDATE_START_DATE, Event.EDIT_START_DATE]);
+      assertEvent(event, Event.REQUEST_START_CHANGE);
       return checkIsStartDateInFuture(event.date);
     },
     isEndDateInFuture: ({ event }) => {
-      assertEvent(event, [Event.UPDATE_END_DATE, Event.EDIT_END_DATE]);
+      assertEvent(event, Event.REQUEST_END_CHANGE);
       return checkIsEndDateInFuture(event.date);
     },
     isStartDateAfterEndDate: ({ event }, params: { startDate: Date }) => {
-      assertEvent(event, [Event.UPDATE_END_DATE, Event.EDIT_END_DATE]);
+      assertEvent(event, Event.REQUEST_END_CHANGE);
       return checkIsStartDateAfterEndDate(params.startDate, event.date);
     },
     hasInvalidDurationForEndDate: ({ event }, params: { startDate: Date }) => {
-      assertEvent(event, [Event.UPDATE_END_DATE, Event.EDIT_END_DATE]);
+      assertEvent(event, Event.REQUEST_END_CHANGE);
       return checkHasInvalidDurationForEndDate(params.startDate, event.date);
     },
   },
@@ -680,10 +675,10 @@ export const cycleMachine = setup({
           guard: 'isInitialDurationValid',
           actions: ['onDecrementDuration'],
         },
-        [Event.UPDATE_START_DATE]: {
+        [Event.REQUEST_START_CHANGE]: {
           actions: ['onUpdateStartDate'],
         },
-        [Event.UPDATE_END_DATE]: {
+        [Event.REQUEST_END_CHANGE]: {
           actions: ['onUpdateEndDate'],
         },
       },
@@ -743,7 +738,7 @@ export const cycleMachine = setup({
           target: CycleState.Updating,
         },
         [Event.CONFIRM_COMPLETION]: CycleState.ConfirmCompletion,
-        [Event.UPDATE_START_DATE]: [
+        [Event.REQUEST_START_CHANGE]: [
           {
             guard: 'isStartDateInFuture',
             actions: [
@@ -787,7 +782,7 @@ export const cycleMachine = setup({
             target: CycleState.Updating,
           },
         ],
-        [Event.UPDATE_END_DATE]: [
+        [Event.REQUEST_END_CHANGE]: [
           {
             guard: {
               type: 'isStartDateAfterEndDate',
@@ -866,7 +861,7 @@ export const cycleMachine = setup({
           actions: ['onSaveEditedDates'],
           target: CycleState.InProgress,
         },
-        [Event.EDIT_START_DATE]: [
+        [Event.REQUEST_START_CHANGE]: [
           {
             guard: 'isStartDateInFuture',
             actions: [
@@ -907,10 +902,10 @@ export const cycleMachine = setup({
             ],
           },
           {
-            actions: ['onEditStartDate'],
+            actions: ['onEditStartDate', 'emitUpdateComplete'],
           },
         ],
-        [Event.EDIT_END_DATE]: [
+        [Event.REQUEST_END_CHANGE]: [
           {
             guard: 'isEndDateInFuture',
             actions: [
@@ -950,7 +945,7 @@ export const cycleMachine = setup({
             ],
           },
           {
-            actions: ['onEditEndDate'],
+            actions: ['onEditEndDate', 'emitUpdateComplete'],
           },
         ],
       },

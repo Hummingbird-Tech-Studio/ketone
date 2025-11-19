@@ -172,7 +172,7 @@ function handleComplete() {
 function handleDialogEmit(emitType: DialogEmitType) {
   Match.value(emitType).pipe(
     Match.when({ type: DialogEmit.REQUEST_UPDATE }, (emit) => {
-      const event = emit.view._tag === 'Start' ? CycleEvent.UPDATE_START_DATE : CycleEvent.UPDATE_END_DATE;
+      const event = emit.view._tag === 'Start' ? CycleEvent.REQUEST_START_CHANGE : CycleEvent.REQUEST_END_CHANGE;
 
       actorRef.send({ type: event, date: startOfMinute(emit.date) });
     }),

@@ -365,10 +365,7 @@ function getEndDateBeforeStartValidationMessage(
  * @param newStartDate - The proposed new start date
  * @returns Object containing summary and detailed error message
  */
-function getInvalidDurationValidationMessage(
-  endDate: Date,
-  newStartDate: Date,
-): { summary: string; detail: string } {
+function getInvalidDurationValidationMessage(endDate: Date, newStartDate: Date): { summary: string; detail: string } {
   const durationMs = endDate.getTime() - newStartDate.getTime();
   const durationHours = Math.floor(durationMs / MILLISECONDS_PER_HOUR);
   const durationMinutes = Math.floor((durationMs % MILLISECONDS_PER_HOUR) / 60000);
@@ -387,10 +384,7 @@ function getInvalidDurationValidationMessage(
  * @param newEndDate - The proposed new end date
  * @returns Object containing summary and detailed error message
  */
-function getStartDateAfterEndValidationMessage(
-  startDate: Date,
-  newEndDate: Date,
-): { summary: string; detail: string } {
+function getStartDateAfterEndValidationMessage(startDate: Date, newEndDate: Date): { summary: string; detail: string } {
   const formattedStartDate = formatFullDateTime(startDate);
   const formattedEndDate = formatFullDateTime(newEndDate);
 

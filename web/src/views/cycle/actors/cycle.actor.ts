@@ -552,7 +552,7 @@ export const cycleMachine = setup({
     initializePendingDates: assign(({ context }) => {
       return {
         pendingStartDate: context.startDate,
-        pendingEndDate: context.endDate,
+        pendingEndDate: startOfMinute(new Date()),
       };
     }),
     clearPendingDates: assign(() => {

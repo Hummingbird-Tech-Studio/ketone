@@ -63,9 +63,9 @@
   </Dialog>
 
   <DateTimePickerDialog
-    :visible="datePickerVisible"
-    :title="datePickerTitle"
-    :dateTime="datePickerValue || new Date()"
+    :visible="timePickerDialog.visible.value"
+    :title="timePickerDialog.currentView.value.name"
+    :dateTime="timePickerDialog.date.value || new Date()"
     @update:visible="handleDatePickerVisibilityChange"
     @update:dateTime="handleDateTimeUpdate"
   />
@@ -73,7 +73,7 @@
 
 <script setup lang="ts">
 import DateTimePickerDialog from '@/components/DateTimePickerDialog/DateTimePickerDialog.vue';
-import { computed, toRef } from 'vue';
+import { toRef } from 'vue';
 import type { ActorRefFrom } from 'xstate';
 import { Event as CycleEvent, type cycleMachine } from '../../actors/cycle.actor';
 import { useCycleSchedulerSync } from '../../composables/useCycleSchedulerSync';
@@ -106,11 +106,6 @@ const {
 });
 
 const timePickerDialog = useSchedulerDialog(start);
-
-// DatePicker state (from schedulerDialog)
-const datePickerVisible = timePickerDialog.visible;
-const datePickerTitle = computed(() => timePickerDialog.currentView.value.name);
-const datePickerValue = timePickerDialog.date;
 
 function handleStartCalendarClick() {
   timePickerDialog.open(start, effectiveStartDate.value);

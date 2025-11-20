@@ -63,9 +63,9 @@
   </Dialog>
 
   <DateTimePickerDialog
-    :visible="timePickerDialog.visible.value"
-    :title="timePickerDialog.currentView.value.name"
-    :dateTime="timePickerDialog.date.value || new Date()"
+    :visible="dialogVisible"
+    :title="dialogTitle"
+    :dateTime="dialogDate || new Date()"
     @update:visible="handleDatePickerVisibilityChange"
     @update:dateTime="handleDateTimeUpdate"
   />
@@ -76,9 +76,8 @@ import DateTimePickerDialog from '@/components/DateTimePickerDialog/DateTimePick
 import { toRef } from 'vue';
 import type { ActorRefFrom } from 'xstate';
 import { Event as CycleEvent, type cycleMachine } from '../../actors/cycle.actor';
-import { useCycleSchedulerSync } from '../../composables/useCycleSchedulerSync';
-import { useSchedulerDialog } from '../../composables/useSchedulerDialog';
-import { goal, start } from '../../domain/domain';
+import { Event as SchedulerDialogEvent } from '../../actors/schedulerDialog.actor';
+import { useSchedulerDialogFromCycle } from '../../composables/useSchedulerDialogFromCycle';
 import { useConfirmCompletion } from './useConfirmCompletion';
 
 const props = defineProps<{
@@ -91,37 +90,29 @@ const emit = defineEmits<{
   (e: 'complete'): void;
 }>();
 
-const {
-  startHour,
-  startDateFormatted,
-  endHour,
-  endDateFormatted,
-  totalFastingTime,
-  effectiveStartDate,
-  effectiveEndDate,
-  actorRef,
-} = useConfirmCompletion({
+const { startHour, startDateFormatted, endHour, endDateFormatted, totalFastingTime, actorRef } = useConfirmCompletion({
   actorRef: props.actorRef,
   visible: toRef(props, 'visible'),
 });
 
-const timePickerDialog = useSchedulerDialog(start);
+// Access schedulerDialogRef from CycleActor using composable
+const { schedulerDialogRef, dialogVisible, dialogTitle, dialogDate } = useSchedulerDialogFromCycle(actorRef);
 
 function handleStartCalendarClick() {
-  timePickerDialog.open(start, effectiveStartDate.value);
+  actorRef.send({ type: CycleEvent.OPEN_START_DATE_DIALOG });
 }
 
 function handleEndCalendarClick() {
-  timePickerDialog.open(goal, effectiveEndDate.value);
+  actorRef.send({ type: CycleEvent.OPEN_END_DATE_DIALOG });
 }
 
 function handleDateTimeUpdate(newDate: Date) {
-  timePickerDialog.submit(newDate);
+  schedulerDialogRef.value.send({ type: SchedulerDialogEvent.SUBMIT, date: newDate });
 }
 
 function handleDatePickerVisibilityChange(value: boolean) {
   if (!value) {
-    timePickerDialog.close();
+    schedulerDialogRef.value.send({ type: SchedulerDialogEvent.CLOSE });
   }
 }
 
@@ -133,11 +124,6 @@ function handleSave() {
   actorRef.send({ type: CycleEvent.SAVE_EDITED_DATES });
   emit('complete');
 }
-
-useCycleSchedulerSync({
-  cycleActorRef: actorRef,
-  schedulerDialogActorRef: timePickerDialog.actorRef,
-});
 </script>
 
 <style scoped lang="scss">

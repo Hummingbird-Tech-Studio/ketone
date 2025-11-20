@@ -43,10 +43,10 @@
   </div>
 
   <DateTimePickerDialog
-    :visible="timePickerDialog.visible.value"
-    :title="timePickerDialog.currentView.value.name"
-    :dateTime="timePickerDialog.date.value || new Date()"
-    :loading="timePickerDialog.updating.value"
+    :visible="dialogVisible"
+    :title="dialogTitle"
+    :dateTime="dialogDate || new Date()"
+    :loading="dialogUpdating"
     @update:visible="handleDialogVisibilityChange"
     @update:dateTime="handleDateUpdate"
   />
@@ -70,6 +70,7 @@ import DateTimePickerDialog from '@/components/DateTimePickerDialog/DateTimePick
 import { goal, start } from '@/views/cycle/domain/domain';
 import { computed, onMounted } from 'vue';
 import { Event as CycleEvent } from './actors/cycle.actor';
+import { Event as SchedulerDialogEvent } from './actors/schedulerDialog.actor';
 import ActionButton from './components/ActionButton/ActionButton.vue';
 import { useActionButton } from './components/ActionButton/useActionButton';
 import ConfirmCompletion from './components/ConfirmCompletion/ConfirmCompletion.vue';
@@ -82,8 +83,7 @@ import Timer from './components/Timer/Timer.vue';
 import { useTimer } from './components/Timer/useTimer';
 import { useCycle } from './composables/useCycle';
 import { useCycleNotifications } from './composables/useCycleNotifications';
-import { DateTransform, useCycleSchedulerSync } from './composables/useCycleSchedulerSync';
-import { useSchedulerDialog } from './composables/useSchedulerDialog';
+import { useSchedulerDialogFromCycle } from './composables/useSchedulerDialogFromCycle';
 
 const {
   idle,
@@ -132,24 +132,26 @@ const { buttonText, handleButtonClick } = useActionButton({
   inProgress,
 });
 
-const timePickerDialog = useSchedulerDialog(start);
+// Access schedulerDialogRef from CycleActor using composable
+const { schedulerDialogRef, dialogVisible, dialogTitle, dialogDate, dialogUpdating } =
+  useSchedulerDialogFromCycle(actorRef);
 
 function handleStartClick() {
-  timePickerDialog.open(start, startDate.value);
+  actorRef.send({ type: CycleEvent.OPEN_START_DATE_DIALOG });
 }
 
 function handleEndClick() {
-  timePickerDialog.open(goal, endDate.value);
+  actorRef.send({ type: CycleEvent.OPEN_END_DATE_DIALOG });
 }
 
 function handleDialogVisibilityChange(value: boolean) {
   if (!value) {
-    timePickerDialog.close();
+    schedulerDialogRef.value.send({ type: SchedulerDialogEvent.CLOSE });
   }
 }
 
 function handleDateUpdate(newDate: Date) {
-  timePickerDialog.submit(newDate);
+  schedulerDialogRef.value.send({ type: SchedulerDialogEvent.SUBMIT, date: newDate });
 }
 
 function handleConfirmDialogVisibility(value: boolean) {
@@ -162,12 +164,6 @@ function handleComplete() {
   // TODO: Implement complete cycle logic (COMPLETE_CYCLE event)
   actorRef.send({ type: CycleEvent.CANCEL_COMPLETION });
 }
-
-useCycleSchedulerSync({
-  cycleActorRef: actorRef,
-  schedulerDialogActorRef: timePickerDialog.actorRef,
-  dateTransform: DateTransform.RoundToMinute,
-});
 
 onMounted(() => {
   loadActiveCycle();

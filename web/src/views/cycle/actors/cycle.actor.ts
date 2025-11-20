@@ -3,13 +3,15 @@ import { runWithUi } from '@/utils/effects/helpers';
 import { formatFullDateTime, formatFullDateTimeWithAt, formatTimeWithMeridiem } from '@/utils/formatting';
 import { addHours, startOfMinute } from 'date-fns';
 import { Match } from 'effect';
-import { assertEvent, assign, emit, fromCallback, setup, type EventObject } from 'xstate';
+import { assertEvent, assign, emit, fromCallback, setup, type ActorRefFrom, type EventObject } from 'xstate';
 import {
   createCycleProgram,
   getActiveCycleProgram,
   updateCycleProgram,
   type GetCycleSuccess,
 } from '../services/cycle.service';
+import { goal, start } from '../domain/domain';
+import { Event as SchedulerDialogEvent, schedulerDialogMachine } from './schedulerDialog.actor';
 
 const VALIDATION_INFO = {
   START_DATE_IN_FUTURE: {
@@ -49,6 +51,8 @@ export enum Event {
   CREATE = 'CREATE',
   INCREMENT_DURATION = 'INCREMENT_DURATION',
   DECREASE_DURATION = 'DECREASE_DURATION',
+  OPEN_START_DATE_DIALOG = 'OPEN_START_DATE_DIALOG',
+  OPEN_END_DATE_DIALOG = 'OPEN_END_DATE_DIALOG',
   REQUEST_START_CHANGE = 'REQUEST_START_CHANGE',
   REQUEST_END_CHANGE = 'REQUEST_END_CHANGE',
   SAVE_EDITED_DATES = 'SAVE_EDITED_DATES',
@@ -65,6 +69,8 @@ type EventType =
   | { type: Event.CREATE }
   | { type: Event.INCREMENT_DURATION }
   | { type: Event.DECREASE_DURATION; date: Date }
+  | { type: Event.OPEN_START_DATE_DIALOG }
+  | { type: Event.OPEN_END_DATE_DIALOG }
   | { type: Event.REQUEST_START_CHANGE; date: Date }
   | { type: Event.REQUEST_END_CHANGE; date: Date }
   | { type: Event.SAVE_EDITED_DATES }
@@ -102,6 +108,7 @@ type Context = {
   initialDuration: number;
   pendingStartDate: Date | null;
   pendingEndDate: Date | null;
+  schedulerDialogRef: ActorRefFrom<typeof schedulerDialogMachine>;
 };
 
 function calculateDurationInHours(startDate: Date, endDate: Date): number {
@@ -616,6 +623,26 @@ export const cycleMachine = setup({
         pendingEndDate: null,
       };
     }),
+    openStartDateDialog: ({ context }) => {
+      context.schedulerDialogRef.send({
+        type: SchedulerDialogEvent.OPEN,
+        view: start,
+        date: context.pendingStartDate || context.startDate,
+      });
+    },
+    openEndDateDialog: ({ context }) => {
+      context.schedulerDialogRef.send({
+        type: SchedulerDialogEvent.OPEN,
+        view: goal,
+        date: context.pendingEndDate || context.endDate,
+      });
+    },
+    notifyDialogUpdateComplete: ({ context }) => {
+      context.schedulerDialogRef.send({ type: SchedulerDialogEvent.UPDATE_COMPLETE });
+    },
+    notifyDialogValidationFailed: ({ context }) => {
+      context.schedulerDialogRef.send({ type: SchedulerDialogEvent.VALIDATION_FAILED });
+    },
   },
   guards: {
     isInitialDurationValid: ({ context, event }) => {
@@ -652,17 +679,22 @@ export const cycleMachine = setup({
     cycleActor: cycleLogic,
     createCycleActor: createCycleLogic,
     updateCycleActor: updateCycleLogic,
+    schedulerDialogMachine: schedulerDialogMachine,
   },
 }).createMachine({
   id: 'cycle',
-  context: {
+  context: ({ spawn }) => ({
     cycleMetadata: null,
     startDate: startOfMinute(new Date()),
     endDate: startOfMinute(addHours(new Date(), MIN_FASTING_DURATION)),
     initialDuration: MIN_FASTING_DURATION,
     pendingStartDate: null,
     pendingEndDate: null,
-  },
+    schedulerDialogRef: spawn('schedulerDialogMachine', {
+      id: 'schedulerDialog',
+      input: { view: start },
+    }),
+  }),
   initial: CycleState.Idle,
   states: {
     [CycleState.Idle]: {
@@ -675,6 +707,12 @@ export const cycleMachine = setup({
         [Event.DECREASE_DURATION]: {
           guard: 'isInitialDurationValid',
           actions: ['onDecrementDuration'],
+        },
+        [Event.OPEN_START_DATE_DIALOG]: {
+          actions: ['openStartDateDialog'],
+        },
+        [Event.OPEN_END_DATE_DIALOG]: {
+          actions: ['openEndDateDialog'],
         },
         [Event.REQUEST_START_CHANGE]: {
           actions: ['onUpdateStartDate'],
@@ -739,6 +777,12 @@ export const cycleMachine = setup({
           target: CycleState.Updating,
         },
         [Event.CONFIRM_COMPLETION]: CycleState.ConfirmCompletion,
+        [Event.OPEN_START_DATE_DIALOG]: {
+          actions: ['openStartDateDialog'],
+        },
+        [Event.OPEN_END_DATE_DIALOG]: {
+          actions: ['openEndDateDialog'],
+        },
         [Event.REQUEST_START_CHANGE]: [
           {
             guard: 'isStartDateInFuture',
@@ -747,6 +791,7 @@ export const cycleMachine = setup({
                 type: 'emitStartDateInFutureValidation',
                 params: ({ context }) => ({ endDate: context.endDate }),
               },
+              'notifyDialogValidationFailed',
             ],
           },
           {
@@ -762,6 +807,7 @@ export const cycleMachine = setup({
                   newStartDate: event.date,
                 }),
               },
+              'notifyDialogValidationFailed',
             ],
           },
           {
@@ -777,6 +823,7 @@ export const cycleMachine = setup({
                   newStartDate: event.date,
                 }),
               },
+              'notifyDialogValidationFailed',
             ],
           },
           {
@@ -797,6 +844,7 @@ export const cycleMachine = setup({
                   newEndDate: event.date,
                 }),
               },
+              'notifyDialogValidationFailed',
             ],
           },
           {
@@ -812,6 +860,7 @@ export const cycleMachine = setup({
                   newEndDate: event.date,
                 }),
               },
+              'notifyDialogValidationFailed',
             ],
           },
           {
@@ -837,11 +886,11 @@ export const cycleMachine = setup({
           actions: emit({ type: Emit.TICK }),
         },
         [Event.ON_SUCCESS]: {
-          actions: ['setCycleData', 'emitUpdateComplete'],
+          actions: ['setCycleData', 'emitUpdateComplete', 'notifyDialogUpdateComplete'],
           target: CycleState.InProgress,
         },
         [Event.ON_ERROR]: {
-          actions: 'emitCycleError',
+          actions: ['emitCycleError', 'notifyDialogValidationFailed'],
           target: CycleState.InProgress,
         },
       },
@@ -862,6 +911,12 @@ export const cycleMachine = setup({
           actions: ['onSaveEditedDates'],
           target: CycleState.InProgress,
         },
+        [Event.OPEN_START_DATE_DIALOG]: {
+          actions: ['openStartDateDialog'],
+        },
+        [Event.OPEN_END_DATE_DIALOG]: {
+          actions: ['openEndDateDialog'],
+        },
         [Event.REQUEST_START_CHANGE]: [
           {
             guard: 'isStartDateInFuture',
@@ -870,6 +925,7 @@ export const cycleMachine = setup({
                 type: 'emitStartDateInFutureValidation',
                 params: ({ context }) => ({ endDate: context.pendingEndDate ?? context.endDate }),
               },
+              'notifyDialogValidationFailed',
             ],
           },
           {
@@ -885,6 +941,7 @@ export const cycleMachine = setup({
                   newStartDate: event.date,
                 }),
               },
+              'notifyDialogValidationFailed',
             ],
           },
           {
@@ -900,10 +957,11 @@ export const cycleMachine = setup({
                   newStartDate: event.date,
                 }),
               },
+              'notifyDialogValidationFailed',
             ],
           },
           {
-            actions: ['onEditStartDate', 'emitUpdateComplete'],
+            actions: ['onEditStartDate', 'emitUpdateComplete', 'notifyDialogUpdateComplete'],
           },
         ],
         [Event.REQUEST_END_CHANGE]: [
@@ -913,6 +971,7 @@ export const cycleMachine = setup({
               {
                 type: 'emitEndDateInFutureValidation',
               },
+              'notifyDialogValidationFailed',
             ],
           },
           {
@@ -928,6 +987,7 @@ export const cycleMachine = setup({
                   newEndDate: event.date,
                 }),
               },
+              'notifyDialogValidationFailed',
             ],
           },
           {
@@ -943,10 +1003,11 @@ export const cycleMachine = setup({
                   newEndDate: event.date,
                 }),
               },
+              'notifyDialogValidationFailed',
             ],
           },
           {
-            actions: ['onEditEndDate', 'emitUpdateComplete'],
+            actions: ['onEditEndDate', 'emitUpdateComplete', 'notifyDialogUpdateComplete'],
           },
         ],
       },

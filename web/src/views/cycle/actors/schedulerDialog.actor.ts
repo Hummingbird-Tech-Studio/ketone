@@ -1,5 +1,6 @@
-import { assertEvent, assign, emit, setup } from 'xstate';
+import { assertEvent, assign, emit, sendParent, setup } from 'xstate';
 import type { SchedulerView } from '../domain/domain';
+import { Match } from 'effect';
 
 export enum Event {
   OPEN = 'OPEN',
@@ -68,6 +69,19 @@ export const schedulerDialogMachine = setup({
       view: context.view,
       date: context.date!,
     })),
+    sendUpdateRequestToParent: sendParent(({ context }) => {
+      return Match.value(context.view).pipe(
+        Match.when({ _tag: 'Start' }, () => ({
+          type: 'REQUEST_START_CHANGE' as const,
+          date: context.date!,
+        })),
+        Match.when({ _tag: 'Goal' }, () => ({
+          type: 'REQUEST_END_CHANGE' as const,
+          date: context.date!,
+        })),
+        Match.exhaustive,
+      );
+    }),
   },
 }).createMachine({
   id: 'schedulerDialog',
@@ -91,12 +105,11 @@ export const schedulerDialogMachine = setup({
         [Event.CLOSE]: State.Closed,
         [Event.SUBMIT]: {
           target: State.Submitting,
-          actions: 'setDate',
+          actions: ['setDate', 'sendUpdateRequestToParent'],
         },
       },
     },
     [State.Submitting]: {
-      entry: 'emitUpdateRequest',
       on: {
         [Event.UPDATE_COMPLETE]: {
           target: State.Closed,
@@ -110,7 +123,7 @@ export const schedulerDialogMachine = setup({
         [Event.CLOSE]: State.Closed,
         [Event.SUBMIT]: {
           target: State.Submitting,
-          actions: 'setDate',
+          actions: ['setDate', 'sendUpdateRequestToParent'],
         },
       },
     },

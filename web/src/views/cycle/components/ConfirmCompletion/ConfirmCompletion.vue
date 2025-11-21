@@ -57,7 +57,7 @@
     <template #footer>
       <div class="cycle-summary__footer">
         <Button label="Close" outlined @click="handleClose" />
-        <Button label="Save" :loading="false" @click="handleSave" />
+        <Button label="Save" :loading="loading" @click="handleSave" />
       </div>
     </template>
   </Dialog>
@@ -75,12 +75,13 @@
 import DateTimePickerDialog from '@/components/DateTimePickerDialog/DateTimePickerDialog.vue';
 import { toRef } from 'vue';
 import type { ActorRefFrom } from 'xstate';
-import { Event as CycleEvent, type cycleMachine } from '../../actors/cycle.actor';
+import { type cycleMachine } from '../../actors/cycle.actor';
 import { useSchedulerDialog } from '../../composables/useSchedulerDialog';
 import { useConfirmCompletion } from './useConfirmCompletion';
 
 const props = defineProps<{
   visible: boolean;
+  loading: boolean;
   actorRef: ActorRefFrom<typeof cycleMachine>;
 }>();
 
@@ -120,7 +121,6 @@ function handleClose() {
 }
 
 function handleSave() {
-  actorRef.send({ type: CycleEvent.SAVE_EDITED_DATES });
   emit('complete');
 }
 </script>

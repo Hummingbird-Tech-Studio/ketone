@@ -6,6 +6,7 @@ import { Match } from 'effect';
 import { assertEvent, assign, emit, fromCallback, setup, type ActorRefFrom, type EventObject } from 'xstate';
 import { start } from '../domain/domain';
 import {
+  completeCycleProgram,
   createCycleProgram,
   getActiveCycleProgram,
   updateCycleProgram,
@@ -249,6 +250,21 @@ const updateCycleLogic = fromCallback<EventObject, UpdateCycleInput>(({ sendBack
     },
   );
 });
+
+const completeCycleLogic = fromCallback<EventObject, { cycleId: string; startDate: Date; endDate: Date }>(
+  ({ sendBack, input }) => {
+    runWithUi(
+      completeCycleProgram(input.cycleId, input.startDate, input.endDate),
+      (result) => {
+        sendBack({ type: Event.ON_SUCCESS, result });
+      },
+      (error) => {
+        const errorMessage = 'message' in error && typeof error.message === 'string' ? error.message : String(error);
+        sendBack({ type: Event.ON_ERROR, error: errorMessage });
+      },
+    );
+  },
+);
 
 /**
  * Checks if a start date is in the future.
@@ -611,14 +627,6 @@ export const cycleMachine = setup({
         pendingEndDate: event.date,
       };
     }),
-    onSaveEditedDates: assign(({ context }) => {
-      return {
-        startDate: context.pendingStartDate ?? context.startDate,
-        endDate: context.pendingEndDate ?? context.endDate,
-        pendingStartDate: null,
-        pendingEndDate: null,
-      };
-    }),
     notifyDialogUpdateComplete: ({ context }) => {
       context.schedulerDialogRef.send({ type: SchedulerDialogEvent.UPDATE_COMPLETE });
     },
@@ -661,6 +669,7 @@ export const cycleMachine = setup({
     cycleActor: cycleLogic,
     createCycleActor: createCycleLogic,
     updateCycleActor: updateCycleLogic,
+    completeCycleActor: completeCycleLogic,
     schedulerDialogMachine: schedulerDialogMachine,
   },
 }).createMachine({
@@ -752,7 +761,10 @@ export const cycleMachine = setup({
           guard: 'isInitialDurationValid',
           target: CycleState.Updating,
         },
-        [Event.CONFIRM_COMPLETION]: CycleState.ConfirmCompletion,
+        [Event.CONFIRM_COMPLETION]: {
+          actions: ['initializePendingDates'],
+          target: CycleState.ConfirmCompletion,
+        },
         [Event.REQUEST_START_CHANGE]: [
           {
             guard: 'isStartDateInFuture',
@@ -866,8 +878,6 @@ export const cycleMachine = setup({
       },
     },
     [CycleState.ConfirmCompletion]: {
-      entry: ['initializePendingDates'],
-      exit: ['clearPendingDates'],
       invoke: {
         id: 'timerActor',
         src: 'timerActor',
@@ -878,8 +888,7 @@ export const cycleMachine = setup({
         },
         [Event.CANCEL_COMPLETION]: CycleState.InProgress,
         [Event.SAVE_EDITED_DATES]: {
-          actions: ['onSaveEditedDates'],
-          target: CycleState.InProgress,
+          target: CycleState.Finishing,
         },
         [Event.REQUEST_START_CHANGE]: [
           {
@@ -976,7 +985,27 @@ export const cycleMachine = setup({
         ],
       },
     },
-    [CycleState.Finishing]: {},
+    [CycleState.Finishing]: {
+      invoke: {
+        id: 'completeCycleActor',
+        src: 'completeCycleActor',
+        input: ({ context }) => ({
+          cycleId: context.cycleMetadata!.id,
+          startDate: context.pendingStartDate ?? context.startDate, // TODO: Improve ?? context.startDate
+          endDate: context.pendingEndDate ?? context.endDate, // TODO: Improve ?? context.endDate
+        }),
+      },
+      on: {
+        [Event.ON_SUCCESS]: {
+          actions: ['setCycleData'],
+          target: CycleState.Completed,
+        },
+        [Event.ON_ERROR]: {
+          actions: 'emitCycleError',
+          target: CycleState.ConfirmCompletion,
+        },
+      },
+    },
     [CycleState.Completed]: {},
   },
 });

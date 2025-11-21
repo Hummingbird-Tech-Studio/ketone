@@ -991,8 +991,8 @@ export const cycleMachine = setup({
         src: 'completeCycleActor',
         input: ({ context }) => ({
           cycleId: context.cycleMetadata!.id,
-          startDate: context.pendingStartDate ?? context.startDate, // TODO: Improve ?? context.startDate
-          endDate: context.pendingEndDate ?? context.endDate, // TODO: Improve ?? context.endDate
+          startDate: context.pendingStartDate!,
+          endDate: context.pendingEndDate!,
         }),
       },
       on: {

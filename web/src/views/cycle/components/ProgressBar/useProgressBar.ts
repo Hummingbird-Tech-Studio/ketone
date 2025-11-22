@@ -20,32 +20,28 @@ export function useProgressBar({ cycleActor, cycleMetadata, startDate, endDate }
   const { now, shouldUpdateRealTime } = useCycleRealTimeTracking(cycleActor);
 
   const hours = computed(() => {
-    // If no cycle exists, show 0 hours
     if (!cycleMetadata.value) {
       return 0;
     }
 
-    // Only use real-time if timer is running, otherwise use end date
     const referenceTime = shouldUpdateRealTime.value ? now.value : endDate.value;
     const diffInMs = differenceInMilliseconds(referenceTime, startDate.value);
+
     return Math.round(diffInMs / MILLISECONDS_PER_HOUR);
   });
 
   const stage = computed(() => getFastingStageByHours(hours.value));
 
   const progressPercentage = computed(() => {
-    // If no cycle exists, show 0% progress
     if (!cycleMetadata.value) {
       return MIN_PERCENTAGE;
     }
 
     const totalDuration = endDate.value.getTime() - startDate.value.getTime();
-
-    // Only use real-time if timer is running, otherwise use end date
     const referenceTime = shouldUpdateRealTime.value ? now.value : endDate.value;
     const elapsed = referenceTime.getTime() - startDate.value.getTime();
-
     const percentage = (elapsed / totalDuration) * MAX_PERCENTAGE;
+
     return Math.max(MIN_PERCENTAGE, Math.min(percentage, MAX_PERCENTAGE));
   });
 

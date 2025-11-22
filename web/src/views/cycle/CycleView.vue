@@ -77,7 +77,7 @@
 
 <script setup lang="ts">
 import DateTimePickerDialog from '@/components/DateTimePickerDialog/DateTimePickerDialog.vue';
-import { calculateFastingTime, formatTime } from '@/utils/formatting';
+import { useFastingTimeCalculation } from '@/composables/useFastingTimeCalculation';
 import { goal, start } from '@/views/cycle/domain/domain';
 import Dialog from 'primevue/dialog';
 import { computed, onMounted } from 'vue';
@@ -137,13 +137,7 @@ const { duration, canDecrement, incrementDuration, decrementDuration } = useDura
   endDate,
 });
 
-const completedFastingTime = computed(() => {
-  if (completed.value && startDate.value && endDate.value) {
-    return calculateFastingTime(startDate.value, endDate.value);
-  }
-
-  return formatTime(0, 0, 0);
-});
+const completedFastingTime = useFastingTimeCalculation(startDate, endDate);
 
 const { buttonText, handleButtonClick } = useActionButton({
   cycleActor: actorRef,

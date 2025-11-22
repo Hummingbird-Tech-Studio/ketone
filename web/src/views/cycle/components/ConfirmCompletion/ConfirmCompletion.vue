@@ -74,7 +74,6 @@
 <script setup lang="ts">
 import DateTimePickerDialog from '@/components/DateTimePickerDialog/DateTimePickerDialog.vue';
 import { formatDate, formatHour } from '@/utils/formatting';
-import { toRef } from 'vue';
 import type { ActorRefFrom } from 'xstate';
 import { type cycleMachine } from '../../actors/cycle.actor';
 import { useSchedulerDialog } from '../../composables/useSchedulerDialog';
@@ -93,7 +92,6 @@ const emit = defineEmits<{
 
 const { pendingStartDate, pendingEndDate, totalFastingTime, actorRef } = useConfirmCompletion({
   actorRef: props.actorRef,
-  visible: toRef(props, 'visible'),
 });
 
 const { dialogVisible, dialogTitle, dialogDate, openStartDialog, openEndDialog, closeDialog, submitDialog } =

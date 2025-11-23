@@ -16,7 +16,8 @@ export function useCycleRealTimeTracking(cycleActor: Actor<AnyActorLogic>) {
   const shouldUpdateRealTime = useSelector(cycleActor, (state) =>
     state.matches(CycleState.InProgress) ||
     state.matches(CycleState.Updating) ||
-    state.matches(CycleState.ConfirmCompletion)
+    state.matches(CycleState.ConfirmCompletion) ||
+    state.matches(CycleState.Finishing)
   );
 
   const tickSubscription = cycleActor.on(Emit.TICK, () => {

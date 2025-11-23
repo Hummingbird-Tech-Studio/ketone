@@ -15,6 +15,7 @@ export function useCycleRealTimeTracking(cycleActor: Actor<AnyActorLogic>) {
 
   const shouldUpdateRealTime = useSelector(cycleActor, (state) =>
     state.matches(CycleState.InProgress) ||
+    state.matches(CycleState.Creating) ||
     state.matches(CycleState.Updating) ||
     state.matches(CycleState.ConfirmCompletion) ||
     state.matches(CycleState.Finishing)

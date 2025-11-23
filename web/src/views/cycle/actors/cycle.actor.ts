@@ -535,10 +535,14 @@ export const cycleMachine = setup({
     setCurrentDates: assign(({ context }) => {
       const now = new Date();
       const durationMs = context.endDate.getTime() - context.startDate.getTime();
+      const minDurationMs = MIN_FASTING_DURATION * MILLISECONDS_PER_HOUR;
+
+      // Use calculated duration if valid, otherwise use minimum duration
+      const finalDurationMs = durationMs >= minDurationMs ? durationMs : minDurationMs;
 
       return {
         startDate: now,
-        endDate: new Date(now.getTime() + durationMs),
+        endDate: new Date(now.getTime() + finalDurationMs),
       };
     }),
     onIncrementDuration: assign(({ context }) => {

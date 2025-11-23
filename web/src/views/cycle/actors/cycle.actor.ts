@@ -532,10 +532,15 @@ export const cycleMachine = setup({
     emitted: {} as EmitType,
   },
   actions: {
-    setCurrentDates: assign(() => ({
-      startDate: new Date(),
-      endDate: addHours(new Date(), MIN_FASTING_DURATION),
-    })),
+    setCurrentDates: assign(({ context }) => {
+      const now = new Date();
+      const durationMs = context.endDate.getTime() - context.startDate.getTime();
+
+      return {
+        startDate: now,
+        endDate: new Date(now.getTime() + durationMs),
+      };
+    }),
     onIncrementDuration: assign(({ context }) => {
       const { startDate, endDate } = calculateNewDates(Event.INCREMENT_DURATION, context.startDate, context.endDate);
 
@@ -774,10 +779,10 @@ export const cycleMachine = setup({
           actions: ['onDecrementDuration'],
         },
         [Event.REQUEST_START_CHANGE]: {
-          actions: ['onUpdateStartDate'],
+          actions: ['onUpdateStartDate', 'notifyDialogUpdateComplete'],
         },
         [Event.REQUEST_END_CHANGE]: {
-          actions: ['onUpdateEndDate'],
+          actions: ['onUpdateEndDate', 'notifyDialogUpdateComplete'],
         },
       },
     },

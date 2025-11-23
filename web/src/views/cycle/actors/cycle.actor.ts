@@ -16,6 +16,8 @@ import {
 } from '../services/cycle.service';
 import { Event as SchedulerDialogEvent, schedulerDialogMachine } from './schedulerDialog.actor';
 
+const DEFAULT_FASTING_DURATION = 1; // in hours
+
 const VALIDATION_INFO = {
   START_DATE_IN_FUTURE: {
     summary: 'Start date in future',
@@ -408,6 +410,15 @@ export const cycleMachine = setup({
     setCurrentDates: assign(({ context }) => {
       const now = new Date();
       const durationMs = context.endDate.getTime() - context.startDate.getTime();
+
+      return {
+        startDate: now,
+        endDate: new Date(now.getTime() + durationMs),
+      };
+    }),
+    setCurrentDatesWithMinimum: assign(({ context }) => {
+      const now = new Date();
+      const durationMs = context.endDate.getTime() - context.startDate.getTime();
       const minDurationMs = 60 * 60 * 1000; // 1 hour minimum
       const finalDuration = Math.max(durationMs, minDurationMs);
 
@@ -606,7 +617,7 @@ export const cycleMachine = setup({
   context: ({ spawn }) => ({
     cycleMetadata: null,
     startDate: startOfMinute(new Date()),
-    endDate: startOfMinute(addHours(new Date(), 1)), // Default to 1 hour duration
+    endDate: startOfMinute(addHours(new Date(), DEFAULT_FASTING_DURATION)),
     pendingStartDate: null,
     pendingEndDate: null,
     schedulerDialogRef: spawn('schedulerDialogMachine', {
@@ -619,7 +630,10 @@ export const cycleMachine = setup({
     [CycleState.Idle]: {
       on: {
         [Event.LOAD]: CycleState.Loading,
-        [Event.CREATE]: CycleState.Creating,
+        [Event.CREATE]: {
+          actions: ['setCurrentDates'],
+          target: CycleState.Creating,
+        },
         [Event.INCREMENT_DURATION]: {
           actions: ['onIncrementDuration'],
         },
@@ -695,7 +709,6 @@ export const cycleMachine = setup({
       },
     },
     [CycleState.Creating]: {
-      entry: 'setCurrentDates',
       invoke: {
         id: 'createCycleActor',
         src: 'createCycleActor',
@@ -940,7 +953,10 @@ export const cycleMachine = setup({
     },
     [CycleState.Completed]: {
       on: {
-        [Event.CREATE]: CycleState.Creating,
+        [Event.CREATE]: {
+          actions: ['setCurrentDatesWithMinimum'],
+          target: CycleState.Creating,
+        },
       },
     },
   },

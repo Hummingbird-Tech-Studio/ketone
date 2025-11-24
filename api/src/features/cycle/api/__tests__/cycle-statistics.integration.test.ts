@@ -1,5 +1,6 @@
 import { afterAll, describe, expect, test } from 'bun:test';
 import { Effect, Layer, Schema as S } from 'effect';
+import { startOfWeek } from 'date-fns';
 import { DatabaseLive } from '../../../../db';
 import {
   API_BASE_URL,
@@ -66,13 +67,25 @@ const createTestUserWithTracking = () =>
   });
 
 /**
- * Generate cycle dates for a specific number of days ago
+ * Generate cycle dates that are in the past AND within the current week.
+ * Uses hours ago from now, guaranteed to be within the current week.
+ * @param hoursAgo - Hours before now for cycle start
+ * @param durationHours - Duration of cycle in hours (default 1)
  */
-const generateCycleDatesForDaysAgo = (daysAgoStart: number, daysAgoEnd: number) =>
+const generateCycleDatesInPast = (hoursAgo: number, durationHours: number = 1) =>
   Effect.sync(() => {
     const now = new Date();
-    const startDate = new Date(now.getTime() - daysAgoStart * 24 * 60 * 60 * 1000);
-    const endDate = new Date(now.getTime() - daysAgoEnd * 24 * 60 * 60 * 1000);
+    const weekStart = startOfWeek(now, { weekStartsOn: 0 });
+
+    // Calculate the start date (hoursAgo before now)
+    let startDate = new Date(now.getTime() - hoursAgo * 60 * 60 * 1000);
+
+    // Ensure start date is not before the week start
+    if (startDate < weekStart) {
+      startDate = new Date(weekStart.getTime() + 60 * 60 * 1000); // 1 hour after week start
+    }
+
+    const endDate = new Date(startDate.getTime() + durationHours * 60 * 60 * 1000);
 
     return {
       startDate: startDate.toISOString(),
@@ -184,16 +197,10 @@ describe('GET /v1/cycles/statistics', () => {
       const program = Effect.gen(function* () {
         const { token } = yield* createTestUserWithTracking();
 
-        // Create a cycle using the start of today to ensure it's in the current week
-        const now = new Date();
-        const startDate = new Date(now.getTime() - 2 * 60 * 60 * 1000); // 2 hours ago
-        const endDate = new Date(now.getTime() - 1 * 60 * 60 * 1000); // 1 hour ago
-
-        const dates = {
-          startDate: startDate.toISOString(),
-          endDate: endDate.toISOString(),
-        };
+        // Generate dates that are in the past AND within the current week
+        const dates = yield* generateCycleDatesInPast(3);
         const createdCycle = yield* createCycleForUser(token, dates);
+        const now = new Date();
 
         // Use the same date for the query
         const { status, json } = yield* makeRequest(`${ENDPOINT}?period=weekly&date=${now.toISOString()}`, {
@@ -222,26 +229,15 @@ describe('GET /v1/cycles/statistics', () => {
       const program = Effect.gen(function* () {
         const { token } = yield* createTestUserWithTracking();
 
-        const now = new Date();
-
-        // Create and complete a cycle (4-3 hours ago)
-        const completedStartDate = new Date(now.getTime() - 4 * 60 * 60 * 1000);
-        const completedEndDate = new Date(now.getTime() - 3 * 60 * 60 * 1000);
-        const completedDates = {
-          startDate: completedStartDate.toISOString(),
-          endDate: completedEndDate.toISOString(),
-        };
+        // Create and complete a cycle (4-3 hours ago, non-overlapping)
+        const completedDates = yield* generateCycleDatesInPast(4);
         const completedCycle = yield* createCycleForUser(token, completedDates);
         yield* completeCycleForUser(token, completedCycle.id, completedDates);
 
-        // Create an in-progress cycle (2-1 hours ago)
-        const inProgressStartDate = new Date(now.getTime() - 2 * 60 * 60 * 1000);
-        const inProgressEndDate = new Date(now.getTime() - 1 * 60 * 60 * 1000);
-        const inProgressDates = {
-          startDate: inProgressStartDate.toISOString(),
-          endDate: inProgressEndDate.toISOString(),
-        };
+        // Create an in-progress cycle (2-1 hours ago, after the completed one)
+        const inProgressDates = yield* generateCycleDatesInPast(2);
         const inProgressCycle = yield* createCycleForUser(token, inProgressDates);
+        const now = new Date();
 
         const { status, json } = yield* makeRequest(`${ENDPOINT}?period=weekly&date=${now.toISOString()}`, {
           method: 'GET',
@@ -389,13 +385,13 @@ describe('GET /v1/cycles/statistics', () => {
       const program = Effect.gen(function* () {
         const { token } = yield* createTestUserWithTracking();
 
-        // Create first cycle (older - 4-3 days ago)
-        const olderDates = yield* generateCycleDatesForDaysAgo(4, 3);
+        // Create first cycle (older - 4-3 hours ago)
+        const olderDates = yield* generateCycleDatesInPast(4);
         const olderCycle = yield* createCycleForUser(token, olderDates);
         yield* completeCycleForUser(token, olderCycle.id, olderDates);
 
-        // Create second cycle (newer - 2-1 days ago)
-        const newerDates = yield* generateCycleDatesForDaysAgo(2, 1);
+        // Create second cycle (newer - 2-1 hours ago)
+        const newerDates = yield* generateCycleDatesInPast(2);
         yield* createCycleForUser(token, newerDates);
 
         const now = new Date().toISOString();

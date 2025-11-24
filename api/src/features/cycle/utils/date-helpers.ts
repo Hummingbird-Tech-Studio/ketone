@@ -29,16 +29,17 @@ export interface PeriodRange {
 
 /**
  * Calculates the start and end dates for a given period type and date
- * - weekly: Monday 00:00:00 to Sunday 23:59:59.999
+ * - weekly: Sunday 00:00:00 to Saturday 23:59:59.999
  * - monthly: First day 00:00:00 to last day 23:59:59.999
  */
 export const calculatePeriodRange = (periodType: PeriodType, date: Date): PeriodRange => {
   if (periodType === 'weekly') {
     return {
-      start: startOfWeek(date, { weekStartsOn: 1 }),
-      end: endOfWeek(date, { weekStartsOn: 1 }),
+      start: startOfWeek(date, { weekStartsOn: 0 }),
+      end: endOfWeek(date, { weekStartsOn: 0 }),
     };
   }
+  
   return {
     start: startOfMonth(date),
     end: endOfMonth(date),

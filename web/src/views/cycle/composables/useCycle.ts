@@ -15,9 +15,10 @@ export function useCycle() {
 
   // State checks
   const idle = useSelector(actorRef, (state) => state.matches(CycleState.Idle));
-  const loading = useSelector(
+  const isActionButtonLoading = useSelector(
     actorRef,
-    (state) => state.matches(CycleState.Loading) || state.matches(CycleState.Creating),
+    (state) =>
+      state.matches(CycleState.Creating) || state.matches(CycleState.Updating) || state.matches(CycleState.Finishing),
   );
   const creating = useSelector(actorRef, (state) => state.matches(CycleState.Creating));
   const inProgress = useSelector(actorRef, (state) => state.matches(CycleState.InProgress));
@@ -34,6 +35,7 @@ export function useCycle() {
   const startDate = useSelector(actorRef, (state) => state.context.startDate);
   const endDate = useSelector(actorRef, (state) => state.context.endDate);
 
+  const loading = useSelector(actorRef, (state) => state.matches(CycleState.Loading));
   const showSkeleton = computed(() => loading.value && cycleMetadata.value === null);
 
   // Actions
@@ -49,10 +51,40 @@ export function useCycle() {
     });
   };
 
+  const buttonText = computed(() => {
+    if (idle.value || creating.value) {
+      return 'Start Fasting';
+    }
+
+    if (completed.value) {
+      return 'Start New Fast';
+    }
+
+    if (inProgress.value || updating.value || finishing.value || confirmCompletion.value) {
+      return 'Finish Fasting';
+    }
+
+    return 'Start Fasting';
+  });
+
+  const handleButtonClick = () => {
+    if (idle.value) {
+      send({ type: Event.CREATE });
+    }
+
+    if (inProgress.value) {
+      send({ type: Event.CONFIRM_COMPLETION });
+    }
+
+    if (completed.value) {
+      send({ type: Event.CREATE });
+    }
+  };
+
   return {
     // State checks
     idle,
-    loading,
+    isActionButtonLoading,
     creating,
     inProgress,
     updating,
@@ -68,6 +100,9 @@ export function useCycle() {
     // Actions
     loadActiveCycle,
     createCycle,
+    handleButtonClick,
+    // UI text
+    buttonText,
     // Actor ref
     actorRef,
   };

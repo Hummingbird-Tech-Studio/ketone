@@ -281,8 +281,7 @@ const completeCycleLogic = fromCallback<EventObject, { cycleId: string; startDat
  * @returns true if the start date is in the future (blocks the update), false otherwise
  */
 function checkIsStartDateInFuture(newStartDate: Date): boolean {
-  // Only block dates in the future, allow present and past
-  return newStartDate > startOfMinute(new Date());
+  return newStartDate > new Date();
 }
 
 /**
@@ -291,9 +290,7 @@ function checkIsStartDateInFuture(newStartDate: Date): boolean {
  * @returns true if the end date is in the future (blocks the update), false otherwise
  */
 function checkIsEndDateInFuture(newEndDate: Date): boolean {
-  // Only block dates in the future, allow present and past
-  // Normalize both dates to minute precision to avoid sub-minute comparison issues
-  return startOfMinute(newEndDate) > startOfMinute(new Date());
+  return newEndDate > new Date();
 }
 
 /**

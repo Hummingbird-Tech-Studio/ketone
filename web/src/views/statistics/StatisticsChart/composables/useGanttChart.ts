@@ -1,4 +1,5 @@
 import { computed, shallowRef, watch, type Ref, type ShallowRef } from 'vue';
+import type { GanttBar } from '../types';
 import { COLOR_BAR_TEXT, COLOR_BORDER, COLOR_COMPLETED, COLOR_IN_PROGRESS, COLOR_TEXT } from './chart/constants';
 import { createStripeOverlay, formatTooltipContent } from './chart/helpers';
 import { useChartLifecycle } from './chart/lifecycle';
@@ -10,7 +11,6 @@ import {
   type RenderItemParams,
   type RenderItemReturn,
 } from './chart/types';
-import type { GanttBar } from '../types';
 
 interface UseGanttChartOptions {
   numColumns: Ref<number>;
@@ -26,6 +26,7 @@ const BAR_PADDING_TOP = 6;
 const BAR_PADDING_HORIZONTAL = 1; // Distance from the edge of the chart
 const BAR_BORDER_RADIUS = 8;
 const GRID_BORDER_RADIUS = 12;
+const MOBILE_BREAKPOINT = 400;
 
 export function useGanttChart(chartContainer: Ref<HTMLElement | null>, options: UseGanttChartOptions) {
   const chartInstance: ShallowRef<echarts.ECharts | null> = shallowRef(null);
@@ -213,7 +214,8 @@ export function useGanttChart(chartContainer: Ref<HTMLElement | null>, options: 
     }
 
     // Duration label (only show if bar is wide enough)
-    if (finalWidth > 8) {
+    if (finalWidth > 28) {
+      const durationFontSize = chartWidth < MOBILE_BREAKPOINT ? 9 : 12;
       children.push({
         type: 'text',
         style: {
@@ -222,7 +224,7 @@ export function useGanttChart(chartContainer: Ref<HTMLElement | null>, options: 
           y: barHeight / 2,
           textAlign: 'center',
           textVerticalAlign: 'middle',
-          fontSize: 12,
+          fontSize: durationFontSize,
           fontWeight: 600,
           fill: COLOR_BAR_TEXT,
         },

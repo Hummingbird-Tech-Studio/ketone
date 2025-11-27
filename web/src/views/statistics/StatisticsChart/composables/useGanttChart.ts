@@ -220,12 +220,10 @@ export function useGanttChart(chartContainer: Ref<HTMLElement | null>, options: 
 
       // Parse duration string (e.g., "16h 30m", "16h", "30m")
       const parts = duration.split(' ');
-      const hasHours = parts.some((p) => p.includes('h'));
-      const hasMinutes = parts.some((p) => p.includes('m'));
       const hoursPart = parts.find((p) => p.includes('h')) || '';
       const minutesPart = parts.find((p) => p.includes('m')) || '';
 
-      if (hasHours && hasMinutes) {
+      if (hoursPart && minutesPart) {
         // Two lines: hours on top, minutes below
         children.push({
           type: 'text',

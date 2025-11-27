@@ -48,6 +48,7 @@
               variant="outlined"
               severity="secondary"
               aria-label="Start Date"
+              @click="handleStartCalendarClick"
             />
           </div>
           <div>{{ startDate }}</div>
@@ -61,18 +62,30 @@
               variant="outlined"
               severity="secondary"
               aria-label="End Date"
+              @click="handleEndCalendarClick"
             />
           </div>
           <div>{{ endDate }}</div>
         </div>
       </div>
     </div>
+
+    <DateTimePickerDialog
+      v-if="dialogVisible"
+      :visible="dialogVisible"
+      :title="dialogTitle"
+      :dateTime="dialogDate"
+      :loading="updating"
+      @update:visible="handleDialogVisibilityChange"
+      @update:dateTime="handleDateUpdate"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
+import DateTimePickerDialog from '@/components/DateTimePickerDialog/DateTimePickerDialog.vue';
 import { useCycleDetail } from '@/views/cycleDetail/composables/useCycleDetail';
-import { onMounted } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
 const router = useRouter();
@@ -80,7 +93,17 @@ const route = useRoute();
 
 const cycleId = route.params.id as string;
 
-const { loading, isCompleted, startDate, endDate, totalFastingTime, loadCycle } = useCycleDetail(cycleId);
+const { loading, isCompleted, startDate, endDate, totalFastingTime, loadCycle, cycle, updating, updateDates } =
+  useCycleDetail(cycleId);
+
+// Dialog state
+const dialogVisible = ref(false);
+const dialogType = ref<'start' | 'end'>('start');
+const dialogTitle = computed(() => (dialogType.value === 'start' ? 'Start' : 'Goal'));
+const dialogDate = computed(() => {
+  if (!cycle.value) return new Date();
+  return dialogType.value === 'start' ? cycle.value.startDate : cycle.value.endDate;
+});
 
 onMounted(() => {
   loadCycle();
@@ -88,6 +111,30 @@ onMounted(() => {
 
 function handleBack() {
   router.push('/statistics');
+}
+
+function handleStartCalendarClick() {
+  dialogType.value = 'start';
+  dialogVisible.value = true;
+}
+
+function handleEndCalendarClick() {
+  dialogType.value = 'end';
+  dialogVisible.value = true;
+}
+
+function handleDialogVisibilityChange(value: boolean) {
+  dialogVisible.value = value;
+}
+
+function handleDateUpdate(newDate: Date) {
+  if (!cycle.value) return;
+
+  const start = dialogType.value === 'start' ? newDate : cycle.value.startDate;
+  const end = dialogType.value === 'end' ? newDate : cycle.value.endDate;
+
+  updateDates(start, end);
+  dialogVisible.value = false;
 }
 </script>
 

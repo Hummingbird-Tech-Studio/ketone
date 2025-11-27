@@ -3,6 +3,7 @@ import { Match } from 'effect';
 import { assign, emit, fromCallback, setup, type EventObject } from 'xstate';
 import {
   getCycleProgram,
+  updateCompletedCycleProgram,
   updateCycleProgram,
   type GetCycleSuccess,
   type UpdateCycleError,
@@ -70,19 +71,25 @@ const loadCycleLogic = fromCallback<EventObject, { cycleId: string }>(({ sendBac
   );
 });
 
-const updateCycleLogic = fromCallback<EventObject, { cycleId: string; startDate: Date; endDate: Date }>(
-  ({ sendBack, input }) => {
-    runWithUi(
-      updateCycleProgram(input.cycleId, input.startDate, input.endDate),
-      (result) => {
-        sendBack({ type: Event.ON_UPDATE_SUCCESS, result });
-      },
-      (error) => {
-        sendBack(handleUpdateError(error));
-      },
-    );
-  },
-);
+const updateCycleLogic = fromCallback<
+  EventObject,
+  { cycleId: string; startDate: Date; endDate: Date; status: string }
+>(({ sendBack, input }) => {
+  const program =
+    input.status === 'Completed'
+      ? updateCompletedCycleProgram(input.cycleId, input.startDate, input.endDate)
+      : updateCycleProgram(input.cycleId, input.startDate, input.endDate);
+
+  runWithUi(
+    program,
+    (result) => {
+      sendBack({ type: Event.ON_UPDATE_SUCCESS, result });
+    },
+    (error) => {
+      sendBack(handleUpdateError(error));
+    },
+  );
+});
 
 export const cycleDetailMachine = setup({
   types: {
@@ -173,12 +180,14 @@ export const cycleDetailMachine = setup({
               cycleId: context.cycleId,
               startDate: event.startDate,
               endDate: event.endDate,
+              status: context.cycle!.status,
             };
           }
           return {
             cycleId: context.cycleId,
             startDate: context.cycle!.startDate,
             endDate: context.cycle!.endDate,
+            status: context.cycle!.status,
           };
         },
       },

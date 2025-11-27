@@ -214,21 +214,61 @@ export function useGanttChart(chartContainer: Ref<HTMLElement | null>, options: 
     }
 
     // Duration label (only show if bar is wide enough)
-    if (finalWidth > 28) {
+    if (finalWidth > 16) {
       const durationFontSize = chartWidth < MOBILE_BREAKPOINT ? 9 : 12;
-      children.push({
-        type: 'text',
-        style: {
-          text: duration,
-          x: finalWidth / 2,
-          y: barHeight / 2,
-          textAlign: 'center',
-          textVerticalAlign: 'middle',
-          fontSize: durationFontSize,
-          fontWeight: 600,
-          fill: COLOR_BAR_TEXT,
-        },
-      });
+      const lineHeight = durationFontSize + 2;
+
+      // Parse duration string (e.g., "16h 30m", "16h", "30m")
+      const parts = duration.split(' ');
+      const hasHours = parts.some((p) => p.includes('h'));
+      const hasMinutes = parts.some((p) => p.includes('m'));
+      const hoursPart = parts.find((p) => p.includes('h')) || '';
+      const minutesPart = parts.find((p) => p.includes('m')) || '';
+
+      if (hasHours && hasMinutes) {
+        // Two lines: hours on top, minutes below
+        children.push({
+          type: 'text',
+          style: {
+            text: hoursPart,
+            x: finalWidth / 2,
+            y: barHeight / 2 - lineHeight / 2,
+            textAlign: 'center',
+            textVerticalAlign: 'middle',
+            fontSize: durationFontSize,
+            fontWeight: 600,
+            fill: COLOR_BAR_TEXT,
+          },
+        });
+        children.push({
+          type: 'text',
+          style: {
+            text: minutesPart,
+            x: finalWidth / 2,
+            y: barHeight / 2 + lineHeight / 2,
+            textAlign: 'center',
+            textVerticalAlign: 'middle',
+            fontSize: durationFontSize,
+            fontWeight: 600,
+            fill: COLOR_BAR_TEXT,
+          },
+        });
+      } else {
+        // Single line (only hours or only minutes)
+        children.push({
+          type: 'text',
+          style: {
+            text: duration,
+            x: finalWidth / 2,
+            y: barHeight / 2,
+            textAlign: 'center',
+            textVerticalAlign: 'middle',
+            fontSize: durationFontSize,
+            fontWeight: 600,
+            fill: COLOR_BAR_TEXT,
+          },
+        });
+      }
     }
 
     return {

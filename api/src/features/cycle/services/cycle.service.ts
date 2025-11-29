@@ -605,12 +605,18 @@ export class CycleService extends Effect.Service<CycleService>()('CycleService',
             );
           }
 
-          // Check if this is the last completed cycle - if so, invalidate the cache
+          // Check if this is the last completed cycle before deleting
           const lastCompletedOption = yield* repository.getLastCompletedCycle(userId);
+          const isLastCompleted = Option.isSome(lastCompletedOption) && lastCompletedOption.value.id === cycleId;
 
-          if (Option.isSome(lastCompletedOption) && lastCompletedOption.value.id === cycleId) {
+          yield* repository.deleteCycle(userId, cycleId);
+
+          yield* Effect.logInfo(`[CycleService] Cycle ${cycleId} deleted successfully`);
+
+          // Invalidate cache after successful deletion (best-effort)
+          if (isLastCompleted) {
             yield* Effect.logInfo(
-              `[CycleService] Cycle ${cycleId} is the last completed cycle, invalidating completion cache`,
+              `[CycleService] Cycle ${cycleId} was the last completed cycle, invalidating completion cache`,
             );
             yield* cycleCompletionCache.invalidate(userId).pipe(
               Effect.tapError((error) =>
@@ -621,11 +627,6 @@ export class CycleService extends Effect.Service<CycleService>()('CycleService',
               Effect.ignore,
             );
           }
-
-          // Delete the cycle from the database
-          yield* repository.deleteCycle(userId, cycleId);
-
-          yield* Effect.logInfo(`[CycleService] Cycle ${cycleId} deleted successfully`);
         }),
     };
   }),

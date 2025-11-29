@@ -101,6 +101,14 @@
           </div>
         </template>
       </div>
+
+      <DeleteFastCard
+        :loading="showSkeleton"
+        :error="error"
+        :deleting="deleting"
+        :disabled="!isCompleted"
+        @delete="requestDelete"
+      />
     </div>
 
     <DateTimePickerDialog
@@ -117,6 +125,7 @@
 
 <script setup lang="ts">
 import DateTimePickerDialog from '@/components/DateTimePickerDialog/DateTimePickerDialog.vue';
+import DeleteFastCard from '@/views/cycleDetail/components/DeleteFastCard.vue';
 import { goal, type SchedulerView, start } from '@/views/cycle/domain/domain';
 import { useCycleDetail } from '@/views/cycleDetail/composables/useCycleDetail';
 import { useCycleDetailNotifications } from '@/views/cycleDetail/composables/useCycleDetailNotifications';
@@ -140,14 +149,19 @@ const {
   loadCycle,
   cycle,
   updating,
+  deleting,
   requestStartDateChange,
   requestEndDateChange,
+  requestDelete,
   actorRef,
 } = useCycleDetail(cycleId);
 
 useCycleDetailNotifications(actorRef, {
   onUpdateComplete: () => {
     dialogVisible.value = false;
+  },
+  onDeleteComplete: () => {
+    router.push('/statistics');
   },
 });
 

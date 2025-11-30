@@ -61,8 +61,6 @@ export class CycleInvalidStateError extends S.TaggedError<CycleInvalidStateError
   expectedState: S.String,
 }) {}
 
-export type { UnauthorizedError };
-
 type ApiErrorResponse = {
   _tag: string;
   message?: string;

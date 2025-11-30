@@ -1,5 +1,5 @@
 import { HttpApi } from '@effect/platform';
-import { CycleApiGroup as CycleV2ApiGroup } from './features/cycle/api/cycle-api';
+import { CycleApiGroup } from './features/cycle/api/cycle-api';
 import { AuthApiGroup } from './features/auth/api/auth-api';
 import { ProfileApiGroup } from './features/profile/api/profile-api';
 
@@ -8,4 +8,4 @@ import { ProfileApiGroup } from './features/profile/api/profile-api';
  * Combines all API groups into a single unified API.
  * This ensures proper error metadata preservation for all endpoints.
  */
-export const Api = HttpApi.make('api').add(CycleV2ApiGroup).add(AuthApiGroup).add(ProfileApiGroup);
+export const Api = HttpApi.make('api').add(CycleApiGroup).add(AuthApiGroup).add(ProfileApiGroup);

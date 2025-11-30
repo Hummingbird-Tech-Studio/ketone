@@ -27,3 +27,6 @@ export {
   type CycleStatisticsItem,
   type PeriodType,
 } from './schemas/cycle';
+
+// Profile response schemas
+export { ProfileResponseSchema, type ProfileResponse } from './schemas/profile';

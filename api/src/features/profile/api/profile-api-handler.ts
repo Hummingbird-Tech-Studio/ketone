@@ -1,9 +1,25 @@
 import { HttpApiBuilder } from '@effect/platform';
 import { Effect, Option } from 'effect';
 import { Api } from '../../../api';
-import { ProfileService } from '../services';
+import { ProfileService, type ProfileRecord } from '../services';
 import { ProfileRepositoryErrorSchema } from './schemas';
 import { CurrentUser } from '../../auth/api/middleware';
+
+/**
+ * Convert ProfileRecord to API response format
+ * Transforms Date objects to ISO date strings (YYYY-MM-DD)
+ */
+const toProfileResponse = (profile: ProfileRecord) => ({
+  id: profile.id,
+  userId: profile.userId,
+  name: profile.name,
+  dateOfBirth: Option.fromNullable(profile.dateOfBirth).pipe(
+    Option.map((date) => date.toISOString().split('T')[0]!),
+    Option.getOrNull,
+  ),
+  createdAt: profile.createdAt,
+  updatedAt: profile.updatedAt,
+});
 
 export const ProfileApiLive = HttpApiBuilder.group(Api, 'profile', (handlers) =>
   Effect.gen(function* () {
@@ -36,21 +52,7 @@ export const ProfileApiLive = HttpApiBuilder.group(Api, 'profile', (handlers) =>
           }
 
           yield* Effect.logInfo(`[Handler] Profile retrieved successfully for user ${userId}`);
-
-          // Convert Date to string (YYYY-MM-DD) for API response
-          const dateOfBirthString = Option.fromNullable(profile.dateOfBirth).pipe(
-            Option.map((date) => date.toISOString().split('T')[0]!),
-            Option.getOrNull,
-          );
-
-          return {
-            id: profile.id,
-            userId: profile.userId,
-            name: profile.name,
-            dateOfBirth: dateOfBirthString,
-            createdAt: profile.createdAt,
-            updatedAt: profile.updatedAt,
-          };
+          return toProfileResponse(profile);
         }),
       )
       .handle('saveProfile', ({ payload }) =>
@@ -74,21 +76,7 @@ export const ProfileApiLive = HttpApiBuilder.group(Api, 'profile', (handlers) =>
           );
 
           yield* Effect.logInfo(`[Handler] Profile saved successfully for user ${userId}`);
-
-          // Convert Date to string (YYYY-MM-DD) for API response
-          const dateOfBirthString = Option.fromNullable(profile.dateOfBirth).pipe(
-            Option.map((date) => date.toISOString().split('T')[0]!),
-            Option.getOrNull,
-          );
-
-          return {
-            id: profile.id,
-            userId: profile.userId,
-            name: profile.name,
-            dateOfBirth: dateOfBirthString,
-            createdAt: profile.createdAt,
-            updatedAt: profile.updatedAt,
-          };
+          return toProfileResponse(profile);
         }),
       );
   }),

@@ -18,10 +18,13 @@ import { HttpStatus } from '@/shared/constants/http-status';
 import type { HttpBodyError } from '@effect/platform/HttpBody';
 import type { HttpClientError } from '@effect/platform/HttpClientError';
 import {
+  type Gender,
+  type HeightUnit,
   NullablePhysicalInfoResponseSchema,
   NullableProfileResponseSchema,
   PhysicalInfoResponseSchema,
   ProfileResponseSchema,
+  type WeightUnit,
 } from '@ketone/shared';
 import { Effect, Layer, Match, Schema as S } from 'effect';
 
@@ -39,6 +42,14 @@ export type GetPhysicalInfoError = HttpClientError | HttpBodyError | ValidationE
 
 export type SavePhysicalInfoSuccess = S.Schema.Type<typeof PhysicalInfoResponseSchema>;
 export type SavePhysicalInfoError = HttpClientError | HttpBodyError | ValidationError | UnauthorizedError | ServerError;
+
+export type SavePhysicalInfoPayload = {
+  weight?: number | null;
+  height?: number | null;
+  gender?: Gender | null;
+  weightUnit?: WeightUnit | null;
+  heightUnit?: HeightUnit | null;
+};
 
 /**
  * Handle Get Profile Response
@@ -177,13 +188,9 @@ export class ProfileService extends Effect.Service<ProfileService>()('ProfileSer
        * Save (create or update) user physical info
        * @param data - Physical info data to save
        */
-      savePhysicalInfo: (data: {
-        weight?: number | null;
-        height?: number | null;
-        gender?: 'Male' | 'Female' | 'Prefer not to say' | null;
-        weightUnit?: 'kg' | 'lbs' | null;
-        heightUnit?: 'cm' | 'ft_in' | null;
-      }): Effect.Effect<SavePhysicalInfoSuccess, SavePhysicalInfoError> =>
+      savePhysicalInfo: (
+        data: SavePhysicalInfoPayload,
+      ): Effect.Effect<SavePhysicalInfoSuccess, SavePhysicalInfoError> =>
         HttpClientRequest.put(`${API_BASE_URL}/v1/profile/physical`).pipe(
           HttpClientRequest.bodyJson(data),
           Effect.flatMap((request) => authenticatedClient.execute(request)),
@@ -235,13 +242,7 @@ export const getPhysicalInfoProgram = () =>
 /**
  * Program to save user physical info
  */
-export const savePhysicalInfoProgram = (data: {
-  weight?: number | null;
-  height?: number | null;
-  gender?: 'Male' | 'Female' | 'Prefer not to say' | null;
-  weightUnit?: 'kg' | 'lbs' | null;
-  heightUnit?: 'cm' | 'ft_in' | null;
-}) =>
+export const savePhysicalInfoProgram = (data: SavePhysicalInfoPayload) =>
   Effect.gen(function* () {
     const profileService = yield* ProfileService;
     return yield* profileService.savePhysicalInfo(data);

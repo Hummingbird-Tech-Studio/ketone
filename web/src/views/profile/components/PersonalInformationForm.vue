@@ -1,5 +1,5 @@
 <template>
-  <div class="personal-info-form">
+  <form class="personal-info-form" @submit.prevent="handleSave">
     <h2 class="personal-info-form__title">Personal Information</h2>
 
     <div class="personal-info-form__fields">
@@ -13,7 +13,7 @@
         <DatePicker
           v-model="dateOfBirth"
           placeholder="Date of birth"
-          dateFormat="yy-mm-dd"
+          dateFormat="dd-mm-yy"
           showIcon
           iconDisplay="input"
           fluid
@@ -24,15 +24,15 @@
     <Skeleton v-if="loading" class="personal-info-form__actions" width="130px" height="38px" border-radius="20px" />
     <Button
       v-else
+      type="submit"
       class="personal-info-form__actions"
       label="Save changes"
       :loading="saving"
       outlined
       rounded
       :disabled="saving"
-      @click="handleSave"
     />
-  </div>
+  </form>
 </template>
 
 <script setup lang="ts">

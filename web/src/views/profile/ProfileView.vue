@@ -168,7 +168,7 @@ onMounted(() => {
 
       &.router-link-active {
         background: $color-light-grey;
-        border-right: 2px solid;
+        border-right: 1px solid;
         border-right-color: $color-primary;
       }
 

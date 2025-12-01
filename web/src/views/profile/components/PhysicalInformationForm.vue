@@ -19,56 +19,24 @@
       v-else
       class="physical-info-form__actions"
       label="Save changes"
-      :loading="saving"
       outlined
       rounded
-      :disabled="saving"
-      @click="handleSave"
+      disabled
     />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
-
-interface Profile {
-  name: string | null;
-  dateOfBirth: string | null;
-}
+import { ref } from 'vue';
 
 interface Props {
-  profile: Profile | null;
   loading: boolean;
-  saving: boolean;
 }
 
-interface Emits {
-  (e: 'save', data: { name: string | null; dateOfBirth: string | null }): void;
-}
-
-const props = defineProps<Props>();
-const emit = defineEmits<Emits>();
+defineProps<Props>();
 
 const height = ref('');
 const weight = ref('');
-
-watch(
-  () => props.profile,
-  (newProfile) => {
-    if (newProfile) {
-      // TODO: Load physical info when API supports it
-    }
-  },
-  { immediate: true },
-);
-
-function handleSave() {
-  // TODO: Implement save when API supports physical info
-  emit('save', {
-    name: null,
-    dateOfBirth: null,
-  });
-}
 </script>
 
 <style scoped lang="scss">

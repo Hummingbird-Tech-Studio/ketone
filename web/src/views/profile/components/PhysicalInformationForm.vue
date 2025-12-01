@@ -23,7 +23,7 @@
 
         <div class="physical-info-form__section__body">
           <!-- Metric (cm) -->
-          <template v-if="heightUnit === 'cm'">
+          <template v-if="heightUnit === UNITS.HEIGHT.CM">
             <InputNumber
               v-model="heightCm"
               inputId="height-cm"
@@ -129,10 +129,10 @@
             mode="decimal"
             :step="0.1"
             :min="0"
-            :max="weightUnit === 'kg' ? 500 : 1100"
+            :max="weightUnit === UNITS.WEIGHT.KG ? 500 : 1100"
             :minFractionDigits="1"
             :maxFractionDigits="1"
-            :suffix="weightUnit === 'kg' ? ' kg' : ' lbs'"
+            :suffix="weightUnit === UNITS.WEIGHT.KG ? ' kg' : ' lbs'"
             fluid
           >
             <template #incrementicon>
@@ -192,10 +192,23 @@ onMounted(() => {
   loadPhysicalInfo();
 });
 
+// Unit constants
+const UNITS = {
+  HEIGHT: { CM: 'cm', FT_IN: 'ft_in' },
+  WEIGHT: { KG: 'kg', LBS: 'lbs' },
+} as const;
+
+const CONVERSION = {
+  CM_PER_INCH: 2.54,
+  INCHES_PER_FOOT: 12,
+  KG_TO_LBS: 2.20462,
+  DECIMAL_PRECISION: 10, // Multiply/divide by 10 for 1 decimal place rounding
+} as const;
+
 // Form state
 const gender = ref<Gender | null>(null);
-const heightUnit = ref<HeightUnit>('cm');
-const weightUnit = ref<WeightUnit>('kg');
+const heightUnit = ref<HeightUnit>(UNITS.HEIGHT.CM);
+const weightUnit = ref<WeightUnit>(UNITS.WEIGHT.KG);
 const weight = ref<number | null>(null);
 
 // Height state - stored internally in cm
@@ -211,42 +224,40 @@ const genderOptions = [
 ];
 
 const heightUnitOptions = [
-  { label: 'cm', value: 'cm' as HeightUnit },
-  { label: 'ft/in', value: 'ft_in' as HeightUnit },
+  { label: 'cm', value: UNITS.HEIGHT.CM },
+  { label: 'ft/in', value: UNITS.HEIGHT.FT_IN },
 ];
 
 const weightUnitOptions = [
-  { label: 'kg', value: 'kg' as WeightUnit },
-  { label: 'lbs', value: 'lbs' as WeightUnit },
+  { label: 'kg', value: UNITS.WEIGHT.KG },
+  { label: 'lbs', value: UNITS.WEIGHT.LBS },
 ];
 
 // Conversion helpers - Height
 function cmToFeetInches(cm: number): { feet: number; inches: number } {
-  const totalInches = cm / 2.54;
-  const feet = Math.floor(totalInches / 12);
-  const inches = Math.round(totalInches % 12);
+  const totalInches = cm / CONVERSION.CM_PER_INCH;
+  const feet = Math.floor(totalInches / CONVERSION.INCHES_PER_FOOT);
+  const inches = Math.round(totalInches % CONVERSION.INCHES_PER_FOOT);
   return { feet, inches };
 }
 
 function feetInchesToCm(feet: number, inches: number): number {
-  const totalInches = feet * 12 + inches;
-  return Math.round(totalInches * 2.54);
+  const totalInches = feet * CONVERSION.INCHES_PER_FOOT + inches;
+  return Math.round(totalInches * CONVERSION.CM_PER_INCH);
 }
 
 // Conversion helpers - Weight
-const KG_TO_LBS = 2.20462;
-
 function kgToLbs(kg: number): number {
-  return Math.round(kg * KG_TO_LBS * 10) / 10;
+  return Math.round(kg * CONVERSION.KG_TO_LBS * CONVERSION.DECIMAL_PRECISION) / CONVERSION.DECIMAL_PRECISION;
 }
 
 function lbsToKg(lbs: number): number {
-  return Math.round((lbs / KG_TO_LBS) * 10) / 10;
+  return Math.round((lbs / CONVERSION.KG_TO_LBS) * CONVERSION.DECIMAL_PRECISION) / CONVERSION.DECIMAL_PRECISION;
 }
 
 // Computed values for saving (backend always stores height in cm, weight in kg)
 const heightInCm = computed(() => {
-  if (heightUnit.value === 'cm') {
+  if (heightUnit.value === UNITS.HEIGHT.CM) {
     return heightCm.value;
   }
   if (heightFeet.value === null && heightInches.value === null) {
@@ -257,7 +268,7 @@ const heightInCm = computed(() => {
 
 const weightInKg = computed(() => {
   if (weight.value === null) return null;
-  return weightUnit.value === 'lbs' ? lbsToKg(weight.value) : weight.value;
+  return weightUnit.value === UNITS.WEIGHT.LBS ? lbsToKg(weight.value) : weight.value;
 });
 
 // Unit change handlers - convert values when user changes unit
@@ -265,11 +276,11 @@ function onHeightUnitChange(newUnit: HeightUnit) {
   const oldUnit = heightUnit.value;
   heightUnit.value = newUnit;
 
-  if (newUnit === 'ft_in' && oldUnit === 'cm' && heightCm.value !== null) {
+  if (newUnit === UNITS.HEIGHT.FT_IN && oldUnit === UNITS.HEIGHT.CM && heightCm.value !== null) {
     const { feet, inches } = cmToFeetInches(heightCm.value);
     heightFeet.value = feet;
     heightInches.value = inches;
-  } else if (newUnit === 'cm' && oldUnit === 'ft_in') {
+  } else if (newUnit === UNITS.HEIGHT.CM && oldUnit === UNITS.HEIGHT.FT_IN) {
     if (heightFeet.value !== null || heightInches.value !== null) {
       heightCm.value = feetInchesToCm(heightFeet.value ?? 0, heightInches.value ?? 0);
     }
@@ -282,9 +293,9 @@ function onWeightUnitChange(newUnit: WeightUnit) {
 
   if (weight.value === null) return;
 
-  if (newUnit === 'lbs' && oldUnit === 'kg') {
+  if (newUnit === UNITS.WEIGHT.LBS && oldUnit === UNITS.WEIGHT.KG) {
     weight.value = kgToLbs(weight.value);
-  } else if (newUnit === 'kg' && oldUnit === 'lbs') {
+  } else if (newUnit === UNITS.WEIGHT.KG && oldUnit === UNITS.WEIGHT.LBS) {
     weight.value = lbsToKg(weight.value);
   }
 }
@@ -296,9 +307,9 @@ watch(
     if (!newInfo) return;
 
     // Height - backend stores in cm, convert to user's preferred unit
-    heightUnit.value = newInfo.heightUnit ?? 'cm';
+    heightUnit.value = newInfo.heightUnit ?? UNITS.HEIGHT.CM;
     if (newInfo.height !== null) {
-      if (heightUnit.value === 'cm') {
+      if (heightUnit.value === UNITS.HEIGHT.CM) {
         heightCm.value = newInfo.height;
       } else {
         const { feet, inches } = cmToFeetInches(newInfo.height);
@@ -308,9 +319,9 @@ watch(
     }
 
     // Weight - backend stores in kg, convert to user's preferred unit
-    weightUnit.value = newInfo.weightUnit ?? 'kg';
+    weightUnit.value = newInfo.weightUnit ?? UNITS.WEIGHT.KG;
     weight.value =
-      newInfo.weight !== null && weightUnit.value === 'lbs' ? kgToLbs(newInfo.weight) : newInfo.weight;
+      newInfo.weight !== null && weightUnit.value === UNITS.WEIGHT.LBS ? kgToLbs(newInfo.weight) : newInfo.weight;
 
     gender.value = newInfo.gender;
   },

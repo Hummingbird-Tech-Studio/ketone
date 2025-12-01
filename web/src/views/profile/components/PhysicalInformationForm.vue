@@ -143,6 +143,7 @@
             :maxFractionDigits="1"
             :suffix="weightUnit === UNITS.WEIGHT.KG ? ' kg' : ' lbs'"
             fluid
+            :inputProps="{ inputmode: 'decimal' }"
           >
             <template #incrementicon>
               <span class="pi pi-plus" />
@@ -272,22 +273,21 @@ function lbsToKg(lbs: number): number {
   return Math.round((lbs / CONVERSION.KG_TO_LBS) * CONVERSION.DECIMAL_PRECISION) / CONVERSION.DECIMAL_PRECISION;
 }
 
-// Dynamic validation limits - ensures conversions stay within valid range
+// Precomputed derived limits (calculated once, not on every access)
 const MIN_TOTAL_INCHES = Math.ceil(LIMITS.HEIGHT.CM.MIN / CONVERSION.CM_PER_INCH);
 const MAX_TOTAL_INCHES = Math.floor(LIMITS.HEIGHT.CM.MAX / CONVERSION.CM_PER_INCH);
+const MIN_WEIGHT_LBS = Math.ceil(LIMITS.WEIGHT.KG.MIN * CONVERSION.KG_TO_LBS);
+const MAX_WEIGHT_LBS = Math.floor(LIMITS.WEIGHT.KG.MAX * CONVERSION.KG_TO_LBS);
 
-const weightMin = computed(() =>
-  weightUnit.value === UNITS.WEIGHT.KG ? LIMITS.WEIGHT.KG.MIN : Math.ceil(LIMITS.WEIGHT.KG.MIN * CONVERSION.KG_TO_LBS),
-);
-
-const weightMax = computed(() =>
-  weightUnit.value === UNITS.WEIGHT.KG ? LIMITS.WEIGHT.KG.MAX : Math.floor(LIMITS.WEIGHT.KG.MAX * CONVERSION.KG_TO_LBS),
-);
+// Dynamic validation limits
+const weightMin = computed(() => (weightUnit.value === UNITS.WEIGHT.KG ? LIMITS.WEIGHT.KG.MIN : MIN_WEIGHT_LBS));
+const weightMax = computed(() => (weightUnit.value === UNITS.WEIGHT.KG ? LIMITS.WEIGHT.KG.MAX : MAX_WEIGHT_LBS));
 
 const heightFeetMin = computed(() => {
   const currentInches = heightInches.value ?? 0;
   const minFeet = Math.ceil((MIN_TOTAL_INCHES - currentInches) / CONVERSION.INCHES_PER_FOOT);
-  return Math.max(LIMITS.HEIGHT.FEET.MIN, Math.min(minFeet, LIMITS.HEIGHT.FEET.MAX));
+  const clampedMin = Math.max(LIMITS.HEIGHT.FEET.MIN, Math.min(minFeet, LIMITS.HEIGHT.FEET.MAX));
+  return Math.min(clampedMin, heightFeetMax.value);
 });
 
 const heightFeetMax = computed(() => {
@@ -299,7 +299,8 @@ const heightFeetMax = computed(() => {
 const heightInchesMin = computed(() => {
   const currentFeet = heightFeet.value ?? LIMITS.HEIGHT.FEET.MIN;
   const minInches = MIN_TOTAL_INCHES - currentFeet * CONVERSION.INCHES_PER_FOOT;
-  return Math.max(LIMITS.HEIGHT.INCHES.MIN, Math.min(minInches, LIMITS.HEIGHT.INCHES.MAX));
+  const clampedMin = Math.max(LIMITS.HEIGHT.INCHES.MIN, Math.min(minInches, LIMITS.HEIGHT.INCHES.MAX));
+  return Math.min(clampedMin, heightInchesMax.value);
 });
 
 const heightInchesMax = computed(() => {

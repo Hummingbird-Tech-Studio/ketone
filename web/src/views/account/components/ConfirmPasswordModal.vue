@@ -52,7 +52,6 @@ import { Schema } from 'effect';
 import { Field, useForm } from 'vee-validate';
 import { watch } from 'vue';
 import { useAccount } from '../composables/useAccount';
-import { useAccountNotifications } from '../composables/useAccountNotifications';
 
 interface Props {
   visible: boolean;
@@ -67,8 +66,8 @@ interface Emits {
 const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
 
-const { updateEmail, updating, actorRef } = useAccount();
-useAccountNotifications(actorRef);
+// Note: useAccountNotifications is called in EmailView.vue to persist subscriptions
+const { updateEmail, updating } = useAccount();
 
 // Schema for password validation
 const passwordSchema = Schema.Struct({

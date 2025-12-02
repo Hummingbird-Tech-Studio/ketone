@@ -21,15 +21,23 @@
 </template>
 
 <script setup lang="ts">
-import { authenticationActor } from '@/actors/authenticationActor';
+import { useAuth } from '@/composables/useAuth';
 import { computed, ref } from 'vue';
 import ChangeEmailModal from './ChangeEmailModal.vue';
+import { useAccount } from '../composables/useAccount';
+import { useAccountNotifications } from '../composables/useAccountNotifications';
 
 const changeEmailModalVisible = ref(false);
 
+const { user } = useAuth();
+
+// Setup account notifications at this level so they persist when modals close
+const { actorRef } = useAccount();
+
+useAccountNotifications(actorRef);
+
 const currentEmail = computed(() => {
-  const snapshot = authenticationActor.getSnapshot();
-  return snapshot.context.user?.email ?? '';
+  return user.value?.email ?? '';
 });
 
 const maskedEmail = computed(() => {

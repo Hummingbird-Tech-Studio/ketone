@@ -1,3 +1,4 @@
+import { authenticationActor, Event as AuthEvent } from '@/actors/authenticationActor';
 import { Match } from 'effect';
 import { useToast } from 'primevue/usetoast';
 import { onUnmounted } from 'vue';
@@ -9,7 +10,12 @@ export function useAccountNotifications(accountActor: Actor<AnyActorLogic>) {
 
   function handleAccountEmit(emitType: EmitType) {
     Match.value(emitType).pipe(
-      Match.when({ type: Emit.EMAIL_UPDATED }, () => {
+      Match.when({ type: Emit.EMAIL_UPDATED }, (emit) => {
+        authenticationActor.send({
+          type: AuthEvent.UPDATE_USER_EMAIL,
+          email: emit.result.email,
+        });
+
         toast.add({
           severity: 'success',
           summary: 'Email Updated',

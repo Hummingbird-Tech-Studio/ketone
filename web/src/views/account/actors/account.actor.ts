@@ -95,3 +95,7 @@ export const accountMachine = setup({
     },
   },
 });
+
+// Create a singleton actor instance
+import { createActor } from 'xstate';
+export const accountActor = createActor(accountMachine);

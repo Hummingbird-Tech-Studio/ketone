@@ -1,10 +1,13 @@
 import { runWithUi } from '@/utils/effects/helpers';
 import { LOCKOUT_DURATION_SECONDS, MAX_PASSWORD_ATTEMPTS } from '@ketone/shared';
+import { Match } from 'effect';
 import { assertEvent, assign, createActor, emit, fromCallback, setup, type EventObject } from 'xstate';
 import {
   updateEmailProgram,
   updatePasswordProgram,
+  type UpdateEmailError,
   type UpdateEmailSuccess,
+  type UpdatePasswordError,
   type UpdatePasswordSuccess,
 } from '../services/account.service';
 
@@ -59,6 +62,52 @@ export type EmitType =
   | { type: Emit.RATE_LIMITED; retryAfter: number }
   | { type: Emit.INVALID_PASSWORD; remainingAttempts: number; error: string };
 
+/**
+ * Handles errors from email update operations using pattern matching.
+ */
+function handleUpdateEmailError(error: UpdateEmailError) {
+  return Match.value(error).pipe(
+    Match.when({ _tag: 'TooManyRequestsError' }, (err) => ({
+      type: Event.ON_RATE_LIMITED as const,
+      retryAfter: err.retryAfter,
+    })),
+    Match.when({ _tag: 'InvalidPasswordError' }, (err) => ({
+      type: Event.ON_INVALID_PASSWORD as const,
+      remainingAttempts: err.remainingAttempts,
+      error: err.message,
+    })),
+    Match.orElse((err) => {
+      const errorMessage = 'message' in err && typeof err.message === 'string' ? err.message : String(err);
+      return { type: Event.ON_EMAIL_UPDATE_ERROR as const, error: errorMessage };
+    }),
+  );
+}
+
+/**
+ * Handles errors from password update operations using pattern matching.
+ */
+function handleUpdatePasswordError(error: UpdatePasswordError) {
+  return Match.value(error).pipe(
+    Match.when({ _tag: 'TooManyRequestsError' }, (err) => ({
+      type: Event.ON_RATE_LIMITED as const,
+      retryAfter: err.retryAfter,
+    })),
+    Match.when({ _tag: 'InvalidPasswordError' }, (err) => ({
+      type: Event.ON_INVALID_PASSWORD as const,
+      remainingAttempts: err.remainingAttempts,
+      error: err.message,
+    })),
+    Match.when({ _tag: 'SamePasswordError' }, (err) => ({
+      type: Event.ON_PASSWORD_UPDATE_ERROR as const,
+      error: err.message,
+    })),
+    Match.orElse((err) => {
+      const errorMessage = 'message' in err && typeof err.message === 'string' ? err.message : String(err);
+      return { type: Event.ON_PASSWORD_UPDATE_ERROR as const, error: errorMessage };
+    }),
+  );
+}
+
 const updateEmailLogic = fromCallback<EventObject, { email: string; password: string }>(({ sendBack, input }) => {
   runWithUi(
     updateEmailProgram(input.email, input.password),
@@ -66,22 +115,7 @@ const updateEmailLogic = fromCallback<EventObject, { email: string; password: st
       sendBack({ type: Event.ON_EMAIL_UPDATE_SUCCESS, result });
     },
     (error) => {
-      if (error._tag === 'TooManyRequestsError') {
-        const rateLimitError = error as { retryAfter: number };
-        sendBack({ type: Event.ON_RATE_LIMITED, retryAfter: rateLimitError.retryAfter });
-        return;
-      }
-      if (error._tag === 'InvalidPasswordError') {
-        const passwordError = error as { message: string; remainingAttempts: number };
-        sendBack({
-          type: Event.ON_INVALID_PASSWORD,
-          remainingAttempts: passwordError.remainingAttempts,
-          error: passwordError.message,
-        });
-        return;
-      }
-      const errorMessage = 'message' in error && typeof error.message === 'string' ? error.message : String(error);
-      sendBack({ type: Event.ON_EMAIL_UPDATE_ERROR, error: errorMessage });
+      sendBack(handleUpdateEmailError(error));
     },
   );
 });
@@ -94,27 +128,7 @@ const updatePasswordLogic = fromCallback<EventObject, { currentPassword: string;
         sendBack({ type: Event.ON_PASSWORD_UPDATE_SUCCESS, result });
       },
       (error) => {
-        if (error._tag === 'TooManyRequestsError') {
-          const rateLimitError = error as { retryAfter: number };
-          sendBack({ type: Event.ON_RATE_LIMITED, retryAfter: rateLimitError.retryAfter });
-          return;
-        }
-        if (error._tag === 'InvalidPasswordError') {
-          const passwordError = error as { message: string; remainingAttempts: number };
-          sendBack({
-            type: Event.ON_INVALID_PASSWORD,
-            remainingAttempts: passwordError.remainingAttempts,
-            error: passwordError.message,
-          });
-          return;
-        }
-        if (error._tag === 'SamePasswordError') {
-          const samePasswordError = error as { message: string };
-          sendBack({ type: Event.ON_PASSWORD_UPDATE_ERROR, error: samePasswordError.message });
-          return;
-        }
-        const errorMessage = 'message' in error && typeof error.message === 'string' ? error.message : String(error);
-        sendBack({ type: Event.ON_PASSWORD_UPDATE_ERROR, error: errorMessage });
+        sendBack(handleUpdatePasswordError(error));
       },
     );
   },

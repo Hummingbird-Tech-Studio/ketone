@@ -5,7 +5,7 @@ import { Match } from 'effect';
 import { useToast } from 'primevue/usetoast';
 import { onUnmounted } from 'vue';
 import type { Actor, AnyActorLogic } from 'xstate';
-import { Emit, type EmitType } from '../actors/account.actor';
+import { accountActor as accountActorInstance, Emit, type EmitType } from '../actors/account.actor';
 
 export function useAccountNotifications(accountActor: Actor<AnyActorLogic>) {
   const toast = useToast();
@@ -45,8 +45,10 @@ export function useAccountNotifications(accountActor: Actor<AnyActorLogic>) {
           life: 15000,
         });
       }),
-      Match.when({ type: Emit.RATE_LIMITED }, (emit) => {
-        const minutes = Math.ceil(emit.retryAfter / 60);
+      Match.when({ type: Emit.RATE_LIMITED }, () => {
+        const blockedUntil = accountActorInstance.getSnapshot().context.blockedUntil;
+        const remainingSeconds = blockedUntil ? Math.ceil((blockedUntil - Date.now()) / 1000) : 0;
+        const minutes = Math.max(1, Math.ceil(remainingSeconds / 60));
         toast.add({
           severity: 'warn',
           summary: 'Too Many Attempts',

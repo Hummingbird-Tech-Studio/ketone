@@ -12,6 +12,18 @@
     </template>
 
     <div class="confirm-password-modal__content">
+      <Message v-if="isBlocked" severity="warn" class="confirm-password-modal__rate-limit">
+        Too many failed attempts. Please try again in {{ countdownText }}.
+      </Message>
+
+      <Message
+        v-else-if="remainingAttempts < MAX_PASSWORD_ATTEMPTS"
+        severity="info"
+        class="confirm-password-modal__attempts"
+      >
+        {{ remainingAttempts }} attempt{{ remainingAttempts !== 1 ? 's' : '' }} remaining
+      </Message>
+
       <p class="confirm-password-modal__description">
         To change your email address, please enter your password to verify your identity.
       </p>
@@ -40,7 +52,14 @@
         </Field>
 
         <div class="confirm-password-modal__footer">
-          <Button type="submit" label="Continue" variant="outlined" rounded :loading="updating" :disabled="updating" />
+          <Button
+            type="submit"
+            label="Continue"
+            variant="outlined"
+            rounded
+            :loading="updating"
+            :disabled="updating || isBlocked"
+          />
         </div>
       </form>
     </div>
@@ -48,9 +67,10 @@
 </template>
 
 <script setup lang="ts">
+import { MAX_PASSWORD_ATTEMPTS } from '@ketone/shared';
 import { Schema } from 'effect';
 import { Field, useForm } from 'vee-validate';
-import { onScopeDispose, watch } from 'vue';
+import { computed, onScopeDispose, ref, watch } from 'vue';
 import { useAccount } from '../composables/useAccount';
 import { accountActor, Emit } from '../actors/account.actor';
 
@@ -68,7 +88,41 @@ const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
 
 // Note: useAccountNotifications is called in EmailView.vue to persist subscriptions
-const { updateEmail, updating } = useAccount();
+const { updateEmail, updating, remainingAttempts, blockedUntil, isBlocked } = useAccount();
+
+// Countdown logic
+const countdownSeconds = ref(0);
+let countdownInterval: ReturnType<typeof setInterval> | null = null;
+
+const countdownText = computed(() => {
+  const minutes = Math.floor(countdownSeconds.value / 60);
+  const seconds = countdownSeconds.value % 60;
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+});
+
+function updateCountdown() {
+  if (blockedUntil.value) {
+    const remaining = Math.max(0, Math.ceil((blockedUntil.value - Date.now()) / 1000));
+    countdownSeconds.value = remaining;
+  }
+}
+
+watch(blockedUntil, (newValue) => {
+  if (newValue) {
+    updateCountdown();
+    countdownInterval = setInterval(updateCountdown, 1000);
+  } else if (countdownInterval) {
+    clearInterval(countdownInterval);
+    countdownInterval = null;
+    countdownSeconds.value = 0;
+  }
+}, { immediate: true });
+
+onScopeDispose(() => {
+  if (countdownInterval) {
+    clearInterval(countdownInterval);
+  }
+});
 
 // Subscribe to actor's success event - only close modal on actual success
 const subscription = accountActor.on(Emit.EMAIL_UPDATED, () => {
@@ -171,6 +225,11 @@ watch(
   &__footer {
     display: flex;
     justify-content: flex-end;
+  }
+
+  &__rate-limit,
+  &__attempts {
+    margin: 0;
   }
 }
 </style>

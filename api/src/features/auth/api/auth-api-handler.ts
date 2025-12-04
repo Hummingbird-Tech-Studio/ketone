@@ -138,27 +138,32 @@ export const AuthApiLive = HttpApiBuilder.group(Api, 'auth', (handlers) =>
           yield* Effect.logInfo(`[Handler] POST /auth/reset-password - Request received`);
 
           const result = yield* passwordRecoveryService.resetPassword(payload.token, payload.password).pipe(
-            Effect.catchTag('PasswordResetTokenInvalidError', (error) =>
-              Effect.fail(
-                new PasswordResetTokenInvalidErrorSchema({
-                  message: error.message,
-                }),
-              ),
-            ),
-            Effect.catchTag('PasswordHashError', () =>
-              Effect.fail(
-                new PasswordHashErrorSchema({
-                  message: 'Password processing failed',
-                }),
-              ),
-            ),
-            Effect.catchAll(() =>
-              Effect.fail(
-                new UserRepositoryErrorSchema({
-                  message: 'Database operation failed',
-                }),
-              ),
-            ),
+            Effect.catchTags({
+              PasswordResetTokenInvalidError: (error) =>
+                Effect.fail(
+                  new PasswordResetTokenInvalidErrorSchema({
+                    message: error.message,
+                  }),
+                ),
+              PasswordResetTokenError: () =>
+                Effect.fail(
+                  new PasswordResetTokenInvalidErrorSchema({
+                    message: 'Invalid or expired reset token',
+                  }),
+                ),
+              PasswordHashError: () =>
+                Effect.fail(
+                  new PasswordHashErrorSchema({
+                    message: 'Password processing failed',
+                  }),
+                ),
+              UserRepositoryError: () =>
+                Effect.fail(
+                  new UserRepositoryErrorSchema({
+                    message: 'Database operation failed',
+                  }),
+                ),
+            }),
           );
 
           yield* Effect.logInfo(`[Handler] Password reset completed`);

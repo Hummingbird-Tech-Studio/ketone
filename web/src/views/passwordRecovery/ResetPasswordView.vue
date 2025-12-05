@@ -138,7 +138,7 @@ const token = (route.query.token as string) || '';
 const { submit, submitting, actorRef } = useResetPassword();
 const serviceError = ref<string | null>(null);
 const passwordReset = ref(false);
-const tokenInvalid = ref(false);
+const tokenInvalid = ref(!token);
 
 const schemaStruct = Schema.Struct({
   password: PasswordSchema,

@@ -102,47 +102,13 @@
 
 <script setup lang="ts">
 import { authenticationActor, Event as AuthEvent } from '@/actors/authenticationActor';
+import { PASSWORD_RULES, validatePasswordRule } from '@/utils';
 import { Emit, type EmitType } from '@/views/signUp/actors/signUp.actor';
 import { useSignUp } from '@/views/signUp/composables/useSignUp';
 import { EmailSchema, PasswordSchema } from '@ketone/shared';
 import { Match, Schema } from 'effect';
 import { configure, Field, useForm } from 'vee-validate';
 import { onUnmounted, ref, watch } from 'vue';
-
-type PasswordRule = { type: 'min'; value: number; message: string } | { type: 'regex'; value: RegExp; message: string };
-
-const PASSWORD_RULES: PasswordRule[] = [
-  {
-    type: 'min',
-    value: 8,
-    message: '8 characters',
-  },
-  {
-    type: 'regex',
-    value: /[a-z]/,
-    message: '1 lowercase letter',
-  },
-  {
-    type: 'regex',
-    value: /[A-Z]/,
-    message: '1 uppercase letter',
-  },
-  {
-    type: 'regex',
-    value: /\d/,
-    message: '1 number',
-  },
-  {
-    type: 'regex',
-    value: /[~`!@#$%^&*()--+={}[\]|\\:;"'<>,.?/_₹]/,
-    message: '1 special character (e.g., %, &, $, !, @)',
-  },
-  {
-    type: 'regex',
-    value: /^\S*$/,
-    message: 'No whitespace allowed',
-  },
-];
 
 configure({
   validateOnInput: false,
@@ -165,21 +131,6 @@ const schema = {
   ...StandardSchemaClass,
   '~standard': StandardSchemaClass['~standard' as keyof typeof StandardSchemaClass],
 };
-
-function validatePasswordRule(rule: PasswordRule, password: string | undefined): boolean {
-  if (!password) {
-    return false;
-  }
-
-  switch (rule.type) {
-    case 'min':
-      return password.length >= rule.value;
-    case 'regex':
-      return rule.value.test(password);
-    default:
-      return false;
-  }
-}
 
 const { handleSubmit } = useForm<FormValues>({
   validationSchema: schema,

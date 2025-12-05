@@ -127,7 +127,7 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   margin: auto;
-  width: 317px;
+  max-width: 330px;
   min-height: 240px;
   padding: 22px;
   border: 1px solid $color-primary-button-outline;

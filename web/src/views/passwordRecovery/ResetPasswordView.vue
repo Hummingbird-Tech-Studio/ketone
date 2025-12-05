@@ -3,9 +3,7 @@
     <!-- Success State -->
     <template v-if="passwordReset">
       <div class="resetPassword__title resetPassword__title--success">SUCCESS!</div>
-      <div class="resetPassword__message">
-        Your password has been updated. You can now sign in to your account.
-      </div>
+      <div class="resetPassword__message">Your password has been updated. You can now sign in to your account.</div>
       <RouterLink class="resetPassword__loginButton" to="/sign-in">
         <Button label="Go to Login" severity="help" rounded outlined />
       </RouterLink>
@@ -14,9 +12,9 @@
     <!-- Token Invalid State -->
     <template v-else-if="tokenInvalid">
       <div class="resetPassword__title">RESET PASSWORD</div>
-      <div class="resetPassword__serviceError">Invalid or expired reset link. Please request a new one.</div>
+      <div class="resetPassword__serviceError">Invalid or expired reset link. Request a new password reset to proceed.</div>
       <RouterLink class="resetPassword__loginButton" to="/forgot-password">
-        <Button label="Send Link" severity="help" rounded outlined />
+        <Button label="Go to Forgot Password" severity="help" rounded outlined />
       </RouterLink>
     </template>
 
@@ -107,26 +105,13 @@
           variant="filled"
           fluid
         />
-        <Message
-          class="resetPassword__errorMessage"
-          v-if="errorMessage"
-          severity="error"
-          variant="simple"
-          size="small"
-        >
+        <Message class="resetPassword__errorMessage" v-if="errorMessage" severity="error" variant="simple" size="small">
           {{ errorMessage }}
         </Message>
       </Field>
 
       <div class="resetPassword__buttons">
-        <Button
-          label="Reset Password"
-          :loading="submitting"
-          severity="help"
-          rounded
-          @click="onSubmit"
-          outlined
-        />
+        <Button label="Reset Password" :loading="submitting" severity="help" rounded @click="onSubmit" outlined />
       </div>
     </template>
   </div>
@@ -231,7 +216,7 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   margin: auto;
-  width: 317px;
+  max-width: 330px;
   min-height: 280px;
   padding: 22px;
   border: 1px solid $color-primary-button-outline;
@@ -286,7 +271,7 @@ onUnmounted(() => {
     border: 1px solid $color-error;
     border-radius: 4px;
     padding: 8px;
-    font-size: 12px;
+    font-size: 14px;
     color: $color-error;
     margin-bottom: 16px;
   }

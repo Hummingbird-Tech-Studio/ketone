@@ -50,6 +50,15 @@
           variant="filled"
           fluid
         />
+        <Message
+          class="resetPassword__password__errorMessage"
+          v-if="requiredError(value) && errorMessage"
+          severity="error"
+          variant="simple"
+          size="small"
+        >
+          {{ errorMessage }}
+        </Message>
 
         <template v-if="errors.length > 0 && !requiredError(value)">
           <div class="resetPassword__passwordRequirements">Create a password that contains at least:</div>
@@ -66,7 +75,7 @@
             >
               <span class="resetPassword__passwordRequirements__icon">
                 <i class="pi pi-check" style="font-size: 0.9rem" v-if="validatePasswordRule(requirement, value)"></i>
-                <i class="pi pi-times" v-else></i>
+                <i class="pi pi-exclamation-circle" v-else></i>
               </span>
               <span>{{ requirement.message }}</span>
             </li>
@@ -124,6 +133,7 @@
 </template>
 
 <script setup lang="ts">
+import { PASSWORD_RULES, validatePasswordRule } from '@/utils';
 import { Emit, type EmitType } from '@/views/passwordRecovery/actors/resetPassword.actor';
 import { useResetPassword } from '@/views/passwordRecovery/composables/useResetPassword';
 import { PasswordSchema } from '@ketone/shared';
@@ -131,31 +141,6 @@ import { Match, Schema } from 'effect';
 import { configure, Field, useForm } from 'vee-validate';
 import { onUnmounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
-
-type PasswordRule = { type: 'min'; value: number; message: string } | { type: 'regex'; value: RegExp; message: string };
-
-const PASSWORD_RULES: PasswordRule[] = [
-  {
-    type: 'min',
-    value: 8,
-    message: '8 characters',
-  },
-  {
-    type: 'regex',
-    value: /\d/,
-    message: '1 number',
-  },
-  {
-    type: 'regex',
-    value: /[~`!@#$%^&*()--+={}[\]|\\:;"'<>,.?/_₹]/,
-    message: '1 special character e.g. %, &, $, !, @',
-  },
-  {
-    type: 'regex',
-    value: /^\S.*\S$|^\S$/,
-    message: 'No leading or trailing whitespace',
-  },
-];
 
 configure({
   validateOnInput: false,
@@ -200,21 +185,6 @@ const { handleSubmit } = useForm<FormValues>({
     confirmPassword: '',
   },
 });
-
-function validatePasswordRule(rule: PasswordRule, password: string | undefined): boolean {
-  if (!password) {
-    return false;
-  }
-
-  switch (rule.type) {
-    case 'min':
-      return password.length >= rule.value;
-    case 'regex':
-      return rule.value.test(password);
-    default:
-      return false;
-  }
-}
 
 function requiredError(value: string | undefined) {
   return !value || value.trim() === '';
@@ -292,9 +262,14 @@ onUnmounted(() => {
     &--error {
       margin-bottom: 4px;
     }
+
+    &__errorMessage {
+      font-size: 12px;
+    }
   }
 
   &__confirmPassword {
+    margin-top: 16px;
     margin-bottom: 16px;
 
     &--error {
@@ -317,7 +292,7 @@ onUnmounted(() => {
   }
 
   &__passwordRequirements {
-    margin-top: 4px;
+    margin-top: 12px;
     font-size: 12px;
     color: $color-primary-button-text;
     font-weight: 500;
@@ -325,7 +300,6 @@ onUnmounted(() => {
     &__list {
       list-style-type: none;
       padding-left: 0;
-      margin-bottom: 16px;
     }
 
     &__item {

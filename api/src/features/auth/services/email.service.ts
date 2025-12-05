@@ -24,7 +24,11 @@ interface ResendEmailResponse {
 export class EmailService extends Effect.Service<EmailService>()('EmailService', {
   effect: Effect.gen(function* () {
     if (!RESEND_API_KEY) {
-      yield* Effect.logWarning('[EmailService] RESEND_API_KEY not set - emails will be logged only');
+      if (IS_PRODUCTION) {
+        yield* Effect.logError('[EmailService] RESEND_API_KEY not set in production - emails will fail');
+      } else {
+        yield* Effect.logWarning('[EmailService] RESEND_API_KEY not set - emails will be logged only (dev mode)');
+      }
     } else {
       yield* Effect.logInfo(`[EmailService] FROM_EMAIL: ${FROM_EMAIL}`);
       if (SKIP_TLS_VERIFY) {
@@ -38,11 +42,21 @@ export class EmailService extends Effect.Service<EmailService>()('EmailService',
           const resetUrl = `${FRONTEND_URL}/reset-password?token=${encodeURIComponent(token)}`;
 
           if (!RESEND_API_KEY) {
-            yield* Effect.logInfo(`DEV MODE - Password reset URL: ${resetUrl}`);
+            // In production, fail with error to prevent silent failures
+            // Never log the token in production to prevent leakage
+            if (IS_PRODUCTION) {
+              return yield* Effect.fail(
+                new EmailSendError({
+                  message: 'Email service not configured (RESEND_API_KEY missing)',
+                }),
+              );
+            }
+            // In development, log the URL for testing purposes
+            yield* Effect.logInfo(`[DEV MODE] Password reset URL: ${resetUrl}`);
             return;
           }
 
-          yield* Effect.logInfo(`Sending password reset email to ${to}`);
+          yield* Effect.logInfo(`Sending password reset email`);
 
           yield* Effect.tryPromise({
             try: async () => {

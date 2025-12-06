@@ -12,11 +12,34 @@
         <HomeFasting />
       </div>
     </section>
+
+    <section class="home__benefits">
+      <p class="home__benefits-text">
+        Studies show that <strong>fasting</strong> can boost energy levels, support metabolic health, and improve
+        overall well-being.
+      </p>
+    </section>
+
+    <section class="home__freedom">
+      <div class="home__freedom-image">
+        <HomeFreedom />
+      </div>
+      <div class="home__freedom-content">
+        <span class="home__freedom-label">Freedom Over Routine</span>
+        <h2 class="home__freedom-title">Fasting should fit your life, not the other way around.</h2>
+        <p class="home__freedom-text">
+          Most fasting apps are cluttered and intrusive, locking you into inflexible plans that don't adapt to everyone.
+          <strong>Ketone</strong> adjusts to your schedule, habits, and rhythm, letting you stay consistent with your
+          fast.
+        </p>
+      </div>
+    </section>
   </main>
 </template>
 
 <script setup lang="ts">
 import HomeFasting from './components/HomeFasting.vue';
+import HomeFreedom from './components/HomeFreedom.vue';
 </script>
 
 <style scoped lang="scss">
@@ -89,6 +112,75 @@ import HomeFasting from './components/HomeFasting.vue';
     }
   }
 
+  &__benefits {
+    background-color: $color-ultra-light-blue;
+    padding: 48px $horizontal-gap;
+    text-align: center;
+  }
+
+  &__benefits-text {
+    max-width: 600px;
+    margin: 0 auto;
+    font-size: 1rem;
+    line-height: 1.6;
+    color: $color-info;
+
+    strong {
+      font-weight: 700;
+    }
+  }
+
+  &__freedom {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 64px $horizontal-gap;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  &__freedom-image {
+    max-width: 100%;
+    margin-bottom: 40px;
+
+    :deep(svg) {
+      width: 100%;
+      height: auto;
+      max-width: 400px;
+    }
+  }
+
+  &__freedom-content {
+    text-align: center;
+    max-width: 500px;
+  }
+
+  &__freedom-label {
+    display: block;
+    font-size: 18px;
+    font-weight: 600;
+    color: $color-dark-purple;
+    margin-bottom: 12px;
+  }
+
+  &__freedom-title {
+    font-size: 28px;
+    font-weight: 700;
+    color: $color-primary-button-text;
+    margin: 0 0 16px;
+  }
+
+  &__freedom-text {
+    font-size: 1rem;
+    line-height: 1.6;
+    color: $color-primary-button-text;
+
+    strong {
+      color: $color-dark-purple;
+      font-weight: 600;
+    }
+  }
+
   @media (min-width: $breakpoint-desktop-min-width) {
     &__hero {
       flex-direction: row;
@@ -104,14 +196,6 @@ import HomeFasting from './components/HomeFasting.vue';
       flex-shrink: 0;
     }
 
-    &__title {
-      font-size: 2.75rem;
-    }
-
-    &__subtitle {
-      font-size: 1.125rem;
-    }
-
     &__hero-image {
       margin-top: 0;
       margin-left: 60px;
@@ -122,6 +206,27 @@ import HomeFasting from './components/HomeFasting.vue';
       :deep(svg) {
         max-width: 600px;
       }
+    }
+
+    &__freedom {
+      flex-direction: row;
+      padding: 80px $horizontal-gap;
+      gap: 60px;
+    }
+
+    &__freedom-image {
+      margin-bottom: 0;
+      flex: 1;
+
+      :deep(svg) {
+        max-width: 500px;
+      }
+    }
+
+    &__freedom-content {
+      text-align: left;
+      max-width: 480px;
+      flex-shrink: 0;
     }
   }
 }

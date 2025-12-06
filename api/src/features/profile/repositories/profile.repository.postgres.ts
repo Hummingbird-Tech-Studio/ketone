@@ -44,18 +44,19 @@ export class ProfileRepositoryPostgres extends Effect.Service<ProfileRepositoryP
 
       upsertProfile: (userId: string, data: { name?: string | null; dateOfBirth?: string | null }) =>
         Effect.gen(function* () {
+          const dateOfBirth = data.dateOfBirth ? new Date(data.dateOfBirth) : null;
           const [result] = yield* drizzle
             .insert(profilesTable)
             .values({
               userId,
               name: data.name ?? null,
-              dateOfBirth: data.dateOfBirth ?? null,
+              dateOfBirth,
             })
             .onConflictDoUpdate({
               target: profilesTable.userId,
               set: {
                 name: data.name ?? null,
-                dateOfBirth: data.dateOfBirth ?? null,
+                dateOfBirth,
                 updatedAt: new Date(),
               },
             })

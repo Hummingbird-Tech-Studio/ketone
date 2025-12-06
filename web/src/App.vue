@@ -2,7 +2,20 @@
   <div class="app">
     <Toast position="top-center" />
     <header>
-      <AppLogo />
+      <RouterLink :to="authenticated ? '/cycle' : '/'">
+        <KetoneLogo />
+      </RouterLink>
+      <div v-if="showLoginButton">
+        <Button
+          label="Login"
+          type="button"
+          rounded
+          size="large"
+          variant="outlined"
+          aria-label="Login"
+          @click="router.push('/sign-in')"
+        />
+      </div>
       <div v-if="authenticated" class="app__nav">
         <RouterLink to="/cycle">
           <Button type="button" rounded variant="outlined" aria-label="Cycle" :severity="homeSeverity">
@@ -41,7 +54,6 @@
 
 <script setup lang="ts">
 import { Emit as AuthEmit, authenticationActor, type EmitType } from '@/actors/authenticationActor';
-import AppLogo from '@/components/AppLogo.vue';
 import CycleIcon from '@/components/Icons/Menu/CycleIcon.vue';
 import { useAuth } from '@/composables/useAuth';
 import router from '@/router';
@@ -49,6 +61,7 @@ import { $dt } from '@primevue/themes';
 import { Match } from 'effect';
 import { computed, onUnmounted, ref } from 'vue';
 import { RouterView, useRoute } from 'vue-router';
+import KetoneLogo from './components/KetoneLogo.vue';
 
 const route = useRoute();
 const { authenticated, logout } = useAuth();
@@ -91,6 +104,8 @@ const getActiveSeverity = (paths: string | string[]) => {
 const homeSeverity = getActiveSeverity('/cycle');
 const statsSeverity = getActiveSeverity('/statistics');
 const accountSeverity = getActiveSeverity(['/account*', '/settings*', '/profile*']);
+
+const showLoginButton = computed(() => !authenticated.value && !['/sign-in', '/sign-up'].includes(route.path));
 
 function toggle(event: Event) {
   menu.value.toggle(event);

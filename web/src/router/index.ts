@@ -1,5 +1,5 @@
 import { authenticationActor, State } from '@/actors/authenticationActor';
-import Home from '@/views/Home.vue';
+import Home from '@/views/home/HomeView.vue';
 import { createRouter, createWebHistory } from 'vue-router';
 
 const router = createRouter({

@@ -216,3 +216,8 @@ Future authentication features to implement:
 - Email verification
 - Session management
 - OAuth integration
+
+## Kill port 3000
+```bash
+lsof -ti :3000 | xargs kill -9
+```

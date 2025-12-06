@@ -75,7 +75,7 @@ export const profilesTable = pgTable(
       .notNull()
       .references(() => usersTable.id),
     name: varchar('name', { length: 255 }),
-    dateOfBirth: date('date_of_birth', { mode: 'string' }),
+    dateOfBirth: date('date_of_birth', { mode: 'date' }),
     // Physical information fields
     weight: numeric('weight', { precision: 5, scale: 2 }), // kg (30-300)
     height: numeric('height', { precision: 5, scale: 2 }), // cm (120-250)

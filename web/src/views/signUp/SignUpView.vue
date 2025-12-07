@@ -78,9 +78,9 @@
     </Field>
 
     <label class="signUp__privacyPolicy" for="privacyPolicy">
-      By clicking Sign Up, I agree to Fasting Tracker's
-      <RouterLink class="signUp__privacyPolicy__link" to="/sign-in">terms of service</RouterLink> and
-      <RouterLink class="signUp__privacyPolicy__link" to="/sign-in">privacy policy</RouterLink>.
+      By clicking Sign Up, I agree to Ketone's
+      <RouterLink class="signUp__privacyPolicy__link" to="/terms">terms of service</RouterLink> and
+      <RouterLink class="signUp__privacyPolicy__link" to="/privacy">privacy policy</RouterLink>.
     </label>
 
     <Button

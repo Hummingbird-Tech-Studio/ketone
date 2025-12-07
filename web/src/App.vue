@@ -143,7 +143,8 @@ const statsSeverity = getActiveSeverity('/statistics');
 const accountSeverity = getActiveSeverity(['/account*', '/settings*', '/profile*']);
 
 const showLoginButton = computed(() => !authenticated.value && !['/sign-in', '/sign-up'].includes(route.path));
-const showFooter = computed(() => !route.matched.some((record) => record.meta.requiresAuth));
+const footerRoutes = ['/', '/about', '/contact', '/privacy', '/terms'];
+const showFooter = computed(() => footerRoutes.includes(route.path));
 
 function toggle(event: Event) {
   menu.value.toggle(event);

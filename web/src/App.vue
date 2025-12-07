@@ -58,7 +58,7 @@
         </div>
         <div class="app__footer-nav">
           <RouterLink to="/about" class="app__footer-link">About us</RouterLink>
-          <a href="#" class="app__footer-link">Contact us</a>
+          <RouterLink to="/contact" class="app__footer-link">Contact us</RouterLink>
         </div>
       </div>
       <div class="app__footer-bottom">

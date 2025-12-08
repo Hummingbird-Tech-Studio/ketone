@@ -11,8 +11,8 @@ export {
 } from './constants';
 
 // Request validation schemas
-export { EmailSchema } from './schemas/email';
-export { PasswordSchema } from './schemas/password';
+export { EmailSchema, EMAIL_REGEX, EMAIL_MESSAGES, validateEmail } from './schemas/email';
+export { PasswordSchema, PASSWORD_RULES, PASSWORD_MESSAGES, validatePassword } from './schemas/password';
 
 // Auth response schemas
 export {

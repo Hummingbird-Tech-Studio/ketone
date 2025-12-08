@@ -55,7 +55,7 @@
 <script setup lang="ts">
 import { Emit, type EmitType } from '@/views/passwordRecovery/actors/forgotPassword.actor';
 import { useForgotPassword } from '@/views/passwordRecovery/composables/useForgotPassword';
-import { EmailSchema } from '@ketone/shared';
+import { validateEmail } from '@ketone/shared';
 import { Match, Schema } from 'effect';
 import { configure, Field, useForm } from 'vee-validate';
 import { onUnmounted, ref, watch } from 'vue';
@@ -71,7 +71,11 @@ const emailSent = ref(false);
 const sentToEmail = ref('');
 
 const schemaStruct = Schema.Struct({
-  email: EmailSchema,
+  email: Schema.String.pipe(
+    Schema.filter((e): e is string => validateEmail(e) === null, {
+      message: (issue) => validateEmail(issue.actual as string) ?? 'Invalid email',
+    }),
+  ),
 });
 
 type FormValues = Schema.Schema.Type<typeof schemaStruct>;

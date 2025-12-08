@@ -84,7 +84,7 @@
 
 <script setup lang="ts">
 import { useAuth } from '@/composables/useAuth';
-import { PasswordSchema } from '@ketone/shared';
+import { validatePassword } from '@ketone/shared';
 import { Schema } from 'effect';
 import { Field, useForm } from 'vee-validate';
 import { computed, onUnmounted, ref, watch } from 'vue';
@@ -132,14 +132,18 @@ watch(
   { immediate: true },
 );
 
-// Form validation schema - uses PasswordSchema from shared for newPassword validation
+// Form validation schema - uses validatePassword from shared for newPassword validation
 const passwordFormSchema = Schema.Struct({
   currentPassword: Schema.Union(Schema.String, Schema.Undefined).pipe(
     Schema.filter((value): value is string => typeof value === 'string' && value.length > 0, {
       message: () => 'Current password is required.',
     }),
   ),
-  newPassword: PasswordSchema,
+  newPassword: Schema.String.pipe(
+    Schema.filter((p): p is string => validatePassword(p) === null, {
+      message: (issue) => validatePassword(issue.actual as string) ?? 'Invalid password',
+    }),
+  ),
   confirmPassword: Schema.Union(Schema.String, Schema.Undefined).pipe(
     Schema.filter((value): value is string => typeof value === 'string' && value.length > 0, {
       message: () => 'Please confirm your new password.',

@@ -121,7 +121,7 @@
 import { PASSWORD_RULES, validatePasswordRule } from '@/utils';
 import { Emit, type EmitType } from '@/views/passwordRecovery/actors/resetPassword.actor';
 import { useResetPassword } from '@/views/passwordRecovery/composables/useResetPassword';
-import { PasswordSchema } from '@ketone/shared';
+import { validatePassword } from '@ketone/shared';
 import { Match, Schema } from 'effect';
 import { configure, Field, useForm } from 'vee-validate';
 import { onUnmounted, ref, watch } from 'vue';
@@ -141,7 +141,11 @@ const passwordReset = ref(false);
 const tokenInvalid = ref(!token);
 
 const schemaStruct = Schema.Struct({
-  password: PasswordSchema,
+  password: Schema.String.pipe(
+    Schema.filter((p): p is string => validatePassword(p) === null, {
+      message: (issue) => validatePassword(issue.actual as string) ?? 'Invalid password',
+    }),
+  ),
   confirmPassword: Schema.String.pipe(Schema.minLength(1, { message: () => 'Please confirm your password' })),
 }).pipe(
   Schema.filter((data) => {

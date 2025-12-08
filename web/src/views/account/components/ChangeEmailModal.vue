@@ -74,7 +74,7 @@
 </template>
 
 <script setup lang="ts">
-import { EmailSchema } from '@ketone/shared';
+import { EMAIL_REGEX } from '@ketone/shared';
 import { Schema } from 'effect';
 import { Field, useForm } from 'vee-validate';
 import { computed, ref, watch } from 'vue';
@@ -104,7 +104,10 @@ const createChangeEmailSchema = (actualEmail: string) => {
         message: () => 'Current email does not match your account email',
       }),
     ),
-    newEmail: EmailSchema.pipe(
+    newEmail: Schema.String.pipe(
+      Schema.filter((email): email is string => EMAIL_REGEX.test(email), {
+        message: () => 'Invalid email format',
+      }),
       Schema.filter((email) => email.toLowerCase() !== actualEmail.toLowerCase(), {
         message: () => 'New email must be different from your current email',
       }),

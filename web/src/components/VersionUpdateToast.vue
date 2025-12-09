@@ -10,7 +10,7 @@
           </div>
         </div>
         <div class="version-update-toast__actions">
-          <Button label="Update Now" severity="primary" size="small" @click="handleUpdate" />
+          <Button label="Update Now" severity="info" size="small" @click="handleUpdate" />
         </div>
       </div>
     </template>
@@ -28,6 +28,8 @@ const handleUpdate = () => {
 </script>
 
 <style scoped lang="scss">
+@use '@/styles/variables' as *;
+
 .version-update-toast {
   display: flex;
   flex-direction: column;
@@ -42,7 +44,7 @@ const handleUpdate = () => {
 
   &__icon {
     font-size: 1.5rem;
-    color: var(--p-primary-color);
+    color: $color-info;
     flex-shrink: 0;
   }
 
@@ -54,12 +56,13 @@ const handleUpdate = () => {
     font-weight: 600;
     display: block;
     margin-bottom: 4px;
+    color: $color-info;
   }
 
   &__detail {
     margin: 0;
     font-size: 0.875rem;
-    color: var(--p-text-muted-color);
+    color: $color-primary-button-text;
   }
 
   &__actions {

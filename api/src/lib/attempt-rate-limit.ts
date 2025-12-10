@@ -149,3 +149,75 @@ export const applyDelay = (delay: Duration.DurationInput, serviceName: string) =
       yield* Effect.sleep(delay);
     }
   });
+
+// ============================================================================
+// IP Rate Limit Service Factory
+// ============================================================================
+
+export interface IpRateLimitConfig {
+  limit: number;
+  windowSeconds: number;
+  serviceName: string;
+}
+
+interface IpRateLimitRecord {
+  count: number;
+  windowStart: number;
+}
+
+export interface IpRateLimitStatus {
+  allowed: boolean;
+  remaining: number;
+}
+
+const DEFAULT_IP_RECORD: IpRateLimitRecord = { count: 0, windowStart: 0 };
+
+export const createIpRateLimitService = (config: IpRateLimitConfig) =>
+  Effect.gen(function* () {
+    const ipCache = yield* Cache.make<string, IpRateLimitRecord, never>({
+      capacity: CACHE_CAPACITY,
+      timeToLive: Duration.seconds(config.windowSeconds),
+      lookup: () => Effect.succeed(DEFAULT_IP_RECORD),
+    });
+
+    return {
+      checkAndIncrement: (ip: string): Effect.Effect<IpRateLimitStatus> =>
+        Effect.gen(function* () {
+          if (!ENABLE_IP_RATE_LIMITING) {
+            yield* Effect.logInfo(`[${config.serviceName}] IP rate limiting disabled (non-production)`);
+            return { allowed: true, remaining: config.limit };
+          }
+
+          const now = getNowSeconds();
+          const record = yield* ipCache.get(ip);
+
+          const windowExpired = now - record.windowStart >= config.windowSeconds;
+          const currentCount = windowExpired ? 0 : record.count;
+
+          if (currentCount >= config.limit) {
+            yield* Effect.logWarning(`[${config.serviceName}] Rate limit exceeded for IP: requests=${currentCount}`);
+            return { allowed: false, remaining: 0 };
+          }
+
+          const newRecord: IpRateLimitRecord = {
+            count: currentCount + 1,
+            windowStart: windowExpired ? now : record.windowStart,
+          };
+
+          yield* ipCache.set(ip, newRecord);
+
+          const remaining = config.limit - newRecord.count;
+          yield* Effect.logInfo(
+            `[${config.serviceName}] Request allowed for IP: count=${newRecord.count}, remaining=${remaining}`,
+          );
+
+          return { allowed: true, remaining };
+        }),
+
+      reset: (ip: string): Effect.Effect<void> =>
+        Effect.gen(function* () {
+          yield* ipCache.set(ip, DEFAULT_IP_RECORD);
+          yield* Effect.logInfo(`[${config.serviceName}] Reset rate limit for IP`);
+        }),
+    };
+  });

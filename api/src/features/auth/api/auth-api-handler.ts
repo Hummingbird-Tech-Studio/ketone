@@ -1,7 +1,13 @@
 import { HttpApiBuilder } from '@effect/platform';
 import { Effect } from 'effect';
 import { Api } from '../../../api';
-import { AuthService, PasswordRecoveryService } from '../services';
+import {
+  AuthService,
+  PasswordRecoveryService,
+  LoginAttemptCache,
+  SignupIpRateLimitService,
+  PasswordResetIpRateLimitService,
+} from '../services';
 import { getClientIp } from '../../../utils/http';
 import {
   InvalidCredentialsErrorSchema,
@@ -10,6 +16,9 @@ import {
   UserAlreadyExistsErrorSchema,
   UserRepositoryErrorSchema,
   PasswordResetTokenInvalidErrorSchema,
+  LoginRateLimitErrorSchema,
+  SignupRateLimitErrorSchema,
+  PasswordResetRateLimitErrorSchema,
 } from './schemas';
 
 /**
@@ -21,11 +30,27 @@ export const AuthApiLive = HttpApiBuilder.group(Api, 'auth', (handlers) =>
   Effect.gen(function* () {
     const authService = yield* AuthService;
     const passwordRecoveryService = yield* PasswordRecoveryService;
+    const loginAttemptCache = yield* LoginAttemptCache;
+    const signupIpRateLimitService = yield* SignupIpRateLimitService;
+    const passwordResetIpRateLimitService = yield* PasswordResetIpRateLimitService;
 
     return handlers
-      .handle('signup', ({ payload }) =>
+      .handle('signup', ({ payload, request }) =>
         Effect.gen(function* () {
           yield* Effect.logInfo(`[Handler] POST /auth/signup - Request received`);
+
+          // Check IP rate limit
+          const ip = yield* getClientIp(request);
+          const rateLimitStatus = yield* signupIpRateLimitService.checkAndIncrement(ip);
+
+          if (!rateLimitStatus.allowed) {
+            yield* Effect.logWarning(`[Handler] Signup rate limit exceeded for IP`);
+            return yield* Effect.fail(
+              new SignupRateLimitErrorSchema({
+                message: 'Too many signup attempts from this location. Please try again later.',
+              }),
+            );
+          }
 
           const result = yield* authService.signup(payload.email, payload.password).pipe(
             Effect.catchTags({
@@ -68,13 +93,47 @@ export const AuthApiLive = HttpApiBuilder.group(Api, 'auth', (handlers) =>
               updatedAt: result.user.updatedAt,
             },
           };
-        }),
+        }).pipe(
+          Effect.catchTags({
+            ClientIpNotFoundError: () =>
+              Effect.fail(
+                new UserRepositoryErrorSchema({
+                  message: 'Server configuration error',
+                }),
+              ),
+          }),
+        ),
       )
-      .handle('login', ({ payload }) =>
+      .handle('login', ({ payload, request }) =>
         Effect.gen(function* () {
           yield* Effect.logInfo(`[Handler] POST /auth/login - Request received`);
 
+          const ip = yield* getClientIp(request);
+
+          // Check rate limit BEFORE password verification (prevents timing attacks)
+          // Note: email normalization is handled by LoginAttemptCache
+          const attemptStatus = yield* loginAttemptCache.checkAttempt(payload.email, ip);
+
+          if (!attemptStatus.allowed) {
+            yield* Effect.logWarning(`[Handler] Login rate limit exceeded for email`);
+            return yield* Effect.fail(
+              new LoginRateLimitErrorSchema({
+                message: 'Too many failed login attempts. Please try again later.',
+                retryAfter: attemptStatus.retryAfter ?? 0,
+              }),
+            );
+          }
+
           const result = yield* authService.login(payload.email, payload.password).pipe(
+            Effect.tapError((error) =>
+              error._tag === 'InvalidCredentialsError'
+                ? Effect.gen(function* () {
+                    const { delay } = yield* loginAttemptCache.recordFailedAttempt(payload.email, ip);
+                    yield* loginAttemptCache.applyDelay(delay);
+                  })
+                : Effect.void,
+            ),
+            Effect.tap(() => loginAttemptCache.resetAttempts(payload.email)),
             Effect.catchTags({
               InvalidCredentialsError: () =>
                 Effect.fail(
@@ -114,7 +173,16 @@ export const AuthApiLive = HttpApiBuilder.group(Api, 'auth', (handlers) =>
               updatedAt: result.user.updatedAt,
             },
           };
-        }),
+        }).pipe(
+          Effect.catchTags({
+            ClientIpNotFoundError: () =>
+              Effect.fail(
+                new UserRepositoryErrorSchema({
+                  message: 'Server configuration error',
+                }),
+              ),
+          }),
+        ),
       )
       .handle('forgotPassword', ({ payload, request }) =>
         Effect.gen(function* () {
@@ -148,9 +216,22 @@ export const AuthApiLive = HttpApiBuilder.group(Api, 'auth', (handlers) =>
           }),
         ),
       )
-      .handle('resetPassword', ({ payload }) =>
+      .handle('resetPassword', ({ payload, request }) =>
         Effect.gen(function* () {
           yield* Effect.logInfo(`[Handler] POST /auth/reset-password - Request received`);
+
+          // Check IP rate limit
+          const ip = yield* getClientIp(request);
+          const rateLimitStatus = yield* passwordResetIpRateLimitService.checkAndIncrement(ip);
+
+          if (!rateLimitStatus.allowed) {
+            yield* Effect.logWarning(`[Handler] Reset password rate limit exceeded for IP`);
+            return yield* Effect.fail(
+              new PasswordResetRateLimitErrorSchema({
+                message: 'Too many password reset attempts. Please try again later.',
+              }),
+            );
+          }
 
           const result = yield* passwordRecoveryService.resetPassword(payload.token, payload.password).pipe(
             Effect.catchTags({
@@ -183,7 +264,16 @@ export const AuthApiLive = HttpApiBuilder.group(Api, 'auth', (handlers) =>
 
           yield* Effect.logInfo(`[Handler] Password reset completed`);
           return result;
-        }),
+        }).pipe(
+          Effect.catchTags({
+            ClientIpNotFoundError: () =>
+              Effect.fail(
+                new UserRepositoryErrorSchema({
+                  message: 'Server configuration error',
+                }),
+              ),
+          }),
+        ),
       );
   }),
 );

@@ -1,11 +1,10 @@
 /**
- * Rate Limiting Constants for Password Verification
+ * Rate Limiting Constants for Password Verification (Change Password)
  *
- * Used by both API (backend) and Web (frontend) to ensure consistent
- * rate limiting behavior across the application.
+ * Used when user changes their password and needs to verify current password.
  */
 
-/** Maximum failed password attempts before lockout */
+/** Maximum failed password attempts before lockout (change password) */
 export const MAX_PASSWORD_ATTEMPTS = 3;
 
 /** Lockout duration in seconds (15 minutes) */
@@ -15,15 +14,39 @@ export const LOCKOUT_DURATION_SECONDS = 15 * 60;
 export const ATTEMPT_DELAYS_SECONDS = [0, 5, 10] as const;
 
 /**
+ * Rate Limiting Constants for Login
+ *
+ * More permissive than password change since users may forget credentials.
+ */
+
+/** Maximum failed login attempts before lockout */
+export const MAX_LOGIN_ATTEMPTS = 5;
+
+/** Delay in seconds for each failed login attempt (indexed by attempt number - 1) */
+export const LOGIN_ATTEMPT_DELAYS_SECONDS = [0, 2, 5, 10, 15] as const;
+
+/**
  * Get delay in seconds for a given attempt count
  * @param attempts - Number of failed attempts (1-based)
+ * @param delays - Array of delay values in seconds
  * @returns Delay in seconds before responding
  */
-export const getAttemptDelaySeconds = (attempts: number): number => {
+const getDelayForAttempt = (
+  attempts: number,
+  delays: readonly number[]
+): number => {
   const index = Math.max(0, attempts - 1);
-  const clampedIndex = Math.min(index, ATTEMPT_DELAYS_SECONDS.length - 1);
-  return ATTEMPT_DELAYS_SECONDS[clampedIndex] ?? 0;
+  const clampedIndex = Math.min(index, delays.length - 1);
+  return delays[clampedIndex] ?? 0;
 };
+
+/** Get delay for password change attempts */
+export const getAttemptDelaySeconds = (attempts: number): number =>
+  getDelayForAttempt(attempts, ATTEMPT_DELAYS_SECONDS);
+
+/** Get delay for login attempts */
+export const getLoginAttemptDelaySeconds = (attempts: number): number =>
+  getDelayForAttempt(attempts, LOGIN_ATTEMPT_DELAYS_SECONDS);
 
 /**
  * Rate Limiting Constants for Password Reset by IP
@@ -38,3 +61,16 @@ export const PASSWORD_RESET_IP_LIMIT = 5;
 
 /** Password reset rate limit window in seconds (1 hour) */
 export const PASSWORD_RESET_IP_WINDOW_SECONDS = 60 * 60;
+
+/**
+ * Rate Limiting Constants for Signup by IP
+ *
+ * Rate limiting is done by IP to prevent mass account creation
+ * and abuse of the signup endpoint.
+ */
+
+/** Maximum signup requests per IP per hour */
+export const SIGNUP_IP_LIMIT = 5;
+
+/** Signup rate limit window in seconds (1 hour) */
+export const SIGNUP_IP_WINDOW_SECONDS = 60 * 60;

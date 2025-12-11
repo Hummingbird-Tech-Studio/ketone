@@ -410,7 +410,7 @@ function onSubmit() {
   flex-direction: column;
   width: 312px;
   padding: 22px;
-  border: 1px solid #e9e9e9;
+  border: 1px solid $color-primary-button-outline;
   border-radius: 16px;
 
   &__title {

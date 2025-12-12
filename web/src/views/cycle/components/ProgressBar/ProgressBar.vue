@@ -43,25 +43,31 @@
             :header="displayedStage.name"
             :style="{ width: `${DIALOG_WIDTH}px` }"
             :draggable="false"
-            :pt="{ content: { style: { 'padding-right': '40px', 'padding-left': '40px' } } }"
+            :pt="{ content: { style: { 'padding-right': '48px', 'padding-left': '48px' } } }"
             @hide="closeDialog"
           >
             <div class="progress__stageInfo">
-              <button
+              <Button
                 v-if="hasPreviousStage"
                 class="progress__stageInfo__chevron progress__stageInfo__chevron--left"
+                icon="pi pi-chevron-left"
+                variant="text"
+                severity="secondary"
+                size="small"
+                rounded
                 @click="goToPreviousStage"
-              >
-                <i class="pi pi-chevron-left" />
-              </button>
+              />
 
-              <button
+              <Button
                 v-if="hasNextStage"
                 class="progress__stageInfo__chevron progress__stageInfo__chevron--right"
+                icon="pi pi-chevron-right"
+                variant="text"
+                severity="secondary"
+                size="small"
+                rounded
                 @click="goToNextStage"
-              >
-                <i class="pi pi-chevron-right" />
-              </button>
+              />
 
               <component class="progress__stageInfo__icon" :is="displayedStage.icon" />
 
@@ -73,6 +79,7 @@
                 class="progress__stageInfo__button"
                 severity="secondary"
                 @click="closeDialog"
+                rounded
                 outlined
                 label="Got it"
               />
@@ -111,7 +118,7 @@ interface Props {
 }
 
 // Dialog constants
-const DIALOG_WIDTH = 300;
+const DIALOG_WIDTH = 330;
 
 // Gradient stop positions
 const GRADIENT_GREEN_STOP = 125;
@@ -289,29 +296,13 @@ function handleIconClick() {
       position: absolute;
       top: 50%;
       transform: translateY(-50%);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background: transparent;
-      border: none;
-      cursor: pointer;
-      padding: 8px;
-      color: $color-primary-button-text;
-
-      &:hover {
-        color: $color-dark-purple;
-      }
 
       &--left {
-        left: -40px;
+        left: -45px;
       }
 
       &--right {
-        right: -40px;
-      }
-
-      i {
-        font-size: 18px;
+        right: -45px;
       }
     }
 

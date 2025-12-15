@@ -26,7 +26,7 @@
     <template #footer>
       <div class="notes-dialog__actions">
         <Button label="Cancel" severity="secondary" outlined @click="handleCancel" />
-        <Button label="Save Notes" :loading="loading" :disabled="!canSave" @click="handleSave" />
+        <Button label="Save" :loading="loading" :disabled="!canSave" @click="handleSave" />
       </div>
     </template>
   </Dialog>

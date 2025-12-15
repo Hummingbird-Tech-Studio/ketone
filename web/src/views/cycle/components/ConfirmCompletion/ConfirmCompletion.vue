@@ -60,12 +60,25 @@
           />
         </div>
       </div>
+
+      <div class="cycle-summary__notes">
+        <div class="cycle-summary__notes-header">Notes</div>
+        <Textarea
+          v-model="localNotes"
+          placeholder="Add a note about this fast"
+          rows="4"
+          class="cycle-summary__notes-textarea"
+        />
+        <div class="cycle-summary__notes-actions">
+          <Button label="Save Notes" outlined :loading="savingNotes" :disabled="!hasNotesChanged" @click="handleSaveNotes" />
+        </div>
+      </div>
     </div>
 
     <template #footer>
       <div class="cycle-summary__footer">
         <Button label="Close" outlined @click="handleClose" />
-        <Button label="Finish" :loading="loading" @click="handleComplete" />
+        <Button label="Finish Fast" :loading="loading" @click="handleComplete" />
       </div>
     </template>
   </Dialog>
@@ -84,6 +97,7 @@ import DateTimePickerDialog from '@/components/DateTimePickerDialog/DateTimePick
 import EndTimeIcon from '@/components/Icons/EndTime.vue';
 import StartTimeIcon from '@/components/Icons/StartTime.vue';
 import { formatDate, formatHour } from '@/utils/formatting';
+import { computed, ref, watch } from 'vue';
 import type { ActorRefFrom } from 'xstate';
 import { type cycleMachine } from '../../actors/cycle.actor';
 import { useSchedulerDialog } from '../../composables/useSchedulerDialog';
@@ -93,9 +107,27 @@ const props = defineProps<{ visible: boolean; loading: boolean; actorRef: ActorR
 
 const emit = defineEmits<{ (e: 'update:visible', value: boolean): void; (e: 'complete'): void }>();
 
-const { pendingStartDate, pendingEndDate, totalFastingTime, actorRef } = useConfirmCompletion({
-  actorRef: props.actorRef,
+const { pendingStartDate, pendingEndDate, totalFastingTime, notes, savingNotes, saveNotes, actorRef } =
+  useConfirmCompletion({
+    actorRef: props.actorRef,
+  });
+
+// Local state for notes textarea
+const localNotes = ref(notes.value ?? '');
+
+// Sync local notes when notes from server change
+watch(notes, (newVal) => {
+  localNotes.value = newVal ?? '';
 });
+
+// Detect if notes have changed
+const hasNotesChanged = computed(() => {
+  return localNotes.value !== (notes.value ?? '');
+});
+
+function handleSaveNotes() {
+  saveNotes(localNotes.value);
+}
 
 const { dialogVisible, dialogTitle, dialogDate, openStartDialog, openEndDialog, closeDialog, submitDialog } =
   useSchedulerDialog(actorRef);
@@ -207,6 +239,26 @@ function handleComplete() {
 
   &__divider {
     --p-divider-border-color: #{$color-purple};
+  }
+
+  &__notes {
+    margin-top: 1.5rem;
+
+    &-header {
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }
+
+    &-textarea {
+      width: 100%;
+      resize: none;
+    }
+
+    &-actions {
+      display: flex;
+      justify-content: center;
+      margin-top: 1rem;
+    }
   }
 }
 </style>

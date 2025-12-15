@@ -837,7 +837,6 @@ export const cycleMachine = setup({
             target: CycleState.Updating,
           },
         ],
-        [Event.SAVE_NOTES]: CycleState.SavingNotes,
       },
     },
     [CycleState.Updating]: {
@@ -947,6 +946,7 @@ export const cycleMachine = setup({
             actions: ['onEditEndDate', 'emitUpdateComplete', 'notifyDialogUpdateComplete'],
           },
         ],
+        [Event.SAVE_NOTES]: CycleState.SavingNotes,
       },
     },
     [CycleState.Finishing]: {
@@ -989,44 +989,38 @@ export const cycleMachine = setup({
           actions: ['setCurrentDatesWithFixedHour'],
           target: CycleState.Creating,
         },
-        [Event.SAVE_NOTES]: CycleState.SavingNotes,
       },
     },
     [CycleState.SavingNotes]: {
-      invoke: {
-        id: 'updateNotesActor',
-        src: 'updateNotesActor',
-        input: ({ context, event }) => {
-          assertEvent(event, Event.SAVE_NOTES);
-          return {
-            cycleId: context.cycleMetadata!.id,
-            notes: event.notes,
-          };
+      invoke: [
+        {
+          id: 'timerActor',
+          src: 'timerActor',
         },
-      },
+        {
+          id: 'updateNotesActor',
+          src: 'updateNotesActor',
+          input: ({ context, event }) => {
+            assertEvent(event, Event.SAVE_NOTES);
+            return {
+              cycleId: context.cycleMetadata!.id,
+              notes: event.notes,
+            };
+          },
+        },
+      ],
       on: {
-        [Event.ON_NOTES_SAVED]: [
-          {
-            guard: 'isCycleCompleted',
-            actions: ['setNotes', 'emitNotesSaved'],
-            target: CycleState.Completed,
-          },
-          {
-            actions: ['setNotes', 'emitNotesSaved'],
-            target: CycleState.InProgress,
-          },
-        ],
-        [Event.ON_ERROR]: [
-          {
-            guard: 'isCycleCompleted',
-            actions: 'emitCycleError',
-            target: CycleState.Completed,
-          },
-          {
-            actions: 'emitCycleError',
-            target: CycleState.InProgress,
-          },
-        ],
+        [Event.TICK]: {
+          actions: emit({ type: Emit.TICK }),
+        },
+        [Event.ON_NOTES_SAVED]: {
+          actions: ['setNotes', 'emitNotesSaved'],
+          target: CycleState.ConfirmCompletion,
+        },
+        [Event.ON_ERROR]: {
+          actions: 'emitCycleError',
+          target: CycleState.ConfirmCompletion,
+        },
       },
     },
   },

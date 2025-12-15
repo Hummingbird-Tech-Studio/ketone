@@ -67,10 +67,17 @@
           v-model="localNotes"
           placeholder="Add a note about this fast"
           rows="4"
-          class="cycle-summary__notes-textarea"
+          :class="['cycle-summary__notes-textarea', { 'cycle-summary__notes-textarea--error': notesError }]"
+          :maxlength="NOTES_MAX_LENGTH"
         />
+        <div class="cycle-summary__notes-footer">
+          <span class="cycle-summary__notes-counter">{{ localNotes.length }}/{{ NOTES_MAX_LENGTH }}</span>
+        </div>
+        <Message v-if="notesError" severity="error" variant="simple" size="small">
+          {{ notesError }}
+        </Message>
         <div class="cycle-summary__notes-actions">
-          <Button label="Save Notes" outlined :loading="savingNotes" :disabled="!hasNotesChanged" @click="handleSaveNotes" />
+          <Button label="Save Notes" outlined :loading="savingNotes" :disabled="!canSaveNotes" @click="handleSaveNotes" />
         </div>
       </div>
     </div>
@@ -97,6 +104,8 @@ import DateTimePickerDialog from '@/components/DateTimePickerDialog/DateTimePick
 import EndTimeIcon from '@/components/Icons/EndTime.vue';
 import StartTimeIcon from '@/components/Icons/StartTime.vue';
 import { formatDate, formatHour } from '@/utils/formatting';
+import { NOTES_MAX_LENGTH, NotesSchema } from '@ketone/shared';
+import { Schema } from 'effect';
 import { computed, ref, watch } from 'vue';
 import type { ActorRefFrom } from 'xstate';
 import { type cycleMachine } from '../../actors/cycle.actor';
@@ -115,18 +124,44 @@ const { pendingStartDate, pendingEndDate, totalFastingTime, notes, savingNotes, 
 // Local state for notes textarea
 const localNotes = ref(notes.value ?? '');
 
+// Validation error state
+const notesError = ref<string | null>(null);
+
+// Validate notes using shared schema
+function validateNotes(value: string): boolean {
+  const result = Schema.decodeUnknownEither(NotesSchema)(value);
+  if (result._tag === 'Left') {
+    notesError.value = `Notes must be at most ${NOTES_MAX_LENGTH} characters`;
+    return false;
+  }
+  notesError.value = null;
+  return true;
+}
+
 // Sync local notes when notes from server change
 watch(notes, (newVal) => {
   localNotes.value = newVal ?? '';
+  validateNotes(localNotes.value);
 });
 
-// Detect if notes have changed
+// Validate on input change
+watch(localNotes, (newVal) => {
+  validateNotes(newVal);
+});
+
+// Detect if notes have changed and are valid
 const hasNotesChanged = computed(() => {
   return localNotes.value !== (notes.value ?? '');
 });
 
+const canSaveNotes = computed(() => {
+  return hasNotesChanged.value && notesError.value === null;
+});
+
 function handleSaveNotes() {
-  saveNotes(localNotes.value);
+  if (validateNotes(localNotes.value)) {
+    saveNotes(localNotes.value);
+  }
 }
 
 const { dialogVisible, dialogTitle, dialogDate, openStartDialog, openEndDialog, closeDialog, submitDialog } =
@@ -252,6 +287,21 @@ function handleComplete() {
     &-textarea {
       width: 100%;
       resize: none;
+
+      &--error {
+        border-color: var(--p-red-500);
+      }
+    }
+
+    &-footer {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 0.25rem;
+    }
+
+    &-counter {
+      font-size: 12px;
+      color: var(--p-text-muted-color);
     }
 
     &-actions {

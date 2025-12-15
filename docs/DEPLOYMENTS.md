@@ -94,7 +94,7 @@ git push origin main
 
 # API: Deploy to VPS
 ssh your-vps
-cd /var/www/ketone && git pull && sudo systemctl restart ketone-api
+cd /var/www/ketone && git pull && bun install && sudo systemctl restart ketone-api
 
 # Web: Cloudflare auto-deploys
 ```
@@ -114,6 +114,32 @@ curl https://api.ketone.dev/v1/version
 curl https://www.ketone.dev/version.json
 # {"version":"1.1.0"}
 ```
+
+## Database Migrations (Production)
+
+When deploying schema changes to production:
+
+```bash
+ssh your-vps
+cd /var/www/ketone
+git pull origin main
+cd api
+bun run db:migrate
+sudo systemctl restart ketone-api
+```
+
+### Troubleshooting: Schema Already Exists
+
+If migrations fail because objects already exist (out-of-sync state):
+
+```bash
+cd /var/www/ketone/api
+bun --env-file=../.env.local drizzle-kit push
+```
+
+This syncs the schema directly without using migration files.
+
+---
 
 ## Important Notes
 

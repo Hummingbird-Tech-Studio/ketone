@@ -1,4 +1,5 @@
 import { isDate, parseISO, isValid, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
+import { toZonedTime } from 'date-fns-tz';
 import type { PeriodType } from '@ketone/shared';
 
 /**
@@ -31,17 +32,25 @@ export interface PeriodRange {
  * Calculates the start and end dates for a given period type and date
  * - weekly: Sunday 00:00:00 to Saturday 23:59:59.999
  * - monthly: First day 00:00:00 to last day 23:59:59.999
+ *
+ * @param periodType - The type of period ('weekly' or 'monthly')
+ * @param date - The reference date (in UTC)
+ * @param timezone - Optional IANA timezone (e.g., 'America/New_York'). If provided,
+ *                   the date is converted to the user's timezone before calculating period boundaries.
  */
-export const calculatePeriodRange = (periodType: PeriodType, date: Date): PeriodRange => {
+export const calculatePeriodRange = (periodType: PeriodType, date: Date, timezone?: string): PeriodRange => {
+  // Convert UTC date to user's timezone if provided
+  const effectiveDate = timezone ? toZonedTime(date, timezone) : date;
+
   if (periodType === 'weekly') {
     return {
-      start: startOfWeek(date, { weekStartsOn: 0 }),
-      end: endOfWeek(date, { weekStartsOn: 0 }),
+      start: startOfWeek(effectiveDate, { weekStartsOn: 0 }),
+      end: endOfWeek(effectiveDate, { weekStartsOn: 0 }),
     };
   }
-  
+
   return {
-    start: startOfMonth(date),
-    end: endOfMonth(date),
+    start: startOfMonth(effectiveDate),
+    end: endOfMonth(effectiveDate),
   };
 };

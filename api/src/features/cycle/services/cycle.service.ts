@@ -6,6 +6,7 @@ import {
   CycleInvalidStateError,
   CycleNotFoundError,
   CycleOverlapError,
+  TimezoneConversionError,
 } from '../domain';
 import { CycleCompletionCache, CycleCompletionCacheError } from './cycle-completion-cache.service';
 import { CycleRefCache, CycleRefCacheError } from './cycle-ref-cache.service';
@@ -528,10 +529,10 @@ export class CycleService extends Effect.Service<CycleService>()('CycleService',
           cycles: CycleStatisticsItem[];
           totalEffectiveDuration: number;
         },
-        CycleRepositoryError
+        CycleRepositoryError | TimezoneConversionError
       > =>
         Effect.gen(function* () {
-          const { start: periodStart, end: periodEnd } = calculatePeriodRange(periodType, date, timezone);
+          const { start: periodStart, end: periodEnd } = yield* calculatePeriodRange(periodType, date, timezone);
 
           yield* Effect.logInfo(
             `Getting cycle statistics for user ${userId}, period: ${periodType}, range: ${periodStart.toISOString()} - ${periodEnd.toISOString()}`,

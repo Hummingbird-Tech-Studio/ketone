@@ -10,9 +10,16 @@ import {
   CycleInvalidStateErrorSchema,
   CycleOverlapErrorSchema,
   CycleRefCacheErrorSchema,
+  TimezoneConversionErrorSchema,
 } from './schemas';
 import { CurrentUser, authenticateWebSocket } from '../../auth/api/middleware';
-import { CycleNotFoundError, CycleIdMismatchError, CycleInvalidStateError, CycleOverlapError } from '../domain';
+import {
+  CycleNotFoundError,
+  CycleIdMismatchError,
+  CycleInvalidStateError,
+  CycleOverlapError,
+  TimezoneConversionError,
+} from '../domain';
 import { CycleRepositoryError } from '../repositories';
 
 const cycleUpdateErrorHandlers = (userId: string) => ({
@@ -483,6 +490,13 @@ export const CycleApiLive = HttpApiBuilder.group(Api, 'cycle', (handlers) =>
                   new CycleRepositoryErrorSchema({
                     message: error.message,
                     cause: error.cause,
+                  }),
+                ),
+              TimezoneConversionError: (error: TimezoneConversionError) =>
+                Effect.fail(
+                  new TimezoneConversionErrorSchema({
+                    message: error.message,
+                    timezone: error.timezone,
                   }),
                 ),
             }),

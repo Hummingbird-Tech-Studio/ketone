@@ -519,6 +519,7 @@ export class CycleService extends Effect.Service<CycleService>()('CycleService',
         userId: string,
         periodType: PeriodType,
         date: Date,
+        timezone?: string,
       ): Effect.Effect<
         {
           periodStart: Date;
@@ -530,7 +531,7 @@ export class CycleService extends Effect.Service<CycleService>()('CycleService',
         CycleRepositoryError
       > =>
         Effect.gen(function* () {
-          const { start: periodStart, end: periodEnd } = calculatePeriodRange(periodType, date);
+          const { start: periodStart, end: periodEnd } = calculatePeriodRange(periodType, date, timezone);
 
           yield* Effect.logInfo(
             `Getting cycle statistics for user ${userId}, period: ${periodType}, range: ${periodStart.toISOString()} - ${periodEnd.toISOString()}`,

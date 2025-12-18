@@ -470,12 +470,12 @@ export const CycleApiLive = HttpApiBuilder.group(Api, 'cycle', (handlers) =>
         Effect.gen(function* () {
           const currentUser = yield* CurrentUser;
           const userId = currentUser.userId;
-          const { period, date } = urlParams;
+          const { period, date, tz } = urlParams;
 
           yield* Effect.logInfo(`GET /api/v1/cycles/statistics - Request received for user ${userId}`);
-          yield* Effect.logInfo(`Query params: period=${period}, date=${date}`);
+          yield* Effect.logInfo(`Query params: period=${period}, date=${date}, tz=${tz ?? 'not provided'}`);
 
-          const statistics = yield* cycleService.getCycleStatistics(userId, period, date).pipe(
+          const statistics = yield* cycleService.getCycleStatistics(userId, period, date, tz).pipe(
             Effect.tapError((error) => Effect.logError(`Error getting cycle statistics: ${error.message}`)),
             Effect.catchTags({
               CycleRepositoryError: (error) =>

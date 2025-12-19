@@ -61,6 +61,8 @@
         </div>
       </div>
 
+      <FeelingsCard :feelings="feelings" class="cycle-summary__feelings" @edit="openFeelingsDialog" />
+
       <NotesCard class="cycle-summary__notes" @edit="openNotesDialog" />
     </div>
 
@@ -87,10 +89,20 @@
     @update:visible="handleNotesDialogVisibilityChange"
     @save="handleNotesSave"
   />
+
+  <FeelingsDialog
+    :visible="feelingsDialogVisible"
+    :feelings="feelings"
+    :loading="savingFeelings"
+    @update:visible="handleFeelingsDialogVisibilityChange"
+    @save="handleFeelingsSave"
+  />
 </template>
 
 <script setup lang="ts">
 import DateTimePickerDialog from '@/components/DateTimePickerDialog/DateTimePickerDialog.vue';
+import FeelingsCard from '@/components/FeelingsCard/FeelingsCard.vue';
+import FeelingsDialog from '@/components/FeelingsDialog/FeelingsDialog.vue';
 import EndTimeIcon from '@/components/Icons/EndTime.vue';
 import StartTimeIcon from '@/components/Icons/StartTime.vue';
 import NotesCard from '@/components/NotesCard/NotesCard.vue';
@@ -99,6 +111,7 @@ import { formatDate, formatHour } from '@/utils/formatting';
 import { onScopeDispose } from 'vue';
 import type { ActorRefFrom } from 'xstate';
 import { Emit, type cycleMachine } from '../../actors/cycle.actor';
+import { useFeelingsDialog } from '../../composables/useFeelingsDialog';
 import { useNotesDialog } from '../../composables/useNotesDialog';
 import { useSchedulerDialog } from '../../composables/useSchedulerDialog';
 import { useConfirmCompletion } from './useConfirmCompletion';
@@ -120,11 +133,27 @@ const {
   saveNotes,
 } = useNotesDialog(props.actorRef);
 
-const subscription = props.actorRef.on(Emit.NOTES_SAVED, () => {
+const {
+  dialogVisible: feelingsDialogVisible,
+  feelings,
+  savingFeelings,
+  openDialog: openFeelingsDialog,
+  closeDialog: closeFeelingsDialog,
+  saveFeelings,
+} = useFeelingsDialog(props.actorRef);
+
+const notesSubscription = props.actorRef.on(Emit.NOTES_SAVED, () => {
   closeNotesDialog();
 });
 
-onScopeDispose(() => subscription.unsubscribe());
+const feelingsSubscription = props.actorRef.on(Emit.FEELINGS_SAVED, () => {
+  closeFeelingsDialog();
+});
+
+onScopeDispose(() => {
+  notesSubscription.unsubscribe();
+  feelingsSubscription.unsubscribe();
+});
 
 function handleNotesDialogVisibilityChange(value: boolean) {
   if (!value) {
@@ -134,6 +163,16 @@ function handleNotesDialogVisibilityChange(value: boolean) {
 
 function handleNotesSave(notesText: string) {
   saveNotes(notesText);
+}
+
+function handleFeelingsDialogVisibilityChange(value: boolean) {
+  if (!value) {
+    closeFeelingsDialog();
+  }
+}
+
+function handleFeelingsSave(selectedFeelings: string[]) {
+  saveFeelings(selectedFeelings);
 }
 
 const { dialogVisible, dialogTitle, dialogDate, openStartDialog, openEndDialog, closeDialog, submitDialog } =
@@ -248,8 +287,12 @@ function handleComplete() {
     --p-divider-border-color: #{$color-purple};
   }
 
-  &__notes {
+  &__feelings {
     margin-top: 1.5rem;
+  }
+
+  &__notes {
+    margin-top: 1rem;
   }
 }
 </style>

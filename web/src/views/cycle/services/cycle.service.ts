@@ -478,7 +478,7 @@ const handleUpdateCycleFeelingsResponse = (
           return Effect.fail(
             new FeelingsLimitExceededError({
               message: errorData.message || 'Too many feelings for this cycle',
-              cycleId: cycleId,
+              cycleId,
               currentCount: errorData.currentCount || 0,
             }),
           );

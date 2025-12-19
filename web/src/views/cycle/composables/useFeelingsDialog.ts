@@ -11,7 +11,7 @@ import { CycleState, Event, type cycleMachine } from '../actors/cycle.actor';
 export function useFeelingsDialog(cycleActorRef: ActorRefFrom<typeof cycleMachine>) {
   const dialogVisible = ref(false);
 
-  const feelings = useSelector(cycleActorRef, (state) => state.context.feelings);
+  const feelings = useSelector(cycleActorRef, (state) => state.context.feelings ?? []);
   const savingFeelings = useSelector(cycleActorRef, (state) => state.matches(CycleState.SavingFeelings));
 
   const openDialog = () => {

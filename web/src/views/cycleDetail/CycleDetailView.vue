@@ -115,6 +115,8 @@
         </template>
       </div>
 
+      <FeelingsCard v-if="!showSkeleton && !error" :feelings="feelings" @edit="openFeelingsDialog" />
+
       <NotesCard v-if="!showSkeleton && !error" @edit="openNotesDialog" />
 
       <DeleteFastCard
@@ -125,6 +127,14 @@
         @delete="requestDelete"
       />
     </div>
+
+    <FeelingsDialog
+      :visible="feelingsDialogVisible"
+      :feelings="feelings"
+      :loading="savingFeelings"
+      @update:visible="(v) => !v && closeFeelingsDialog()"
+      @save="saveFeelings"
+    />
 
     <NotesDialog
       :visible="notesDialogVisible"
@@ -148,6 +158,8 @@
 
 <script setup lang="ts">
 import DateTimePickerDialog from '@/components/DateTimePickerDialog/DateTimePickerDialog.vue';
+import FeelingsCard from '@/components/FeelingsCard/FeelingsCard.vue';
+import FeelingsDialog from '@/components/FeelingsDialog/FeelingsDialog.vue';
 import EndTimeIcon from '@/components/Icons/EndTime.vue';
 import StartTimeIcon from '@/components/Icons/StartTime.vue';
 import NotesCard from '@/components/NotesCard/NotesCard.vue';
@@ -155,8 +167,9 @@ import NotesDialog from '@/components/NotesDialog/NotesDialog.vue';
 import { goal, type SchedulerView, start } from '@/views/cycle/domain/domain';
 import DeleteFastCard from '@/views/cycleDetail/components/DeleteFastCard.vue';
 import { useCycleDetail } from '@/views/cycleDetail/composables/useCycleDetail';
-import { useNotesDialog } from '@/views/cycleDetail/composables/useNotesDialog';
 import { useCycleDetailNotifications } from '@/views/cycleDetail/composables/useCycleDetailNotifications';
+import { useFeelingsDialog } from '@/views/cycleDetail/composables/useFeelingsDialog';
+import { useNotesDialog } from '@/views/cycleDetail/composables/useNotesDialog';
 import { computed, onMounted, ref, shallowRef } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
@@ -193,6 +206,15 @@ const {
   saveNotes,
 } = useNotesDialog(actorRef);
 
+const {
+  dialogVisible: feelingsDialogVisible,
+  feelings,
+  savingFeelings,
+  openDialog: openFeelingsDialog,
+  closeDialog: closeFeelingsDialog,
+  saveFeelings,
+} = useFeelingsDialog(actorRef);
+
 useCycleDetailNotifications(actorRef, {
   onUpdateComplete: () => {
     dialogVisible.value = false;
@@ -202,6 +224,9 @@ useCycleDetailNotifications(actorRef, {
   },
   onNotesSaved: () => {
     closeNotesDialog();
+  },
+  onFeelingsSaved: () => {
+    closeFeelingsDialog();
   },
 });
 

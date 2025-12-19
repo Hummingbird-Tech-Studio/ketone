@@ -199,6 +199,56 @@ bun run test:integration:{feature}
 
 Tests in `api/__tests__/` run against a real database.
 
+## Database Migrations
+
+### Workflow
+
+1. Modify the schema in `api/src/db/schema.ts`
+2. Generate migration: `bun run db:generate`
+3. Apply migration: `bun run db:migrate`
+
+### Rules
+
+- **Always use `db:migrate`** to apply schema changes (tracks migrations)
+- **Never use `db:push`** in production (applies changes without tracking)
+- **Never run SQL directly** in Neon to modify schema
+
+### Troubleshooting: Migration Tracking Out of Sync
+
+If migrations fail with errors like `type "X" already exists` or `relation "X" already exists`, the migration tracking table may be out of sync with the actual database state.
+
+**Diagnosis:**
+
+```sql
+-- Check migration tracking table (run in Neon SQL Editor)
+SELECT * FROM drizzle.__drizzle_migrations ORDER BY id;
+
+-- Check existing tables
+SELECT table_name FROM information_schema.tables
+WHERE table_schema = 'public' ORDER BY table_name;
+
+-- Check existing enums
+SELECT typname FROM pg_type WHERE typtype = 'e' ORDER BY typname;
+```
+
+**Fix:** Insert missing migration records into the tracking table:
+
+```sql
+-- Example: Insert records for migrations that were already applied
+INSERT INTO drizzle.__drizzle_migrations (id, hash, created_at) VALUES
+(0, '0000_migration_name', 1762526479121),
+(1, '0001_migration_name', 1762526480000);
+-- Add more as needed based on api/drizzle/meta/_journal.json
+
+-- Fix the sequence after manual inserts
+SELECT setval(
+  pg_get_serial_sequence('drizzle.__drizzle_migrations', 'id'),
+  (SELECT MAX(id) FROM drizzle.__drizzle_migrations) + 1
+);
+```
+
+Migration names and timestamps can be found in `api/drizzle/meta/_journal.json`.
+
 ## Reference Implementation
 
 See `api/src/features/auth/` for a complete example.

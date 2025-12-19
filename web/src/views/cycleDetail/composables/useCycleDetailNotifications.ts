@@ -9,6 +9,7 @@ interface UseCycleDetailNotificationsOptions {
   onDeleteComplete?: () => void;
   onDeleteError?: () => void;
   onNotesSaved?: () => void;
+  onFeelingsSaved?: () => void;
 }
 
 export function useCycleDetailNotifications(
@@ -70,6 +71,15 @@ export function useCycleDetailNotifications(
           life: 5000,
         });
         options?.onNotesSaved?.();
+      }),
+      Match.when({ type: Emit.FEELINGS_SAVED }, () => {
+        toast.add({
+          severity: 'success',
+          summary: 'Success',
+          detail: 'Feelings saved successfully',
+          life: 5000,
+        });
+        options?.onFeelingsSaved?.();
       }),
       Match.orElse(() => {
         // Ignore other emits

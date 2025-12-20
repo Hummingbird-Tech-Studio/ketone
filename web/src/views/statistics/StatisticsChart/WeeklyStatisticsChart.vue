@@ -12,13 +12,17 @@
           <div class="statistics-chart__skeleton-day-spacer"></div>
           <Skeleton v-for="i in 4" :key="i" width="32px" height="12px" border-radius="4px" />
         </div>
-        <div class="statistics-chart__skeleton-grid">
-          <div v-for="day in 7" :key="day" class="statistics-chart__skeleton-row">
-            <div class="statistics-chart__skeleton-day-label">
+        <div class="statistics-chart__skeleton-rows">
+          <div class="statistics-chart__skeleton-day-labels">
+            <div v-for="day in 7" :key="day" class="statistics-chart__skeleton-day-label">
               <Skeleton width="24px" height="10px" border-radius="2px" />
               <Skeleton width="16px" height="10px" border-radius="2px" />
             </div>
-            <Skeleton class="statistics-chart__skeleton-cell" width="100%" height="32px" border-radius="6px" />
+          </div>
+          <div class="statistics-chart__skeleton-grid">
+            <div v-for="day in 7" :key="day" class="statistics-chart__skeleton-row">
+              <Skeleton class="statistics-chart__skeleton-cell" width="100%" height="32px" border-radius="6px" />
+            </div>
           </div>
         </div>
       </div>
@@ -248,14 +252,13 @@ const chartContainerStyle = computed(() => ({
   }
 
   &__skeleton-expanded {
-    margin-top: 20px;
+    margin-top: 16px;
   }
 
   &__skeleton-hour-labels {
     display: flex;
     align-items: center;
-    gap: 16px;
-    padding-bottom: 8px;
+    height: 30px;
     justify-content: space-around;
   }
 
@@ -268,7 +271,32 @@ const chartContainerStyle = computed(() => ({
     }
   }
 
+  &__skeleton-rows {
+    display: flex;
+  }
+
+  &__skeleton-day-labels {
+    display: flex;
+    flex-direction: column;
+    width: 40px;
+    flex-shrink: 0;
+
+    @media only screen and (min-width: $breakpoint-tablet-min-width) {
+      width: 50px;
+    }
+  }
+
+  &__skeleton-day-label {
+    height: 46px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+  }
+
   &__skeleton-grid {
+    flex: 1;
     display: flex;
     flex-direction: column;
     border: 1px solid $color-primary-button-outline;
@@ -279,25 +307,12 @@ const chartContainerStyle = computed(() => ({
   &__skeleton-row {
     display: flex;
     align-items: center;
+    justify-content: center;
     height: 46px;
     border-bottom: 1px solid $color-primary-button-outline;
 
     &:last-child {
       border-bottom: none;
-    }
-  }
-
-  &__skeleton-day-label {
-    width: 40px;
-    flex-shrink: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 4px;
-
-    @media only screen and (min-width: $breakpoint-tablet-min-width) {
-      width: 50px;
     }
   }
 

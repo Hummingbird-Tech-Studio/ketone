@@ -6,6 +6,7 @@ import {
   InvalidPasswordErrorSchema,
   TooManyRequestsErrorSchema,
   SameEmailErrorSchema,
+  SamePasswordErrorSchema,
   EmailAlreadyInUseErrorSchema,
   UserAccountServiceErrorSchema,
   UpdatePasswordResponseSchema,
@@ -129,6 +130,12 @@ export const UserAccountApiLive = HttpApiBuilder.group(Api, 'user-account', (han
               new InvalidPasswordErrorSchema({
                 message: error.message,
                 remainingAttempts: error.remainingAttempts,
+              }),
+            ),
+          SamePasswordError: (error) =>
+            Effect.fail(
+              new SamePasswordErrorSchema({
+                message: error.message,
               }),
             ),
           UserAccountServiceError: (error) =>

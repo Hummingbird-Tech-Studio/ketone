@@ -1,5 +1,16 @@
 import { MAX_PASSWORD_ATTEMPTS, UpdatePasswordResponseSchema } from '@ketone/shared';
-import { handleServerErrorResponse, ServerError, ValidationError } from '@/services/http/errors';
+import {
+  extractErrorMessage,
+  handleInvalidPasswordResponse,
+  handleServerErrorResponse,
+  handleTooManyRequestsResponse,
+  handleUnauthorizedResponse,
+  InvalidPasswordError,
+  ServerError,
+  TooManyRequestsError,
+  UnauthorizedError,
+  ValidationError,
+} from '@/services/http/errors';
 import {
   API_BASE_URL,
   AuthenticatedHttpClient,
@@ -8,7 +19,6 @@ import {
   HttpClientRequest,
   HttpClientResponse,
   HttpClientWith401Interceptor,
-  UnauthorizedError,
 } from '@/services/http/http-client.service';
 import { HttpStatus } from '@/shared/constants/http-status';
 import type { HttpBodyError } from '@effect/platform/HttpBody';
@@ -18,17 +28,6 @@ import { Effect, Layer, Match, Schema as S } from 'effect';
 /**
  * Account Service Error Types
  */
-export class InvalidPasswordError extends S.TaggedError<InvalidPasswordError>()('InvalidPasswordError', {
-  message: S.String,
-  remainingAttempts: S.Number,
-}) {}
-
-export class TooManyRequestsError extends S.TaggedError<TooManyRequestsError>()('TooManyRequestsError', {
-  message: S.String,
-  remainingAttempts: S.Number,
-  retryAfter: S.Number,
-}) {}
-
 export class SameEmailError extends S.TaggedError<SameEmailError>()('SameEmailError', {
   message: S.String,
 }) {}
@@ -41,6 +40,18 @@ export class EmailAlreadyInUseError extends S.TaggedError<EmailAlreadyInUseError
 export class SamePasswordError extends S.TaggedError<SamePasswordError>()('SamePasswordError', {
   message: S.String,
 }) {}
+
+/**
+ * Error Response Schemas for safe JSON parsing
+ */
+const MessageErrorSchema = S.Struct({
+  message: S.optional(S.String),
+});
+
+const EmailAlreadyInUseResponseSchema = S.Struct({
+  message: S.optional(S.String),
+  email: S.optional(S.String),
+});
 
 /**
  * Response Schema (defined locally since it doesn't exist in @ketone/shared)
@@ -110,68 +121,40 @@ const handleUpdateEmailResponse = (
     ),
     Match.when(HttpStatus.BadRequest, () =>
       response.json.pipe(
-        Effect.flatMap((body): Effect.Effect<never, SameEmailError> => {
-          const errorData = body as { message?: string };
-          return Effect.fail(
-            new SameEmailError({
-              message: errorData.message || 'New email is the same as the current email',
-            }),
-          );
-        }),
+        Effect.flatMap((body) =>
+          S.decodeUnknown(MessageErrorSchema)(body).pipe(
+            Effect.orElseSucceed(() => ({ message: undefined })),
+            Effect.flatMap((errorData) =>
+              Effect.fail(
+                new SameEmailError({
+                  message: errorData.message ?? 'New email is the same as the current email',
+                }),
+              ),
+            ),
+          ),
+        ),
       ),
     ),
-    Match.when(HttpStatus.Unauthorized, () =>
-      response.json.pipe(
-        Effect.flatMap((body): Effect.Effect<never, UnauthorizedError> => {
-          const errorData = body as { message?: string };
-          return Effect.fail(
-            new UnauthorizedError({
-              message: errorData.message || 'Unauthorized',
-            }),
-          );
-        }),
-      ),
-    ),
-    Match.when(HttpStatus.TooManyRequests, () =>
-      response.json.pipe(
-        Effect.flatMap((body): Effect.Effect<never, TooManyRequestsError> => {
-          const errorData = body as { message?: string; remainingAttempts?: number; retryAfter?: number };
-          return Effect.fail(
-            new TooManyRequestsError({
-              message: errorData.message || 'Too many requests',
-              remainingAttempts: errorData.remainingAttempts ?? 0,
-              retryAfter: errorData.retryAfter ?? 900,
-            }),
-          );
-        }),
-      ),
-    ),
-    Match.when(HttpStatus.Forbidden, () =>
-      response.json.pipe(
-        Effect.flatMap((body): Effect.Effect<never, InvalidPasswordError> => {
-          const errorData = body as { message?: string; remainingAttempts?: number };
-          return Effect.fail(
-            new InvalidPasswordError({
-              message: errorData.message || 'Invalid password',
-              remainingAttempts: errorData.remainingAttempts ?? MAX_PASSWORD_ATTEMPTS,
-            }),
-          );
-        }),
-      ),
-    ),
+    Match.when(HttpStatus.Unauthorized, () => handleUnauthorizedResponse(response)),
+    Match.when(HttpStatus.Forbidden, () => handleInvalidPasswordResponse(response, MAX_PASSWORD_ATTEMPTS)),
     Match.when(HttpStatus.Conflict, () =>
       response.json.pipe(
-        Effect.flatMap((body): Effect.Effect<never, EmailAlreadyInUseError> => {
-          const errorData = body as { message?: string; email?: string };
-          return Effect.fail(
-            new EmailAlreadyInUseError({
-              message: errorData.message || 'Email already in use',
-              email: errorData.email || '',
-            }),
-          );
-        }),
+        Effect.flatMap((body) =>
+          S.decodeUnknown(EmailAlreadyInUseResponseSchema)(body).pipe(
+            Effect.orElseSucceed(() => ({ message: undefined, email: undefined })),
+            Effect.flatMap((errorData) =>
+              Effect.fail(
+                new EmailAlreadyInUseError({
+                  message: errorData.message ?? 'Email already in use',
+                  email: errorData.email ?? '',
+                }),
+              ),
+            ),
+          ),
+        ),
       ),
     ),
+    Match.when(HttpStatus.TooManyRequests, () => handleTooManyRequestsResponse(response)),
     Match.orElse(() => handleServerErrorResponse(response)),
   );
 
@@ -195,55 +178,23 @@ const handleUpdatePasswordResponse = (
     ),
     Match.when(HttpStatus.BadRequest, () =>
       response.json.pipe(
-        Effect.flatMap((body): Effect.Effect<never, SamePasswordError> => {
-          const errorData = body as { message?: string };
-          return Effect.fail(
-            new SamePasswordError({
-              message: errorData.message || 'New password must be different from current password',
-            }),
-          );
-        }),
+        Effect.flatMap((body) =>
+          S.decodeUnknown(MessageErrorSchema)(body).pipe(
+            Effect.orElseSucceed(() => ({ message: undefined })),
+            Effect.flatMap((errorData) =>
+              Effect.fail(
+                new SamePasswordError({
+                  message: errorData.message ?? 'New password must be different from current password',
+                }),
+              ),
+            ),
+          ),
+        ),
       ),
     ),
-    Match.when(HttpStatus.Unauthorized, () =>
-      response.json.pipe(
-        Effect.flatMap((body): Effect.Effect<never, UnauthorizedError> => {
-          const errorData = body as { message?: string };
-          return Effect.fail(
-            new UnauthorizedError({
-              message: errorData.message || 'Unauthorized',
-            }),
-          );
-        }),
-      ),
-    ),
-    Match.when(HttpStatus.TooManyRequests, () =>
-      response.json.pipe(
-        Effect.flatMap((body): Effect.Effect<never, TooManyRequestsError> => {
-          const errorData = body as { message?: string; remainingAttempts?: number; retryAfter?: number };
-          return Effect.fail(
-            new TooManyRequestsError({
-              message: errorData.message || 'Too many requests',
-              remainingAttempts: errorData.remainingAttempts ?? 0,
-              retryAfter: errorData.retryAfter ?? 900,
-            }),
-          );
-        }),
-      ),
-    ),
-    Match.when(HttpStatus.Forbidden, () =>
-      response.json.pipe(
-        Effect.flatMap((body): Effect.Effect<never, InvalidPasswordError> => {
-          const errorData = body as { message?: string; remainingAttempts?: number };
-          return Effect.fail(
-            new InvalidPasswordError({
-              message: errorData.message || 'Invalid password',
-              remainingAttempts: errorData.remainingAttempts ?? MAX_PASSWORD_ATTEMPTS,
-            }),
-          );
-        }),
-      ),
-    ),
+    Match.when(HttpStatus.Unauthorized, () => handleUnauthorizedResponse(response)),
+    Match.when(HttpStatus.Forbidden, () => handleInvalidPasswordResponse(response, MAX_PASSWORD_ATTEMPTS)),
+    Match.when(HttpStatus.TooManyRequests, () => handleTooManyRequestsResponse(response)),
     Match.orElse(() => handleServerErrorResponse(response)),
   );
 
@@ -255,45 +206,9 @@ const handleDeleteAccountResponse = (
 ): Effect.Effect<void, DeleteAccountError> =>
   Match.value(response.status).pipe(
     Match.when(HttpStatus.NoContent, () => Effect.void),
-    Match.when(HttpStatus.Unauthorized, () =>
-      response.json.pipe(
-        Effect.flatMap((body): Effect.Effect<never, UnauthorizedError> => {
-          const errorData = body as { message?: string };
-          return Effect.fail(
-            new UnauthorizedError({
-              message: errorData.message || 'Unauthorized',
-            }),
-          );
-        }),
-      ),
-    ),
-    Match.when(HttpStatus.TooManyRequests, () =>
-      response.json.pipe(
-        Effect.flatMap((body): Effect.Effect<never, TooManyRequestsError> => {
-          const errorData = body as { message?: string; remainingAttempts?: number; retryAfter?: number };
-          return Effect.fail(
-            new TooManyRequestsError({
-              message: errorData.message || 'Too many requests',
-              remainingAttempts: errorData.remainingAttempts ?? 0,
-              retryAfter: errorData.retryAfter ?? 900,
-            }),
-          );
-        }),
-      ),
-    ),
-    Match.when(HttpStatus.Forbidden, () =>
-      response.json.pipe(
-        Effect.flatMap((body): Effect.Effect<never, InvalidPasswordError> => {
-          const errorData = body as { message?: string; remainingAttempts?: number };
-          return Effect.fail(
-            new InvalidPasswordError({
-              message: errorData.message || 'Invalid password',
-              remainingAttempts: errorData.remainingAttempts ?? MAX_PASSWORD_ATTEMPTS,
-            }),
-          );
-        }),
-      ),
-    ),
+    Match.when(HttpStatus.Unauthorized, () => handleUnauthorizedResponse(response)),
+    Match.when(HttpStatus.Forbidden, () => handleInvalidPasswordResponse(response, MAX_PASSWORD_ATTEMPTS)),
+    Match.when(HttpStatus.TooManyRequests, () => handleTooManyRequestsResponse(response)),
     Match.orElse(() => handleServerErrorResponse(response)),
   );
 
@@ -363,26 +278,29 @@ export const AccountServiceLive = AccountService.Default.pipe(
 /**
  * Program to update user email
  */
-export const updateEmailProgram = (email: string, password: string) =>
-  Effect.gen(function* () {
-    const accountService = yield* AccountService;
-    return yield* accountService.updateEmail(email, password);
-  }).pipe(Effect.provide(AccountServiceLive));
+export const programUpdateEmail = (email: string, password: string) =>
+  AccountService.updateEmail(email, password).pipe(
+    Effect.tapError((error) => Effect.logError('Failed to update email', { cause: extractErrorMessage(error) })),
+    Effect.annotateLogs({ service: 'AccountService' }),
+    Effect.provide(AccountServiceLive),
+  );
 
 /**
  * Program to update user password
  */
-export const updatePasswordProgram = (currentPassword: string, newPassword: string) =>
-  Effect.gen(function* () {
-    const accountService = yield* AccountService;
-    return yield* accountService.updatePassword(currentPassword, newPassword);
-  }).pipe(Effect.provide(AccountServiceLive));
+export const programUpdatePassword = (currentPassword: string, newPassword: string) =>
+  AccountService.updatePassword(currentPassword, newPassword).pipe(
+    Effect.tapError((error) => Effect.logError('Failed to update password', { cause: extractErrorMessage(error) })),
+    Effect.annotateLogs({ service: 'AccountService' }),
+    Effect.provide(AccountServiceLive),
+  );
 
 /**
  * Program to delete user account
  */
-export const deleteAccountProgram = (password: string) =>
-  Effect.gen(function* () {
-    const accountService = yield* AccountService;
-    return yield* accountService.deleteAccount(password);
-  }).pipe(Effect.provide(AccountServiceLive));
+export const programDeleteAccount = (password: string) =>
+  AccountService.deleteAccount(password).pipe(
+    Effect.tapError((error) => Effect.logError('Failed to delete account', { cause: extractErrorMessage(error) })),
+    Effect.annotateLogs({ service: 'AccountService' }),
+    Effect.provide(AccountServiceLive),
+  );

@@ -5,12 +5,12 @@ import { Match } from 'effect';
 import { assertEvent, assign, emit, fromCallback, setup, type ActorRefFrom, type EventObject } from 'xstate';
 import { start } from '../domain/domain';
 import {
-  completeCycleProgram,
-  createCycleProgram,
-  getActiveCycleProgram,
-  updateCycleProgram,
-  updateCycleNotesProgram,
-  updateCycleFeelingsProgram,
+  programCompleteCycle,
+  programCreateCycle,
+  programGetActiveCycle,
+  programUpdateCycle,
+  programUpdateCycleNotes,
+  programUpdateCycleFeelings,
   type CompleteCycleError,
   type CreateCycleError,
   type GetCycleSuccess,
@@ -230,7 +230,7 @@ function handleCycleError(error: CreateCycleError | UpdateCycleError | CompleteC
 
 const cycleLogic = fromCallback<EventObject, void>(({ sendBack }) => {
   runWithUi(
-    getActiveCycleProgram(),
+    programGetActiveCycle(),
     (result) => {
       sendBack({ type: Event.ON_SUCCESS, result });
     },
@@ -250,7 +250,7 @@ const cycleLogic = fromCallback<EventObject, void>(({ sendBack }) => {
 
 const createCycleLogic = fromCallback<EventObject, { startDate: Date; endDate: Date }>(({ sendBack, input }) => {
   runWithUi(
-    createCycleProgram(input.startDate, input.endDate),
+    programCreateCycle(input.startDate, input.endDate),
     (result) => {
       sendBack({ type: Event.ON_SUCCESS, result });
     },
@@ -269,7 +269,7 @@ const updateCycleLogic = fromCallback<EventObject, UpdateCycleInput>(({ sendBack
   );
 
   runWithUi(
-    updateCycleProgram(input.cycleId, startDate, endDate),
+    programUpdateCycle(input.cycleId, startDate, endDate),
     (result) => {
       sendBack({ type: Event.ON_SUCCESS, result });
     },
@@ -282,7 +282,7 @@ const updateCycleLogic = fromCallback<EventObject, UpdateCycleInput>(({ sendBack
 const completeCycleLogic = fromCallback<EventObject, { cycleId: string; startDate: Date; endDate: Date }>(
   ({ sendBack, input }) => {
     runWithUi(
-      completeCycleProgram(input.cycleId, input.startDate, input.endDate),
+      programCompleteCycle(input.cycleId, input.startDate, input.endDate),
       (result) => {
         sendBack({ type: Event.ON_SUCCESS, result });
       },
@@ -295,7 +295,7 @@ const completeCycleLogic = fromCallback<EventObject, { cycleId: string; startDat
 
 const updateNotesLogic = fromCallback<EventObject, { cycleId: string; notes: string }>(({ sendBack, input }) => {
   runWithUi(
-    updateCycleNotesProgram(input.cycleId, input.notes),
+    programUpdateCycleNotes(input.cycleId, input.notes),
     (result) => {
       sendBack({ type: Event.ON_NOTES_SAVED, result });
     },
@@ -309,7 +309,7 @@ const updateNotesLogic = fromCallback<EventObject, { cycleId: string; notes: str
 const updateFeelingsLogic = fromCallback<EventObject, { cycleId: string; feelings: string[] }>(
   ({ sendBack, input }) => {
     runWithUi(
-      updateCycleFeelingsProgram(input.cycleId, input.feelings),
+      programUpdateCycleFeelings(input.cycleId, input.feelings),
       (result) => {
         sendBack({ type: Event.ON_FEELINGS_SAVED, result });
       },

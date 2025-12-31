@@ -1,7 +1,9 @@
 import {
+  extractErrorMessage,
   handleServerErrorResponse,
   handleUnauthorizedResponse,
   ServerError,
+  UnauthorizedError,
   ValidationError,
 } from '@/services/http/errors';
 import {
@@ -12,7 +14,6 @@ import {
   HttpClientRequest,
   HttpClientResponse,
   HttpClientWith401Interceptor,
-  UnauthorizedError,
 } from '@/services/http/http-client.service';
 import { HttpStatus } from '@/shared/constants/http-status';
 import type { HttpBodyError } from '@effect/platform/HttpBody';
@@ -215,35 +216,39 @@ export const ProfileServiceLive = ProfileService.Default.pipe(
 /**
  * Program to get user profile
  */
-export const getProfileProgram = () =>
-  Effect.gen(function* () {
-    const profileService = yield* ProfileService;
-    return yield* profileService.getProfile();
-  }).pipe(Effect.provide(ProfileServiceLive));
+export const programGetProfile = () =>
+  ProfileService.getProfile().pipe(
+    Effect.tapError((error) => Effect.logError('Failed to get profile', { cause: extractErrorMessage(error) })),
+    Effect.annotateLogs({ service: 'ProfileService' }),
+    Effect.provide(ProfileServiceLive),
+  );
 
 /**
  * Program to save user profile
  */
-export const saveProfileProgram = (data: { name?: string | null; dateOfBirth?: string | null }) =>
-  Effect.gen(function* () {
-    const profileService = yield* ProfileService;
-    return yield* profileService.saveProfile(data);
-  }).pipe(Effect.provide(ProfileServiceLive));
+export const programSaveProfile = (data: { name?: string | null; dateOfBirth?: string | null }) =>
+  ProfileService.saveProfile(data).pipe(
+    Effect.tapError((error) => Effect.logError('Failed to save profile', { cause: extractErrorMessage(error) })),
+    Effect.annotateLogs({ service: 'ProfileService' }),
+    Effect.provide(ProfileServiceLive),
+  );
 
 /**
  * Program to get user physical info
  */
-export const getPhysicalInfoProgram = () =>
-  Effect.gen(function* () {
-    const profileService = yield* ProfileService;
-    return yield* profileService.getPhysicalInfo();
-  }).pipe(Effect.provide(ProfileServiceLive));
+export const programGetPhysicalInfo = () =>
+  ProfileService.getPhysicalInfo().pipe(
+    Effect.tapError((error) => Effect.logError('Failed to get physical info', { cause: extractErrorMessage(error) })),
+    Effect.annotateLogs({ service: 'ProfileService' }),
+    Effect.provide(ProfileServiceLive),
+  );
 
 /**
  * Program to save user physical info
  */
-export const savePhysicalInfoProgram = (data: SavePhysicalInfoPayload) =>
-  Effect.gen(function* () {
-    const profileService = yield* ProfileService;
-    return yield* profileService.savePhysicalInfo(data);
-  }).pipe(Effect.provide(ProfileServiceLive));
+export const programSavePhysicalInfo = (data: SavePhysicalInfoPayload) =>
+  ProfileService.savePhysicalInfo(data).pipe(
+    Effect.tapError((error) => Effect.logError('Failed to save physical info', { cause: extractErrorMessage(error) })),
+    Effect.annotateLogs({ service: 'ProfileService' }),
+    Effect.provide(ProfileServiceLive),
+  );

@@ -1,8 +1,8 @@
 import { runWithUi } from '@/utils/effects/helpers';
 import { assertEvent, assign, emit, fromCallback, setup, type EventObject } from 'xstate';
 import {
-  getPhysicalInfoProgram,
-  savePhysicalInfoProgram,
+  programGetPhysicalInfo,
+  programSavePhysicalInfo,
   type GetPhysicalInfoSuccess,
   type SavePhysicalInfoPayload,
   type SavePhysicalInfoSuccess,
@@ -50,7 +50,7 @@ type Context = {
 
 const getPhysicalInfoLogic = fromCallback<EventObject>(({ sendBack }) => {
   runWithUi(
-    getPhysicalInfoProgram(),
+    programGetPhysicalInfo(),
     (physicalInfo) => {
       sendBack({ type: Event.ON_LOAD_SUCCESS, physicalInfo });
     },
@@ -63,7 +63,7 @@ const getPhysicalInfoLogic = fromCallback<EventObject>(({ sendBack }) => {
 
 const savePhysicalInfoLogic = fromCallback<EventObject, SavePhysicalInfoPayload>(({ sendBack, input }) => {
   runWithUi(
-    savePhysicalInfoProgram(input),
+    programSavePhysicalInfo(input),
     (physicalInfo) => {
       sendBack({ type: Event.ON_SAVE_SUCCESS, physicalInfo });
     },

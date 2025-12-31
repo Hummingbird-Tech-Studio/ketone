@@ -1,4 +1,4 @@
-import { ServerError, ValidationError } from '@/services/http/errors';
+import { extractErrorMessage, ServerError, ValidationError } from '@/services/http/errors';
 import {
   API_BASE_URL,
   HttpClient,
@@ -11,6 +11,13 @@ import type { HttpBodyError } from '@effect/platform/HttpBody';
 import type { HttpClientError } from '@effect/platform/HttpClientError';
 import { LoginResponseSchema } from '@ketone/shared';
 import { Effect, Layer, Match, Schema as S } from 'effect';
+
+/**
+ * Error response schemas for validation
+ */
+const ErrorResponseSchema = S.Struct({
+  message: S.optional(S.String),
+});
 
 /**
  * Sign-In Specific Error Types
@@ -42,38 +49,50 @@ const handleSignInResponse = (
     ),
     Match.when(HttpStatus.Unauthorized, () =>
       response.json.pipe(
-        Effect.flatMap((body) => {
-          const errorData = body as { message?: string };
-          return Effect.fail(
-            new InvalidCredentialsError({
-              message: errorData.message || 'Invalid email or password',
-            }),
-          );
-        }),
+        Effect.flatMap((body) =>
+          S.decodeUnknown(ErrorResponseSchema)(body).pipe(
+            Effect.orElseSucceed(() => ({ message: undefined })),
+            Effect.flatMap((errorData) =>
+              Effect.fail(
+                new InvalidCredentialsError({
+                  message: errorData.message ?? 'Invalid email or password',
+                }),
+              ),
+            ),
+          ),
+        ),
       ),
     ),
     Match.when(HttpStatus.BadRequest, () =>
       response.json.pipe(
-        Effect.flatMap((body) => {
-          const errorData = body as { message?: string };
-          return Effect.fail(
-            new ValidationError({
-              message: errorData.message || 'Invalid email or password',
-            }),
-          );
-        }),
+        Effect.flatMap((body) =>
+          S.decodeUnknown(ErrorResponseSchema)(body).pipe(
+            Effect.orElseSucceed(() => ({ message: undefined })),
+            Effect.flatMap((errorData) =>
+              Effect.fail(
+                new ValidationError({
+                  message: errorData.message ?? 'Invalid email or password',
+                }),
+              ),
+            ),
+          ),
+        ),
       ),
     ),
     Match.orElse(() =>
       response.json.pipe(
-        Effect.flatMap((body) => {
-          const errorData = body as { message?: string };
-          return Effect.fail(
-            new ServerError({
-              message: errorData.message || `Server error: ${response.status}`,
-            }),
-          );
-        }),
+        Effect.flatMap((body) =>
+          S.decodeUnknown(ErrorResponseSchema)(body).pipe(
+            Effect.orElseSucceed(() => ({ message: undefined })),
+            Effect.flatMap((errorData) =>
+              Effect.fail(
+                new ServerError({
+                  message: errorData.message ?? `Server error: ${response.status}`,
+                }),
+              ),
+            ),
+          ),
+        ),
       ),
     ),
   );
@@ -114,7 +133,8 @@ export const SignInServiceLive = SignInService.Default.pipe(Layer.provide(HttpCl
  * Program to sign in a user
  */
 export const programSignIn = (email: string, password: string) =>
-  Effect.gen(function* () {
-    const signInService = yield* SignInService;
-    return yield* signInService.signIn(email, password);
-  }).pipe(Effect.provide(SignInServiceLive));
+  SignInService.signIn(email, password).pipe(
+    Effect.tapError((error) => Effect.logError('Sign in failed', { cause: extractErrorMessage(error) })),
+    Effect.annotateLogs({ service: 'SignInService' }),
+    Effect.provide(SignInServiceLive),
+  );

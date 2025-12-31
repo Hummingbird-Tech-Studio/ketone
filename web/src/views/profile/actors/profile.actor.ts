@@ -1,8 +1,8 @@
 import { runWithUi } from '@/utils/effects/helpers';
 import { assertEvent, assign, emit, fromCallback, setup, type EventObject } from 'xstate';
 import {
-  getProfileProgram,
-  saveProfileProgram,
+  programGetProfile,
+  programSaveProfile,
   type GetProfileSuccess,
   type SaveProfileSuccess,
 } from '../services/profile.service';
@@ -49,7 +49,7 @@ type Context = {
 
 const getProfileLogic = fromCallback<EventObject>(({ sendBack }) => {
   runWithUi(
-    getProfileProgram(),
+    programGetProfile(),
     (profile) => {
       sendBack({ type: Event.ON_LOAD_SUCCESS, profile });
     },
@@ -63,7 +63,7 @@ const getProfileLogic = fromCallback<EventObject>(({ sendBack }) => {
 const saveProfileLogic = fromCallback<EventObject, { name?: string | null; dateOfBirth?: string | null }>(
   ({ sendBack, input }) => {
     runWithUi(
-      saveProfileProgram(input),
+      programSaveProfile(input),
       (profile) => {
         sendBack({ type: Event.ON_SAVE_SUCCESS, profile });
       },

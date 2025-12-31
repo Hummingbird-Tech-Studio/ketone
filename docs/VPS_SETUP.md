@@ -309,12 +309,33 @@ server {
         proxy_set_header Connection 'upgrade';
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-For $remote_addr;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_cache_bypass $http_upgrade;
     }
 }
 ```
+
+> **⚠️ Security Note: X-Forwarded-For Configuration**
+>
+> We use `$remote_addr` instead of `$proxy_add_x_forwarded_for` to prevent IP spoofing attacks.
+>
+> - `$proxy_add_x_forwarded_for` **appends** the client IP to any existing header, allowing attackers to prepend spoofed IPs
+> - `$remote_addr` **replaces** the header with the actual client IP that Nginx sees
+>
+> This is critical because the API uses the IP address for rate limiting. Without this fix, attackers could bypass rate limits by sending fake `X-Forwarded-For` headers.
+>
+> **If you add a CDN (e.g., Cloudflare) in front of Nginx**, you'll need to:
+>
+> ```nginx
+> # Trust Cloudflare IPs and use their header
+> set_real_ip_from 103.21.244.0/22;
+> set_real_ip_from 103.22.200.0/22;
+> set_real_ip_from 103.31.4.0/22;
+> # ... add all Cloudflare IP ranges
+> real_ip_header CF-Connecting-IP;
+> proxy_set_header X-Forwarded-For $remote_addr;
+> ```
 
 Save: `Ctrl+X`, `Y`, `Enter`
 
@@ -605,6 +626,53 @@ Expected output after upgrade:
 2. Verify DATABASE_URL in environment:
    ```bash
    grep DATABASE_URL /var/www/ketone/.env.local
+   ```
+
+### IP Spoofing / Rate Limit Bypass (Security)
+
+If rate limiting is being bypassed, verify the Nginx configuration is using `$remote_addr` instead of `$proxy_add_x_forwarded_for`:
+
+1. Check current configuration:
+
+   ```bash
+   grep -i "x-forwarded-for" /etc/nginx/sites-available/api.ketone.dev
+   ```
+
+   **Vulnerable** (allows IP spoofing):
+
+   ```
+   proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+   ```
+
+   **Secure** (prevents IP spoofing):
+
+   ```
+   proxy_set_header X-Forwarded-For $remote_addr;
+   ```
+
+2. Fix the configuration:
+
+   ```bash
+   sudo nano /etc/nginx/sites-available/api.ketone.dev
+   ```
+
+   Change `$proxy_add_x_forwarded_for` to `$remote_addr`
+
+3. Test and reload Nginx:
+
+   ```bash
+   sudo nginx -t
+   sudo systemctl reload nginx
+   ```
+
+4. Verify the fix is working:
+
+   ```bash
+   # From your local machine, test with a spoofed header
+   curl -v -H "X-Forwarded-For: 1.2.3.4" https://api.ketone.dev/v1/version
+
+   # Check the API logs - should show YOUR real IP, not 1.2.3.4
+   sudo journalctl -u ketone-api -n 10
    ```
 
 ---

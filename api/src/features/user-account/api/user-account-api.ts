@@ -12,6 +12,7 @@ import {
   SamePasswordErrorSchema,
   EmailAlreadyInUseErrorSchema,
   UserAccountServiceErrorSchema,
+  InternalServerErrorSchema,
 } from './schemas';
 import { Authentication, UnauthorizedErrorSchema } from '../../auth/api/middleware';
 
@@ -25,6 +26,7 @@ export class UserAccountApiGroup extends HttpApiGroup.make('user-account')
       .addError(InvalidPasswordErrorSchema, { status: 403 })
       .addError(SameEmailErrorSchema, { status: 400 })
       .addError(EmailAlreadyInUseErrorSchema, { status: 409 })
+      .addError(InternalServerErrorSchema, { status: 500 })
       .addError(UserAccountServiceErrorSchema, { status: 500 })
       .middleware(Authentication),
   )
@@ -36,6 +38,7 @@ export class UserAccountApiGroup extends HttpApiGroup.make('user-account')
       .addError(TooManyRequestsErrorSchema, { status: 429 })
       .addError(InvalidPasswordErrorSchema, { status: 403 })
       .addError(SamePasswordErrorSchema, { status: 400 })
+      .addError(InternalServerErrorSchema, { status: 500 })
       .addError(UserAccountServiceErrorSchema, { status: 500 })
       .middleware(Authentication),
   )
@@ -46,6 +49,7 @@ export class UserAccountApiGroup extends HttpApiGroup.make('user-account')
       .addError(UnauthorizedErrorSchema, { status: 401 })
       .addError(TooManyRequestsErrorSchema, { status: 429 })
       .addError(InvalidPasswordErrorSchema, { status: 403 })
+      .addError(InternalServerErrorSchema, { status: 500 })
       .addError(UserAccountServiceErrorSchema, { status: 500 })
       .middleware(Authentication),
   ) {}

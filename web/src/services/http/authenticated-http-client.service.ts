@@ -1,15 +1,9 @@
 import { authenticationActor, Event } from '@/actors/authenticationActor';
 import { AuthSessionService } from '@/services/auth/auth-session.service';
+import { UnauthorizedError } from '@/services/http/errors';
 import { HttpClient, HttpClientRequest, HttpClientResponse } from '@effect/platform';
 import type { HttpClientError } from '@effect/platform/HttpClientError';
-import { Data, Effect } from 'effect';
-
-/**
- * Unauthorized Error - thrown when no valid session exists
- */
-export class UnauthorizedError extends Data.TaggedError('UnauthorizedError')<{
-  message: string;
-}> {}
+import { Effect } from 'effect';
 
 /**
  * Authenticated HTTP Client Service

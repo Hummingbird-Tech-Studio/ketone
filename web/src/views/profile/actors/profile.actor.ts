@@ -1,8 +1,9 @@
+import { extractErrorMessage } from '@/services/http/errors';
 import { runWithUi } from '@/utils/effects/helpers';
 import { assertEvent, assign, emit, fromCallback, setup, type EventObject } from 'xstate';
 import {
-  getProfileProgram,
-  saveProfileProgram,
+  programGetProfile,
+  programSaveProfile,
   type GetProfileSuccess,
   type SaveProfileSuccess,
 } from '../services/profile.service';
@@ -47,32 +48,29 @@ type Context = {
   profile: GetProfileSuccess;
 };
 
-const getProfileLogic = fromCallback<EventObject>(({ sendBack }) => {
+const getProfileLogic = fromCallback<EventObject>(({ sendBack }) =>
   runWithUi(
-    getProfileProgram(),
+    programGetProfile(),
     (profile) => {
       sendBack({ type: Event.ON_LOAD_SUCCESS, profile });
     },
     (error) => {
-      const errorMessage = 'message' in error && typeof error.message === 'string' ? error.message : String(error);
-      sendBack({ type: Event.ON_LOAD_ERROR, error: errorMessage });
+      sendBack({ type: Event.ON_LOAD_ERROR, error: extractErrorMessage(error) });
     },
-  );
-});
+  ),
+);
 
 const saveProfileLogic = fromCallback<EventObject, { name?: string | null; dateOfBirth?: string | null }>(
-  ({ sendBack, input }) => {
+  ({ sendBack, input }) =>
     runWithUi(
-      saveProfileProgram(input),
+      programSaveProfile(input),
       (profile) => {
         sendBack({ type: Event.ON_SAVE_SUCCESS, profile });
       },
       (error) => {
-        const errorMessage = 'message' in error && typeof error.message === 'string' ? error.message : String(error);
-        sendBack({ type: Event.ON_SAVE_ERROR, error: errorMessage });
+        sendBack({ type: Event.ON_SAVE_ERROR, error: extractErrorMessage(error) });
       },
-    );
-  },
+    ),
 );
 
 export const profileMachine = setup({

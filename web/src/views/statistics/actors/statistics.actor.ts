@@ -1,9 +1,10 @@
+import { extractErrorMessage } from '@/services/http/errors';
 import { runWithUi } from '@/utils/effects/helpers';
 import { STATISTICS_PERIOD, type PeriodType } from '@ketone/shared';
 import { Match } from 'effect';
 import { assertEvent, assign, emit, fromCallback, setup, type EventObject } from 'xstate';
 import {
-  getStatisticsProgram,
+  programGetStatistics,
   type GetStatisticsError,
   type GetStatisticsSuccess,
 } from '../services/statistics.service';
@@ -68,27 +69,24 @@ type Context = {
  */
 function handleStatisticsError(error: GetStatisticsError): { type: Event.ON_ERROR; error: string } {
   return Match.value(error).pipe(
-    Match.orElse((err) => {
-      const errorMessage = 'message' in err && typeof err.message === 'string' ? err.message : String(err);
-      return { type: Event.ON_ERROR as const, error: errorMessage };
-    }),
+    Match.orElse((err) => ({ type: Event.ON_ERROR as const, error: extractErrorMessage(err) })),
   );
 }
 
 /**
  * Load statistics callback actor
  */
-const loadStatisticsLogic = fromCallback<EventObject, { period: PeriodType; date: Date }>(({ sendBack, input }) => {
+const loadStatisticsLogic = fromCallback<EventObject, { period: PeriodType; date: Date }>(({ sendBack, input }) =>
   runWithUi(
-    getStatisticsProgram(input.period, input.date),
+    programGetStatistics(input.period, input.date),
     (result) => {
       sendBack({ type: Event.ON_SUCCESS, result });
     },
     (error) => {
       sendBack(handleStatisticsError(error));
     },
-  );
-});
+  ),
+);
 
 /**
  * Statistics Machine

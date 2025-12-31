@@ -76,17 +76,13 @@
 
 <script setup lang="ts">
 import { authenticationActor, Event as AuthEvent } from '@/actors/authenticationActor';
+import { createVeeValidateSchema } from '@/utils/validation';
 import { Emit, type EmitType } from '@/views/signIn/actors/signIn.actor';
 import { useSignIn } from '@/views/signIn/composables/useSignIn';
 import { EmailSchema } from '@ketone/shared';
 import { Match, Schema } from 'effect';
-import { configure, Field, useForm } from 'vee-validate';
+import { Field, useForm } from 'vee-validate';
 import { onUnmounted, ref, watch } from 'vue';
-
-configure({
-  validateOnInput: false,
-  validateOnModelUpdate: true,
-});
 
 const { submit, submitting, actorRef } = useSignIn();
 const serviceError = ref<string | null>(null);
@@ -99,11 +95,7 @@ const schemaStruct = Schema.Struct({
 
 type FormValues = Schema.Schema.Type<typeof schemaStruct>;
 
-const StandardSchemaClass = Schema.standardSchemaV1(schemaStruct);
-const schema = {
-  ...StandardSchemaClass,
-  '~standard': StandardSchemaClass['~standard' as keyof typeof StandardSchemaClass],
-};
+const schema = createVeeValidateSchema(schemaStruct);
 
 const { handleSubmit } = useForm<FormValues>({
   validationSchema: schema,

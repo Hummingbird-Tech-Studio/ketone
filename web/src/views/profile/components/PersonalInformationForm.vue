@@ -38,7 +38,13 @@
       </template>
     </div>
 
-    <Skeleton v-if="showSkeleton" class="personal-info-form__actions" width="130px" height="38px" border-radius="20px" />
+    <Skeleton
+      v-if="showSkeleton"
+      class="personal-info-form__actions"
+      width="130px"
+      height="38px"
+      border-radius="20px"
+    />
     <Button
       v-else
       type="submit"
@@ -53,9 +59,10 @@
 </template>
 
 <script setup lang="ts">
+import { createVeeValidateSchema } from '@/utils/validation';
 import { format, parse } from 'date-fns';
 import { Schema } from 'effect';
-import { configure, Field, useForm } from 'vee-validate';
+import { Field, useForm } from 'vee-validate';
 import { onMounted, ref, watch } from 'vue';
 import { useProfile } from '../composables/useProfile';
 import { useProfileNotifications } from '../composables/useProfileNotifications';
@@ -68,11 +75,6 @@ onMounted(() => {
   loadProfile();
 });
 
-configure({
-  validateOnInput: false,
-  validateOnModelUpdate: true,
-});
-
 const NameSchema = Schema.String.pipe(
   Schema.filter((name) => name === '' || name.length <= 255, { message: () => 'Name must be at most 255 characters' }),
 );
@@ -83,11 +85,7 @@ const schemaStruct = Schema.Struct({
 
 type FormValues = Schema.Schema.Type<typeof schemaStruct>;
 
-const StandardSchemaClass = Schema.standardSchemaV1(schemaStruct);
-const validationSchema = {
-  ...StandardSchemaClass,
-  '~standard': StandardSchemaClass['~standard' as keyof typeof StandardSchemaClass],
-};
+const validationSchema = createVeeValidateSchema(schemaStruct);
 
 const { handleSubmit, setFieldValue } = useForm<FormValues>({
   validationSchema,

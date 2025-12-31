@@ -53,17 +53,13 @@
 </template>
 
 <script setup lang="ts">
+import { createVeeValidateSchema } from '@/utils/validation';
 import { Emit, type EmitType } from '@/views/passwordRecovery/actors/forgotPassword.actor';
 import { useForgotPassword } from '@/views/passwordRecovery/composables/useForgotPassword';
 import { EmailSchema } from '@ketone/shared';
 import { Match, Schema } from 'effect';
-import { configure, Field, useForm } from 'vee-validate';
+import { Field, useForm } from 'vee-validate';
 import { onUnmounted, ref, watch } from 'vue';
-
-configure({
-  validateOnInput: false,
-  validateOnModelUpdate: true,
-});
 
 const { submit, submitting, actorRef } = useForgotPassword();
 const serviceError = ref<string | null>(null);
@@ -76,11 +72,7 @@ const schemaStruct = Schema.Struct({
 
 type FormValues = Schema.Schema.Type<typeof schemaStruct>;
 
-const StandardSchemaClass = Schema.standardSchemaV1(schemaStruct);
-const schema = {
-  ...StandardSchemaClass,
-  '~standard': StandardSchemaClass['~standard' as keyof typeof StandardSchemaClass],
-};
+const schema = createVeeValidateSchema(schemaStruct);
 
 const { handleSubmit, values } = useForm<FormValues>({
   validationSchema: schema,

@@ -1,3 +1,4 @@
+import { extractErrorMessage } from '@/services/http/errors';
 import { runWithUi } from '@/utils/effects/helpers';
 import { assertEvent, emit, fromCallback, setup, type EventObject } from 'xstate';
 import { programSignUp, type SignUpSuccess } from '../services/signUp.service';
@@ -29,18 +30,17 @@ export type EmitType =
 
 type Context = Record<string, never>;
 
-const signUpLogic = fromCallback<EventObject, { email: string; password: string }>(({ sendBack, input }) => {
+const signUpLogic = fromCallback<EventObject, { email: string; password: string }>(({ sendBack, input }) =>
   runWithUi(
     programSignUp(input.email, input.password),
     (result) => {
       sendBack({ type: Event.ON_DONE, result });
     },
     (error) => {
-      const errorMessage = 'message' in error && typeof error.message === 'string' ? error.message : String(error);
-      sendBack({ type: Event.ON_ERROR, error: errorMessage });
+      sendBack({ type: Event.ON_ERROR, error: extractErrorMessage(error) });
     },
-  );
-});
+  ),
+);
 
 export const signUpMachine = setup({
   types: {

@@ -1,8 +1,9 @@
+import { extractErrorMessage } from '@/services/http/errors';
 import { runWithUi } from '@/utils/effects/helpers';
 import { assertEvent, assign, emit, fromCallback, setup, type EventObject } from 'xstate';
 import {
-  getPhysicalInfoProgram,
-  savePhysicalInfoProgram,
+  programGetPhysicalInfo,
+  programSavePhysicalInfo,
   type GetPhysicalInfoSuccess,
   type SavePhysicalInfoPayload,
   type SavePhysicalInfoSuccess,
@@ -48,31 +49,29 @@ type Context = {
   physicalInfo: GetPhysicalInfoSuccess;
 };
 
-const getPhysicalInfoLogic = fromCallback<EventObject>(({ sendBack }) => {
+const getPhysicalInfoLogic = fromCallback<EventObject>(({ sendBack }) =>
   runWithUi(
-    getPhysicalInfoProgram(),
+    programGetPhysicalInfo(),
     (physicalInfo) => {
       sendBack({ type: Event.ON_LOAD_SUCCESS, physicalInfo });
     },
     (error) => {
-      const errorMessage = 'message' in error && typeof error.message === 'string' ? error.message : String(error);
-      sendBack({ type: Event.ON_LOAD_ERROR, error: errorMessage });
+      sendBack({ type: Event.ON_LOAD_ERROR, error: extractErrorMessage(error) });
     },
-  );
-});
+  ),
+);
 
-const savePhysicalInfoLogic = fromCallback<EventObject, SavePhysicalInfoPayload>(({ sendBack, input }) => {
+const savePhysicalInfoLogic = fromCallback<EventObject, SavePhysicalInfoPayload>(({ sendBack, input }) =>
   runWithUi(
-    savePhysicalInfoProgram(input),
+    programSavePhysicalInfo(input),
     (physicalInfo) => {
       sendBack({ type: Event.ON_SAVE_SUCCESS, physicalInfo });
     },
     (error) => {
-      const errorMessage = 'message' in error && typeof error.message === 'string' ? error.message : String(error);
-      sendBack({ type: Event.ON_SAVE_ERROR, error: errorMessage });
+      sendBack({ type: Event.ON_SAVE_ERROR, error: extractErrorMessage(error) });
     },
-  );
-});
+  ),
+);
 
 export const physicalInfoMachine = setup({
   types: {

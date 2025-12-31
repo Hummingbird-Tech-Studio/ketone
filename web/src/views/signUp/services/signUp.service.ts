@@ -1,4 +1,4 @@
-import { ServerError, ValidationError } from '@/services/http/errors';
+import { extractErrorMessage, ServerError, ValidationError } from '@/services/http/errors';
 import {
   API_BASE_URL,
   HttpClient,
@@ -11,6 +11,18 @@ import type { HttpBodyError } from '@effect/platform/HttpBody';
 import type { HttpClientError } from '@effect/platform/HttpClientError';
 import { SignupResponseSchema } from '@ketone/shared';
 import { Effect, Layer, Match, Schema as S } from 'effect';
+
+/**
+ * Error response schemas for validation
+ */
+const ErrorResponseSchema = S.Struct({
+  message: S.optional(S.String),
+});
+
+const ConflictErrorResponseSchema = S.Struct({
+  message: S.optional(S.String),
+  email: S.optional(S.String),
+});
 
 /**
  * Sign-Up Specific Error Types
@@ -44,39 +56,51 @@ const handleSignUpResponse = (
     ),
     Match.when(HttpStatus.Conflict, () =>
       response.json.pipe(
-        Effect.flatMap((body) => {
-          const errorData = body as { message?: string; email?: string };
-          return Effect.fail(
-            new UserAlreadyExistsError({
-              message: errorData.message || 'User with this email already exists',
-              email: errorData.email || email,
-            }),
-          );
-        }),
+        Effect.flatMap((body) =>
+          S.decodeUnknown(ConflictErrorResponseSchema)(body).pipe(
+            Effect.orElseSucceed(() => ({ message: undefined, email: undefined })),
+            Effect.flatMap((errorData) =>
+              Effect.fail(
+                new UserAlreadyExistsError({
+                  message: errorData.message ?? 'User with this email already exists',
+                  email: errorData.email ?? email,
+                }),
+              ),
+            ),
+          ),
+        ),
       ),
     ),
     Match.when(HttpStatus.BadRequest, () =>
       response.json.pipe(
-        Effect.flatMap((body) => {
-          const errorData = body as { message?: string };
-          return Effect.fail(
-            new ValidationError({
-              message: errorData.message || 'Invalid email or password',
-            }),
-          );
-        }),
+        Effect.flatMap((body) =>
+          S.decodeUnknown(ErrorResponseSchema)(body).pipe(
+            Effect.orElseSucceed(() => ({ message: undefined })),
+            Effect.flatMap((errorData) =>
+              Effect.fail(
+                new ValidationError({
+                  message: errorData.message ?? 'Invalid email or password',
+                }),
+              ),
+            ),
+          ),
+        ),
       ),
     ),
     Match.orElse(() =>
       response.json.pipe(
-        Effect.flatMap((body) => {
-          const errorData = body as { message?: string };
-          return Effect.fail(
-            new ServerError({
-              message: errorData.message || `Server error: ${response.status}`,
-            }),
-          );
-        }),
+        Effect.flatMap((body) =>
+          S.decodeUnknown(ErrorResponseSchema)(body).pipe(
+            Effect.orElseSucceed(() => ({ message: undefined })),
+            Effect.flatMap((errorData) =>
+              Effect.fail(
+                new ServerError({
+                  message: errorData.message ?? `Server error: ${response.status}`,
+                }),
+              ),
+            ),
+          ),
+        ),
       ),
     ),
   );
@@ -117,7 +141,8 @@ export const SignUpServiceLive = SignUpService.Default.pipe(Layer.provide(HttpCl
  * Program to sign up a new user
  */
 export const programSignUp = (email: string, password: string) =>
-  Effect.gen(function* () {
-    const signUpService = yield* SignUpService;
-    return yield* signUpService.signUp(email, password);
-  }).pipe(Effect.provide(SignUpServiceLive));
+  SignUpService.signUp(email, password).pipe(
+    Effect.tapError((error) => Effect.logError('Sign up failed', { cause: extractErrorMessage(error) })),
+    Effect.annotateLogs({ service: 'SignUpService' }),
+    Effect.provide(SignUpServiceLive),
+  );

@@ -12,6 +12,8 @@
     "format:check": "bunx prettier --check \"src/**/*.{ts,js,json}\""
   },
   "peerDependencies": {
-    "effect": "^3.19.0"
+    "effect": "^3.19.0",
+    "@effect/platform": "^0.94.0",
+    "xstate": "^5.25.0"
   }
 }

@@ -5,8 +5,8 @@ import { Effect, Fiber, Stream } from 'effect';
  * Returns a cleanup function that interrupts the fiber.
  *
  * Generic over:
- *   • A – success value
- *   • E – error value  (inferred from `eff`)
+ *   - A: success value
+ *   - E: error value (inferred from `eff`)
  *
  * Works for any `Effect` whose environment is already satisfied (`R = never`).
  */
@@ -33,6 +33,10 @@ export function runWithUi<A, E>(
  * Execute an `Effect` that *yields* a `Stream`, push every chunk to `onData`,
  * send domain errors to `onError`, and return a `cancel` function that
  * interrupts the fibre (which in turn runs the stream's finalizer).
+ *
+ * - Works with any error type `E` (`E` is inferred).
+ * - Assumes the incoming Effect already has `R = never`
+ *   (i.e. it provided its own Live layers).
  */
 export function runStreamWithUi<A, E>(
   streamEff: Effect.Effect<Stream.Stream<A, E>, E>,

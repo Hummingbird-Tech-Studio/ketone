@@ -8,6 +8,17 @@ const ErrorResponseSchema = S.Struct({
   message: S.optional(S.String),
 });
 
+const InvalidPasswordResponseSchema = S.Struct({
+  message: S.optional(S.String),
+  remainingAttempts: S.optional(S.Number),
+});
+
+const TooManyRequestsResponseSchema = S.Struct({
+  message: S.optional(S.String),
+  remainingAttempts: S.optional(S.Number),
+  retryAfter: S.optional(S.Number),
+});
+
 /**
  * Extracts error message from unknown error types
  */
@@ -29,8 +40,20 @@ export class UnauthorizedError extends S.TaggedError<UnauthorizedError>()('Unaut
   message: S.String,
 }) {}
 
+export class InvalidPasswordError extends S.TaggedError<InvalidPasswordError>()('InvalidPasswordError', {
+  message: S.String,
+  remainingAttempts: S.Number,
+}) {}
+
+export class TooManyRequestsError extends S.TaggedError<TooManyRequestsError>()('TooManyRequestsError', {
+  message: S.String,
+  remainingAttempts: S.Number,
+  retryAfter: S.Number,
+}) {}
+
 /**
  * Generic helper for creating error response handlers
+ * Extracts error message from response body and creates the appropriate error
  */
 const createErrorResponseHandler = <E>(
   response: HttpClientResponse.HttpClientResponse,
@@ -61,4 +84,47 @@ export const handleServerErrorResponse = (response: HttpClientResponse.HttpClien
     response,
     (message) => new ServerError({ message }),
     defaultMessage ?? `Server error: ${response.status}`,
+  );
+
+export const handleInvalidPasswordResponse = (
+  response: HttpClientResponse.HttpClientResponse,
+  maxAttempts: number,
+  defaultMessage = 'Invalid password',
+) =>
+  response.json.pipe(
+    Effect.flatMap((body) =>
+      S.decodeUnknown(InvalidPasswordResponseSchema)(body).pipe(
+        Effect.orElseSucceed(() => ({ message: undefined, remainingAttempts: undefined })),
+        Effect.flatMap((errorData) =>
+          Effect.fail(
+            new InvalidPasswordError({
+              message: errorData.message ?? defaultMessage,
+              remainingAttempts: errorData.remainingAttempts ?? maxAttempts,
+            }),
+          ),
+        ),
+      ),
+    ),
+  );
+
+export const handleTooManyRequestsResponse = (
+  response: HttpClientResponse.HttpClientResponse,
+  defaultMessage = 'Too many requests',
+  defaultRetryAfter = 900,
+) =>
+  response.json.pipe(
+    Effect.flatMap((body) =>
+      S.decodeUnknown(TooManyRequestsResponseSchema)(body).pipe(
+        Effect.orElseSucceed(() => ({ message: undefined, remainingAttempts: undefined, retryAfter: undefined })),
+        Effect.flatMap((errorData) =>
+          Effect.fail(
+            new TooManyRequestsError({
+              message: errorData.message ?? defaultMessage,
+              remainingAttempts: errorData.remainingAttempts ?? 0,
+              retryAfter: errorData.retryAfter ?? defaultRetryAfter,
+            }),
+          ),
+        ),
+      ),
+    ),
   );

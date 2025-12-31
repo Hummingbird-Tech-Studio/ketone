@@ -121,16 +121,12 @@
 import { PASSWORD_RULES, validatePasswordRule } from '@/utils';
 import { Emit, type EmitType } from '@/views/passwordRecovery/actors/resetPassword.actor';
 import { useResetPassword } from '@/views/passwordRecovery/composables/useResetPassword';
+import { createVeeValidateSchema } from '@/utils/validation';
 import { PasswordSchema } from '@ketone/shared';
 import { Match, Schema } from 'effect';
-import { configure, Field, useForm } from 'vee-validate';
+import { Field, useForm } from 'vee-validate';
 import { onUnmounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
-
-configure({
-  validateOnInput: false,
-  validateOnModelUpdate: true,
-});
 
 const route = useRoute();
 const token = (route.query.token as string) || '';
@@ -157,11 +153,7 @@ const schemaStruct = Schema.Struct({
 
 type FormValues = Schema.Schema.Type<typeof schemaStruct>;
 
-const StandardSchemaClass = Schema.standardSchemaV1(schemaStruct);
-const schema = {
-  ...StandardSchemaClass,
-  '~standard': StandardSchemaClass['~standard' as keyof typeof StandardSchemaClass],
-};
+const schema = createVeeValidateSchema(schemaStruct);
 
 const { handleSubmit } = useForm<FormValues>({
   validationSchema: schema,

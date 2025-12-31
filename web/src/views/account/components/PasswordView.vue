@@ -84,6 +84,7 @@
 
 <script setup lang="ts">
 import { useAuth } from '@/composables/useAuth';
+import { createVeeValidateSchema } from '@/utils/validation';
 import { PasswordSchema } from '@ketone/shared';
 import { Schema } from 'effect';
 import { Field, useForm } from 'vee-validate';
@@ -149,11 +150,7 @@ const passwordFormSchema = Schema.Struct({
 
 type FormValues = Schema.Schema.Type<typeof passwordFormSchema>;
 
-const StandardSchemaClass = Schema.standardSchemaV1(passwordFormSchema);
-const validationSchema = {
-  ...StandardSchemaClass,
-  '~standard': StandardSchemaClass['~standard' as keyof typeof StandardSchemaClass],
-};
+const validationSchema = createVeeValidateSchema(passwordFormSchema);
 
 const { handleSubmit, values } = useForm<FormValues>({
   validationSchema,

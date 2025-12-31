@@ -1,3 +1,4 @@
+import { extractErrorMessage } from '@/services/http/errors';
 import { runWithUi } from '@/utils/effects/helpers';
 import { assertEvent, emit, fromCallback, setup, type EventObject } from 'xstate';
 import { programSignIn, type SignInSuccess } from '../services/signIn.service';
@@ -36,8 +37,7 @@ const signInLogic = fromCallback<EventObject, { email: string; password: string 
       sendBack({ type: Event.ON_DONE, result });
     },
     (error) => {
-      const errorMessage = 'message' in error && typeof error.message === 'string' ? error.message : String(error);
-      sendBack({ type: Event.ON_ERROR, error: errorMessage });
+      sendBack({ type: Event.ON_ERROR, error: extractErrorMessage(error) });
     },
   )
 );

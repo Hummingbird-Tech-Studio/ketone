@@ -9,6 +9,7 @@ import {
   SignupResponseSchema,
   UserAlreadyExistsErrorSchema,
   UserRepositoryErrorSchema,
+  InternalServerErrorSchema,
   ForgotPasswordRequestSchema,
   ForgotPasswordResponseSchema,
   ResetPasswordRequestSchema,
@@ -31,6 +32,7 @@ export class AuthApiGroup extends HttpApiGroup.make('auth')
       .addSuccess(SignupResponseSchema, { status: 201 })
       .addError(UserAlreadyExistsErrorSchema, { status: 409 })
       .addError(SignupRateLimitErrorSchema, { status: 429 })
+      .addError(InternalServerErrorSchema, { status: 500 })
       .addError(UserRepositoryErrorSchema, { status: 500 })
       .addError(PasswordHashErrorSchema, { status: 500 })
       .addError(JwtGenerationErrorSchema, { status: 500 }),
@@ -42,6 +44,7 @@ export class AuthApiGroup extends HttpApiGroup.make('auth')
       .addSuccess(LoginResponseSchema)
       .addError(InvalidCredentialsErrorSchema, { status: 401 })
       .addError(LoginRateLimitErrorSchema, { status: 429 })
+      .addError(InternalServerErrorSchema, { status: 500 })
       .addError(UserRepositoryErrorSchema, { status: 500 })
       .addError(PasswordHashErrorSchema, { status: 500 })
       .addError(JwtGenerationErrorSchema, { status: 500 }),
@@ -51,6 +54,7 @@ export class AuthApiGroup extends HttpApiGroup.make('auth')
     HttpApiEndpoint.post('forgotPassword', '/auth/forgot-password')
       .setPayload(ForgotPasswordRequestSchema)
       .addSuccess(ForgotPasswordResponseSchema)
+      .addError(InternalServerErrorSchema, { status: 500 })
       .addError(UserRepositoryErrorSchema, { status: 500 }),
   )
   .add(
@@ -60,6 +64,7 @@ export class AuthApiGroup extends HttpApiGroup.make('auth')
       .addSuccess(ResetPasswordResponseSchema)
       .addError(PasswordResetTokenInvalidErrorSchema, { status: 400 })
       .addError(PasswordResetRateLimitErrorSchema, { status: 429 })
-      .addError(PasswordHashErrorSchema, { status: 500 })
-      .addError(UserRepositoryErrorSchema, { status: 500 }),
+      .addError(InternalServerErrorSchema, { status: 500 })
+      .addError(UserRepositoryErrorSchema, { status: 500 })
+      .addError(PasswordHashErrorSchema, { status: 500 }),
   ) {}

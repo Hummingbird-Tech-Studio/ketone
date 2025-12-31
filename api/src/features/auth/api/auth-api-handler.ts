@@ -15,6 +15,7 @@ import {
   PasswordHashErrorSchema,
   UserAlreadyExistsErrorSchema,
   UserRepositoryErrorSchema,
+  InternalServerErrorSchema,
   PasswordResetTokenInvalidErrorSchema,
   LoginRateLimitErrorSchema,
   SignupRateLimitErrorSchema,
@@ -97,7 +98,7 @@ export const AuthApiLive = HttpApiBuilder.group(Api, 'auth', (handlers) =>
           Effect.catchTags({
             ClientIpNotFoundError: () =>
               Effect.fail(
-                new UserRepositoryErrorSchema({
+                new InternalServerErrorSchema({
                   message: 'Server configuration error',
                 }),
               ),
@@ -178,7 +179,7 @@ export const AuthApiLive = HttpApiBuilder.group(Api, 'auth', (handlers) =>
           Effect.catchTags({
             ClientIpNotFoundError: () =>
               Effect.fail(
-                new UserRepositoryErrorSchema({
+                new InternalServerErrorSchema({
                   message: 'Server configuration error',
                 }),
               ),
@@ -199,7 +200,7 @@ export const AuthApiLive = HttpApiBuilder.group(Api, 'auth', (handlers) =>
           Effect.catchTags({
             ClientIpNotFoundError: () =>
               Effect.fail(
-                new UserRepositoryErrorSchema({
+                new InternalServerErrorSchema({
                   message: 'Server configuration error',
                 }),
               ),
@@ -271,7 +272,7 @@ export const AuthApiLive = HttpApiBuilder.group(Api, 'auth', (handlers) =>
           Effect.catchTags({
             ClientIpNotFoundError: () =>
               Effect.fail(
-                new UserRepositoryErrorSchema({
+                new InternalServerErrorSchema({
                   message: 'Server configuration error',
                 }),
               ),

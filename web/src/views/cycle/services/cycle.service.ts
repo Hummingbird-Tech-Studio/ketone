@@ -1,7 +1,9 @@
 import {
+  extractErrorMessage,
   handleServerErrorResponse,
   handleUnauthorizedResponse,
   ServerError,
+  UnauthorizedError,
   ValidationError,
 } from '@/services/http/errors';
 import {
@@ -12,13 +14,36 @@ import {
   HttpClientRequest,
   HttpClientResponse,
   HttpClientWith401Interceptor,
-  UnauthorizedError,
 } from '@/services/http/http-client.service';
 import { HttpStatus } from '@/shared/constants/http-status';
 import type { HttpBodyError } from '@effect/platform/HttpBody';
 import type { HttpClientError } from '@effect/platform/HttpClientError';
-import { CycleResponseSchema, CycleDetailResponseSchema } from '@ketone/shared';
+import { CycleDetailResponseSchema, CycleResponseSchema } from '@ketone/shared';
 import { Effect, Layer, Match, Schema as S } from 'effect';
+
+/**
+ * Error Response Schemas for safe JSON parsing
+ */
+const ErrorResponseSchema = S.Struct({
+  message: S.optional(S.String),
+});
+
+const CycleNotFoundResponseSchema = S.Struct({
+  message: S.optional(S.String),
+});
+
+const ApiErrorResponseSchema = S.Struct({
+  _tag: S.optional(S.String),
+  message: S.optional(S.String),
+  userId: S.optional(S.String),
+  newStartDate: S.optional(S.String),
+  lastCompletedEndDate: S.optional(S.String),
+  requestedCycleId: S.optional(S.String),
+  activeCycleId: S.optional(S.String),
+  currentState: S.optional(S.String),
+  expectedState: S.optional(S.String),
+  currentCount: S.optional(S.Number),
+});
 
 /**
  * Cycle Service Error Types
@@ -67,33 +92,24 @@ export class FeelingsLimitExceededError extends S.TaggedError<FeelingsLimitExcee
   },
 ) {}
 
-type ApiErrorResponse = {
-  _tag: string;
-  message?: string;
-  userId?: string;
-  newStartDate?: string;
-  lastCompletedEndDate?: string;
-  requestedCycleId?: string;
-  activeCycleId?: string;
-  currentState?: string;
-  expectedState?: string;
-  currentCount?: number;
-};
-
 /**
  * Cycle-specific Error Response Handlers
  */
 const handleNotFoundWithCycleIdResponse = (response: HttpClientResponse.HttpClientResponse, cycleId: string) =>
   response.json.pipe(
-    Effect.flatMap((body) => {
-      const errorData = body as { message?: string };
-      return Effect.fail(
-        new CycleNotFoundError({
-          message: errorData.message || 'Cycle not found',
-          cycleId,
-        }),
-      );
-    }),
+    Effect.flatMap((body) =>
+      S.decodeUnknown(CycleNotFoundResponseSchema)(body).pipe(
+        Effect.orElseSucceed(() => ({ message: undefined })),
+        Effect.flatMap((errorData) =>
+          Effect.fail(
+            new CycleNotFoundError({
+              message: errorData.message ?? 'Cycle not found',
+              cycleId,
+            }),
+          ),
+        ),
+      ),
+    ),
   );
 
 /**
@@ -221,14 +237,18 @@ const handleGetActiveCycleResponse = (
     ),
     Match.when(HttpStatus.NotFound, () =>
       response.json.pipe(
-        Effect.flatMap((body) => {
-          const errorData = body as { message?: string };
-          return Effect.fail(
-            new NoCycleInProgressError({
-              message: errorData.message || 'No active cycle in progress',
-            }),
-          );
-        }),
+        Effect.flatMap((body) =>
+          S.decodeUnknown(ErrorResponseSchema)(body).pipe(
+            Effect.orElseSucceed(() => ({ message: undefined })),
+            Effect.flatMap((errorData) =>
+              Effect.fail(
+                new NoCycleInProgressError({
+                  message: errorData.message ?? 'No active cycle in progress',
+                }),
+              ),
+            ),
+          ),
+        ),
       ),
     ),
     Match.when(HttpStatus.Unauthorized, () => handleUnauthorizedResponse(response)),
@@ -255,46 +275,51 @@ const handleCreateCycleResponse = (
     ),
     Match.when(HttpStatus.Conflict, () =>
       response.json.pipe(
-        Effect.flatMap((body): Effect.Effect<never, CycleAlreadyInProgressError | CycleOverlapError | ServerError> => {
-          const errorData = body as ApiErrorResponse;
+        Effect.flatMap((body) =>
+          S.decodeUnknown(ApiErrorResponseSchema)(body).pipe(
+            Effect.orElseSucceed(() => ({ _tag: undefined, message: undefined })),
+            Effect.flatMap(
+              (errorData): Effect.Effect<never, CycleAlreadyInProgressError | CycleOverlapError | ServerError> => {
+                if (!errorData._tag) {
+                  return Effect.fail(
+                    new ServerError({
+                      message: errorData.message ?? 'Unexpected conflict response',
+                    }),
+                  );
+                }
 
-          if (!errorData._tag) {
-            return Effect.fail(
-              new ServerError({
-                message: errorData.message ?? 'Unexpected conflict response',
-              }),
-            );
-          }
-
-          return Match.value(errorData._tag).pipe(
-            Match.when('CycleAlreadyInProgressError', () =>
-              Effect.fail(
-                new CycleAlreadyInProgressError({
-                  message: errorData.message ?? 'User already has a cycle in progress',
-                  userId: errorData.userId,
-                }),
-              ),
+                return Match.value(errorData._tag).pipe(
+                  Match.when('CycleAlreadyInProgressError', () =>
+                    Effect.fail(
+                      new CycleAlreadyInProgressError({
+                        message: errorData.message ?? 'User already has a cycle in progress',
+                        userId: errorData.userId,
+                      }),
+                    ),
+                  ),
+                  Match.when('CycleOverlapError', () =>
+                    Effect.fail(
+                      new CycleOverlapError({
+                        message: errorData.message ?? 'Cycle dates overlap with last completed cycle',
+                        newStartDate: errorData.newStartDate ? new Date(errorData.newStartDate) : undefined,
+                        lastCompletedEndDate: errorData.lastCompletedEndDate
+                          ? new Date(errorData.lastCompletedEndDate)
+                          : undefined,
+                      }),
+                    ),
+                  ),
+                  Match.orElse(() =>
+                    Effect.fail(
+                      new ServerError({
+                        message: errorData.message ?? `Unhandled error type: ${errorData._tag}`,
+                      }),
+                    ),
+                  ),
+                );
+              },
             ),
-            Match.when('CycleOverlapError', () =>
-              Effect.fail(
-                new CycleOverlapError({
-                  message: errorData.message ?? 'Cycle dates overlap with last completed cycle',
-                  newStartDate: errorData.newStartDate ? new Date(errorData.newStartDate) : undefined,
-                  lastCompletedEndDate: errorData.lastCompletedEndDate
-                    ? new Date(errorData.lastCompletedEndDate)
-                    : undefined,
-                }),
-              ),
-            ),
-            Match.orElse(() =>
-              Effect.fail(
-                new ServerError({
-                  message: errorData.message ?? `Unhandled error type: ${errorData._tag}`,
-                }),
-              ),
-            ),
-          );
-        }),
+          ),
+        ),
       ),
     ),
     Match.when(HttpStatus.Unauthorized, () => handleUnauthorizedResponse(response)),
@@ -323,59 +348,65 @@ const handleCycleResponse = (
     Match.when(HttpStatus.NotFound, () => handleNotFoundWithCycleIdResponse(response, cycleId)),
     Match.when(HttpStatus.Conflict, () =>
       response.json.pipe(
-        Effect.flatMap(
-          (
-            body,
-          ): Effect.Effect<never, CycleIdMismatchError | CycleInvalidStateError | CycleOverlapError | ServerError> => {
-            const errorData = body as ApiErrorResponse;
+        Effect.flatMap((body) =>
+          S.decodeUnknown(ApiErrorResponseSchema)(body).pipe(
+            Effect.orElseSucceed(() => ({ _tag: undefined, message: undefined })),
+            Effect.flatMap(
+              (
+                errorData,
+              ): Effect.Effect<
+                never,
+                CycleIdMismatchError | CycleInvalidStateError | CycleOverlapError | ServerError
+              > => {
+                if (!errorData._tag) {
+                  return Effect.fail(
+                    new ServerError({
+                      message: errorData.message ?? 'Unexpected conflict response',
+                    }),
+                  );
+                }
 
-            if (!errorData._tag) {
-              return Effect.fail(
-                new ServerError({
-                  message: errorData.message ?? 'Unexpected conflict response',
-                }),
-              );
-            }
-
-            return Match.value(errorData._tag).pipe(
-              Match.when('CycleIdMismatchError', () =>
-                Effect.fail(
-                  new CycleIdMismatchError({
-                    message: errorData.message ?? 'Cycle ID mismatch',
-                    requestedCycleId: errorData.requestedCycleId ?? '',
-                    activeCycleId: errorData.activeCycleId ?? '',
-                  }),
-                ),
-              ),
-              Match.when('CycleInvalidStateError', () =>
-                Effect.fail(
-                  new CycleInvalidStateError({
-                    message: errorData.message ?? 'Cycle is in an invalid state for this operation',
-                    currentState: errorData.currentState ?? '',
-                    expectedState: errorData.expectedState ?? '',
-                  }),
-                ),
-              ),
-              Match.when('CycleOverlapError', () =>
-                Effect.fail(
-                  new CycleOverlapError({
-                    message: errorData.message ?? 'Cycle dates overlap with another cycle',
-                    newStartDate: errorData.newStartDate ? new Date(errorData.newStartDate) : undefined,
-                    lastCompletedEndDate: errorData.lastCompletedEndDate
-                      ? new Date(errorData.lastCompletedEndDate)
-                      : undefined,
-                  }),
-                ),
-              ),
-              Match.orElse(() =>
-                Effect.fail(
-                  new ServerError({
-                    message: errorData.message ?? `Unhandled error type: ${errorData._tag}`,
-                  }),
-                ),
-              ),
-            );
-          },
+                return Match.value(errorData._tag).pipe(
+                  Match.when('CycleIdMismatchError', () =>
+                    Effect.fail(
+                      new CycleIdMismatchError({
+                        message: errorData.message ?? 'Cycle ID mismatch',
+                        requestedCycleId: errorData.requestedCycleId ?? '',
+                        activeCycleId: errorData.activeCycleId ?? '',
+                      }),
+                    ),
+                  ),
+                  Match.when('CycleInvalidStateError', () =>
+                    Effect.fail(
+                      new CycleInvalidStateError({
+                        message: errorData.message ?? 'Cycle is in an invalid state for this operation',
+                        currentState: errorData.currentState ?? '',
+                        expectedState: errorData.expectedState ?? '',
+                      }),
+                    ),
+                  ),
+                  Match.when('CycleOverlapError', () =>
+                    Effect.fail(
+                      new CycleOverlapError({
+                        message: errorData.message ?? 'Cycle dates overlap with another cycle',
+                        newStartDate: errorData.newStartDate ? new Date(errorData.newStartDate) : undefined,
+                        lastCompletedEndDate: errorData.lastCompletedEndDate
+                          ? new Date(errorData.lastCompletedEndDate)
+                          : undefined,
+                      }),
+                    ),
+                  ),
+                  Match.orElse(() =>
+                    Effect.fail(
+                      new ServerError({
+                        message: errorData.message ?? `Unhandled error type: ${errorData._tag}`,
+                      }),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
         ),
       ),
     ),
@@ -411,16 +442,25 @@ const handleDeleteCycleResponse = (
     Match.when(HttpStatus.NotFound, () => handleNotFoundWithCycleIdResponse(response, cycleId)),
     Match.when(HttpStatus.Conflict, () =>
       response.json.pipe(
-        Effect.flatMap((body) => {
-          const errorData = body as ApiErrorResponse;
-          return Effect.fail(
-            new CycleInvalidStateError({
-              message: errorData.message ?? 'Cannot delete a cycle that is not completed',
-              currentState: errorData.currentState ?? '',
-              expectedState: errorData.expectedState ?? 'Completed',
-            }),
-          );
-        }),
+        Effect.flatMap((body) =>
+          S.decodeUnknown(ApiErrorResponseSchema)(body).pipe(
+            Effect.orElseSucceed(() => ({
+              _tag: undefined,
+              message: undefined,
+              currentState: undefined,
+              expectedState: undefined,
+            })),
+            Effect.flatMap((errorData) =>
+              Effect.fail(
+                new CycleInvalidStateError({
+                  message: errorData.message ?? 'Cannot delete a cycle that is not completed',
+                  currentState: errorData.currentState ?? '',
+                  expectedState: errorData.expectedState ?? 'Completed',
+                }),
+              ),
+            ),
+          ),
+        ),
       ),
     ),
     Match.when(HttpStatus.Unauthorized, () => handleUnauthorizedResponse(response)),
@@ -473,16 +513,20 @@ const handleUpdateCycleFeelingsResponse = (
     Match.when(HttpStatus.NotFound, () => handleNotFoundWithCycleIdResponse(response, cycleId)),
     Match.when(HttpStatus.UnprocessableEntity, () =>
       response.json.pipe(
-        Effect.flatMap((body) => {
-          const errorData = body as ApiErrorResponse;
-          return Effect.fail(
-            new FeelingsLimitExceededError({
-              message: errorData.message || 'Too many feelings for this cycle',
-              cycleId,
-              currentCount: errorData.currentCount || 0,
-            }),
-          );
-        }),
+        Effect.flatMap((body) =>
+          S.decodeUnknown(ApiErrorResponseSchema)(body).pipe(
+            Effect.orElseSucceed(() => ({ message: undefined, currentCount: undefined })),
+            Effect.flatMap((errorData) =>
+              Effect.fail(
+                new FeelingsLimitExceededError({
+                  message: errorData.message ?? 'Too many feelings for this cycle',
+                  cycleId,
+                  currentCount: errorData.currentCount ?? 0,
+                }),
+              ),
+            ),
+          ),
+        ),
       ),
     ),
     Match.when(HttpStatus.Unauthorized, () => handleUnauthorizedResponse(response)),
@@ -642,80 +686,93 @@ export const CycleServiceLive = CycleService.Default.pipe(
 /**
  * Program to get a cycle by ID
  */
-export const getCycleProgram = (cycleId: string) =>
-  Effect.gen(function* () {
-    const cycleService = yield* CycleService;
-    return yield* cycleService.getCycle(cycleId);
-  }).pipe(Effect.provide(CycleServiceLive));
+export const programGetCycle = (cycleId: string) =>
+  CycleService.getCycle(cycleId).pipe(
+    Effect.tapError((error) => Effect.logError('Failed to get cycle', { cause: extractErrorMessage(error) })),
+    Effect.annotateLogs({ service: 'CycleService' }),
+    Effect.provide(CycleServiceLive),
+  );
 
 /**
  * Program to get the active cycle in progress
  */
-export const getActiveCycleProgram = () =>
-  Effect.gen(function* () {
-    const cycleService = yield* CycleService;
-    return yield* cycleService.getActiveCycle();
-  }).pipe(Effect.provide(CycleServiceLive));
+export const programGetActiveCycle = () =>
+  CycleService.getActiveCycle().pipe(
+    Effect.tapError((error) => Effect.logError('Failed to get active cycle', { cause: extractErrorMessage(error) })),
+    Effect.annotateLogs({ service: 'CycleService' }),
+    Effect.provide(CycleServiceLive),
+  );
 
 /**
  * Program to create a new cycle
  */
-export const createCycleProgram = (startDate: Date, endDate: Date) =>
-  Effect.gen(function* () {
-    const cycleService = yield* CycleService;
-    return yield* cycleService.createCycle(startDate, endDate);
-  }).pipe(Effect.provide(CycleServiceLive));
+export const programCreateCycle = (startDate: Date, endDate: Date) =>
+  CycleService.createCycle(startDate, endDate).pipe(
+    Effect.tapError((error) => Effect.logError('Failed to create cycle', { cause: extractErrorMessage(error) })),
+    Effect.annotateLogs({ service: 'CycleService' }),
+    Effect.provide(CycleServiceLive),
+  );
 
 /**
  * Program to update an existing cycle's dates
  */
-export const updateCycleProgram = (cycleId: string, startDate: Date, endDate: Date) =>
-  Effect.gen(function* () {
-    const cycleService = yield* CycleService;
-    return yield* cycleService.updateCycle(cycleId, startDate, endDate);
-  }).pipe(Effect.provide(CycleServiceLive));
+export const programUpdateCycle = (cycleId: string, startDate: Date, endDate: Date) =>
+  CycleService.updateCycle(cycleId, startDate, endDate).pipe(
+    Effect.tapError((error) => Effect.logError('Failed to update cycle', { cause: extractErrorMessage(error) })),
+    Effect.annotateLogs({ service: 'CycleService' }),
+    Effect.provide(CycleServiceLive),
+  );
 
 /**
  * Program to update an existing completed cycle's dates
  */
-export const updateCompletedCycleProgram = (cycleId: string, startDate: Date, endDate: Date) =>
-  Effect.gen(function* () {
-    const cycleService = yield* CycleService;
-    return yield* cycleService.updateCompletedCycle(cycleId, startDate, endDate);
-  }).pipe(Effect.provide(CycleServiceLive));
+export const programUpdateCompletedCycle = (cycleId: string, startDate: Date, endDate: Date) =>
+  CycleService.updateCompletedCycle(cycleId, startDate, endDate).pipe(
+    Effect.tapError((error) =>
+      Effect.logError('Failed to update completed cycle', { cause: extractErrorMessage(error) }),
+    ),
+    Effect.annotateLogs({ service: 'CycleService' }),
+    Effect.provide(CycleServiceLive),
+  );
 
 /**
  * Program to complete an existing cycle
  */
-export const completeCycleProgram = (cycleId: string, startDate: Date, endDate: Date) =>
-  Effect.gen(function* () {
-    const cycleService = yield* CycleService;
-    return yield* cycleService.completeCycle(cycleId, startDate, endDate);
-  }).pipe(Effect.provide(CycleServiceLive));
+export const programCompleteCycle = (cycleId: string, startDate: Date, endDate: Date) =>
+  CycleService.completeCycle(cycleId, startDate, endDate).pipe(
+    Effect.tapError((error) => Effect.logError('Failed to complete cycle', { cause: extractErrorMessage(error) })),
+    Effect.annotateLogs({ service: 'CycleService' }),
+    Effect.provide(CycleServiceLive),
+  );
 
 /**
  * Program to delete a completed cycle
  */
-export const deleteCycleProgram = (cycleId: string) =>
-  Effect.gen(function* () {
-    const cycleService = yield* CycleService;
-    return yield* cycleService.deleteCycle(cycleId);
-  }).pipe(Effect.provide(CycleServiceLive));
+export const programDeleteCycle = (cycleId: string) =>
+  CycleService.deleteCycle(cycleId).pipe(
+    Effect.tapError((error) => Effect.logError('Failed to delete cycle', { cause: extractErrorMessage(error) })),
+    Effect.annotateLogs({ service: 'CycleService' }),
+    Effect.provide(CycleServiceLive),
+  );
 
 /**
  * Program to update the notes of a cycle
  */
-export const updateCycleNotesProgram = (cycleId: string, notes: string) =>
-  Effect.gen(function* () {
-    const cycleService = yield* CycleService;
-    return yield* cycleService.updateCycleNotes(cycleId, notes);
-  }).pipe(Effect.provide(CycleServiceLive));
+export const programUpdateCycleNotes = (cycleId: string, notes: string) =>
+  CycleService.updateCycleNotes(cycleId, notes).pipe(
+    Effect.tapError((error) => Effect.logError('Failed to update cycle notes', { cause: extractErrorMessage(error) })),
+    Effect.annotateLogs({ service: 'CycleService' }),
+    Effect.provide(CycleServiceLive),
+  );
 
 /**
  * Program to update the feelings of a cycle
  */
-export const updateCycleFeelingsProgram = (cycleId: string, feelings: string[]) =>
-  Effect.gen(function* () {
-    const cycleService = yield* CycleService;
-    return yield* cycleService.updateCycleFeelings(cycleId, feelings);
-  }).pipe(Effect.provide(CycleServiceLive));
+export const programUpdateCycleFeelings = (cycleId: string, feelings: string[]) =>
+  CycleService.updateCycleFeelings(cycleId, feelings).pipe(
+    Effect.tapError((error) =>
+      Effect.logError('Failed to update cycle feelings', { cause: extractErrorMessage(error) }),
+    ),
+    Effect.annotateLogs({ service: 'CycleService' }),
+    Effect.provide(CycleServiceLive),
+  );

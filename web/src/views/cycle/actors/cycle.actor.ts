@@ -1,3 +1,4 @@
+import { extractErrorMessage } from '@/services/http/errors';
 import { runWithUi } from '@/utils/effects/helpers';
 import { formatFullDateTime, formatFullDateTimeWithAt } from '@/utils/formatting';
 import { addHours, startOfMinute } from 'date-fns';
@@ -5,12 +6,12 @@ import { Match } from 'effect';
 import { assertEvent, assign, emit, fromCallback, setup, type ActorRefFrom, type EventObject } from 'xstate';
 import { start } from '../domain/domain';
 import {
-  completeCycleProgram,
-  createCycleProgram,
-  getActiveCycleProgram,
-  updateCycleProgram,
-  updateCycleNotesProgram,
-  updateCycleFeelingsProgram,
+  programCompleteCycle,
+  programCreateCycle,
+  programGetActiveCycle,
+  programUpdateCycle,
+  programUpdateCycleFeelings,
+  programUpdateCycleNotes,
   type CompleteCycleError,
   type CreateCycleError,
   type GetCycleSuccess,
@@ -221,16 +222,13 @@ function handleCycleError(error: CreateCycleError | UpdateCycleError | CompleteC
         lastCompletedEndDate: err.lastCompletedEndDate!,
       };
     }),
-    Match.orElse((err) => {
-      const errorMessage = 'message' in err && typeof err.message === 'string' ? err.message : String(err);
-      return { type: Event.ON_ERROR as const, error: errorMessage };
-    }),
+    Match.orElse((err) => ({ type: Event.ON_ERROR as const, error: extractErrorMessage(err) })),
   );
 }
 
-const cycleLogic = fromCallback<EventObject, void>(({ sendBack }) => {
+const cycleLogic = fromCallback<EventObject, void>(({ sendBack }) =>
   runWithUi(
-    getActiveCycleProgram(),
+    programGetActiveCycle(),
     (result) => {
       sendBack({ type: Event.ON_SUCCESS, result });
     },
@@ -240,25 +238,24 @@ const cycleLogic = fromCallback<EventObject, void>(({ sendBack }) => {
           sendBack({ type: Event.NO_CYCLE_IN_PROGRESS, message: err.message });
         }),
         Match.orElse((err) => {
-          const errorMessage = 'message' in err && typeof err.message === 'string' ? err.message : String(err);
-          sendBack({ type: Event.ON_ERROR, error: errorMessage });
+          sendBack({ type: Event.ON_ERROR, error: extractErrorMessage(err) });
         }),
       );
     },
-  );
-});
+  ),
+);
 
-const createCycleLogic = fromCallback<EventObject, { startDate: Date; endDate: Date }>(({ sendBack, input }) => {
+const createCycleLogic = fromCallback<EventObject, { startDate: Date; endDate: Date }>(({ sendBack, input }) =>
   runWithUi(
-    createCycleProgram(input.startDate, input.endDate),
+    programCreateCycle(input.startDate, input.endDate),
     (result) => {
       sendBack({ type: Event.ON_SUCCESS, result });
     },
     (error) => {
       sendBack(handleCycleError(error, input.startDate));
     },
-  );
-});
+  ),
+);
 
 const updateCycleLogic = fromCallback<EventObject, UpdateCycleInput>(({ sendBack, input }) => {
   const { startDate, endDate } = calculateNewDates(
@@ -268,8 +265,8 @@ const updateCycleLogic = fromCallback<EventObject, UpdateCycleInput>(({ sendBack
     input.eventDate,
   );
 
-  runWithUi(
-    updateCycleProgram(input.cycleId, startDate, endDate),
+  return runWithUi(
+    programUpdateCycle(input.cycleId, startDate, endDate),
     (result) => {
       sendBack({ type: Event.ON_SUCCESS, result });
     },
@@ -280,45 +277,40 @@ const updateCycleLogic = fromCallback<EventObject, UpdateCycleInput>(({ sendBack
 });
 
 const completeCycleLogic = fromCallback<EventObject, { cycleId: string; startDate: Date; endDate: Date }>(
-  ({ sendBack, input }) => {
+  ({ sendBack, input }) =>
     runWithUi(
-      completeCycleProgram(input.cycleId, input.startDate, input.endDate),
+      programCompleteCycle(input.cycleId, input.startDate, input.endDate),
       (result) => {
         sendBack({ type: Event.ON_SUCCESS, result });
       },
       (error) => {
         sendBack(handleCycleError(error, input.startDate));
       },
-    );
-  },
+    ),
 );
 
-const updateNotesLogic = fromCallback<EventObject, { cycleId: string; notes: string }>(({ sendBack, input }) => {
+const updateNotesLogic = fromCallback<EventObject, { cycleId: string; notes: string }>(({ sendBack, input }) =>
   runWithUi(
-    updateCycleNotesProgram(input.cycleId, input.notes),
+    programUpdateCycleNotes(input.cycleId, input.notes),
     (result) => {
       sendBack({ type: Event.ON_NOTES_SAVED, result });
     },
     (error) => {
-      const errorMessage = 'message' in error && typeof error.message === 'string' ? error.message : String(error);
-      sendBack({ type: Event.ON_ERROR, error: errorMessage });
+      sendBack({ type: Event.ON_ERROR, error: extractErrorMessage(error) });
     },
-  );
-});
+  ),
+);
 
-const updateFeelingsLogic = fromCallback<EventObject, { cycleId: string; feelings: string[] }>(
-  ({ sendBack, input }) => {
-    runWithUi(
-      updateCycleFeelingsProgram(input.cycleId, input.feelings),
-      (result) => {
-        sendBack({ type: Event.ON_FEELINGS_SAVED, result });
-      },
-      (error) => {
-        const errorMessage = 'message' in error && typeof error.message === 'string' ? error.message : String(error);
-        sendBack({ type: Event.ON_ERROR, error: errorMessage });
-      },
-    );
-  },
+const updateFeelingsLogic = fromCallback<EventObject, { cycleId: string; feelings: string[] }>(({ sendBack, input }) =>
+  runWithUi(
+    programUpdateCycleFeelings(input.cycleId, input.feelings),
+    (result) => {
+      sendBack({ type: Event.ON_FEELINGS_SAVED, result });
+    },
+    (error) => {
+      sendBack({ type: Event.ON_ERROR, error: extractErrorMessage(error) });
+    },
+  ),
 );
 
 /**

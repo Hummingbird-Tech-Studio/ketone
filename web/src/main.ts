@@ -23,6 +23,7 @@ import Toast from 'primevue/toast';
 import ToastService from 'primevue/toastservice';
 import ToggleSwitch from 'primevue/toggleswitch';
 import Tooltip from 'primevue/tooltip';
+import { configure } from 'vee-validate';
 import { createApp, type Plugin } from 'vue';
 import { authenticationActor } from './actors/authenticationActor';
 import { versionCheckerActor } from './actors/versionCheckerActor';
@@ -30,6 +31,11 @@ import App from './App.vue';
 import './assets/main.css';
 import router from './router';
 import { accountActor } from './views/account/actors/account.actor';
+
+configure({
+  validateOnInput: false,
+  validateOnModelUpdate: true,
+});
 
 const CustomPreset = definePreset(Aura, {
   components: {

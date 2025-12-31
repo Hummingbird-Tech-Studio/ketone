@@ -1,11 +1,12 @@
+import { extractErrorMessage } from '@/services/http/errors';
 import { runWithUi } from '@/utils/effects/helpers';
 import { LOCKOUT_DURATION_SECONDS, MAX_PASSWORD_ATTEMPTS } from '@ketone/shared';
 import { Match } from 'effect';
 import { assertEvent, assign, createActor, emit, fromCallback, setup, type EventObject } from 'xstate';
 import {
-  deleteAccountProgram,
-  updateEmailProgram,
-  updatePasswordProgram,
+  programDeleteAccount,
+  programUpdateEmail,
+  programUpdatePassword,
   type DeleteAccountError,
   type UpdateEmailError,
   type UpdateEmailSuccess,
@@ -97,10 +98,7 @@ function handleUpdateEmailError(error: UpdateEmailError) {
       type: Event.ON_EMAIL_UPDATE_ERROR,
       error: err.message,
     })),
-    Match.orElse((err) => {
-      const errorMessage = 'message' in err && typeof err.message === 'string' ? err.message : String(err);
-      return { type: Event.ON_EMAIL_UPDATE_ERROR, error: errorMessage };
-    }),
+    Match.orElse((err) => ({ type: Event.ON_EMAIL_UPDATE_ERROR, error: extractErrorMessage(err) })),
   );
 }
 
@@ -122,10 +120,7 @@ function handleUpdatePasswordError(error: UpdatePasswordError) {
       type: Event.ON_PASSWORD_UPDATE_ERROR,
       error: err.message,
     })),
-    Match.orElse((err) => {
-      const errorMessage = 'message' in err && typeof err.message === 'string' ? err.message : String(err);
-      return { type: Event.ON_PASSWORD_UPDATE_ERROR, error: errorMessage };
-    }),
+    Match.orElse((err) => ({ type: Event.ON_PASSWORD_UPDATE_ERROR, error: extractErrorMessage(err) })),
   );
 }
 
@@ -143,50 +138,46 @@ function handleDeleteAccountError(error: DeleteAccountError) {
       remainingAttempts: err.remainingAttempts,
       error: err.message,
     })),
-    Match.orElse((err) => {
-      const errorMessage = 'message' in err && typeof err.message === 'string' ? err.message : String(err);
-      return { type: Event.ON_DELETE_ACCOUNT_ERROR, error: errorMessage };
-    }),
+    Match.orElse((err) => ({ type: Event.ON_DELETE_ACCOUNT_ERROR, error: extractErrorMessage(err) })),
   );
 }
 
-const updateEmailLogic = fromCallback<EventObject, { email: string; password: string }>(({ sendBack, input }) => {
+const updateEmailLogic = fromCallback<EventObject, { email: string; password: string }>(({ sendBack, input }) =>
   runWithUi(
-    updateEmailProgram(input.email, input.password),
+    programUpdateEmail(input.email, input.password),
     (result) => {
       sendBack({ type: Event.ON_EMAIL_UPDATE_SUCCESS, result });
     },
     (error) => {
       sendBack(handleUpdateEmailError(error));
     },
-  );
-});
+  ),
+);
 
 const updatePasswordLogic = fromCallback<EventObject, { currentPassword: string; newPassword: string }>(
-  ({ sendBack, input }) => {
+  ({ sendBack, input }) =>
     runWithUi(
-      updatePasswordProgram(input.currentPassword, input.newPassword),
+      programUpdatePassword(input.currentPassword, input.newPassword),
       (result) => {
         sendBack({ type: Event.ON_PASSWORD_UPDATE_SUCCESS, result });
       },
       (error) => {
         sendBack(handleUpdatePasswordError(error));
       },
-    );
-  },
+    ),
 );
 
-const deleteAccountLogic = fromCallback<EventObject, { password: string }>(({ sendBack, input }) => {
+const deleteAccountLogic = fromCallback<EventObject, { password: string }>(({ sendBack, input }) =>
   runWithUi(
-    deleteAccountProgram(input.password),
+    programDeleteAccount(input.password),
     () => {
       sendBack({ type: Event.ON_DELETE_ACCOUNT_SUCCESS });
     },
     (error) => {
       sendBack(handleDeleteAccountError(error));
     },
-  );
-});
+  ),
+);
 
 export const accountMachine = setup({
   types: {

@@ -1,15 +1,16 @@
+import { extractErrorMessage } from '@/services/http/errors';
 import { runWithUi } from '@/utils/effects/helpers';
 import { formatFullDateTime } from '@/utils/formatting';
 import type { AdjacentCycle } from '@ketone/shared';
 import { Match } from 'effect';
 import { assertEvent, assign, emit, fromCallback, setup, type EventObject } from 'xstate';
 import {
-  deleteCycleProgram,
-  getCycleProgram,
-  updateCompletedCycleProgram,
-  updateCycleFeelingsProgram,
-  updateCycleNotesProgram,
-  updateCycleProgram,
+  programDeleteCycle,
+  programGetCycle,
+  programUpdateCompletedCycle,
+  programUpdateCycle,
+  programUpdateCycleFeelings,
+  programUpdateCycleNotes,
   type DeleteCycleError,
   type GetCycleSuccess,
   type UpdateCycleError,
@@ -105,19 +106,13 @@ type Input = {
 
 function handleUpdateError(error: UpdateCycleError): { type: Event.ON_ERROR; error: string } {
   return Match.value(error).pipe(
-    Match.orElse((err) => {
-      const errorMessage = 'message' in err && typeof err.message === 'string' ? err.message : String(err);
-      return { type: Event.ON_ERROR as const, error: errorMessage };
-    }),
+    Match.orElse((err) => ({ type: Event.ON_ERROR as const, error: extractErrorMessage(err) })),
   );
 }
 
 function handleDeleteError(error: DeleteCycleError): { type: Event.ON_DELETE_ERROR; error: string } {
   return Match.value(error).pipe(
-    Match.orElse((err) => {
-      const errorMessage = 'message' in err && typeof err.message === 'string' ? err.message : String(err);
-      return { type: Event.ON_DELETE_ERROR as const, error: errorMessage };
-    }),
+    Match.orElse((err) => ({ type: Event.ON_DELETE_ERROR as const, error: extractErrorMessage(err) })),
   );
 }
 
@@ -169,27 +164,26 @@ function getOverlapWithNextMessage(newEndDate: Date, nextStartDate: Date): { sum
   };
 }
 
-const loadCycleLogic = fromCallback<EventObject, { cycleId: string }>(({ sendBack, input }) => {
+const loadCycleLogic = fromCallback<EventObject, { cycleId: string }>(({ sendBack, input }) =>
   runWithUi(
-    getCycleProgram(input.cycleId),
+    programGetCycle(input.cycleId),
     (result) => {
       sendBack({ type: Event.ON_SUCCESS, result });
     },
     (error) => {
-      const errorMessage = 'message' in error && typeof error.message === 'string' ? error.message : String(error);
-      sendBack({ type: Event.ON_ERROR, error: errorMessage });
+      sendBack({ type: Event.ON_ERROR, error: extractErrorMessage(error) });
     },
-  );
-});
+  ),
+);
 
 const updateCycleLogic = fromCallback<EventObject, { cycleId: string; startDate: Date; endDate: Date; status: string }>(
   ({ sendBack, input }) => {
     const program =
       input.status === 'Completed'
-        ? updateCompletedCycleProgram(input.cycleId, input.startDate, input.endDate)
-        : updateCycleProgram(input.cycleId, input.startDate, input.endDate);
+        ? programUpdateCompletedCycle(input.cycleId, input.startDate, input.endDate)
+        : programUpdateCycle(input.cycleId, input.startDate, input.endDate);
 
-    runWithUi(
+    return runWithUi(
       program,
       (result) => {
         sendBack({ type: Event.ON_UPDATE_SUCCESS, result });
@@ -201,43 +195,40 @@ const updateCycleLogic = fromCallback<EventObject, { cycleId: string; startDate:
   },
 );
 
-const deleteCycleLogic = fromCallback<EventObject, { cycleId: string }>(({ sendBack, input }) => {
+const deleteCycleLogic = fromCallback<EventObject, { cycleId: string }>(({ sendBack, input }) =>
   runWithUi(
-    deleteCycleProgram(input.cycleId),
+    programDeleteCycle(input.cycleId),
     () => {
       sendBack({ type: Event.ON_DELETE_SUCCESS });
     },
     (error) => {
       sendBack(handleDeleteError(error));
     },
-  );
-});
+  ),
+);
 
-const updateNotesLogic = fromCallback<EventObject, { cycleId: string; notes: string }>(({ sendBack, input }) => {
+const updateNotesLogic = fromCallback<EventObject, { cycleId: string; notes: string }>(({ sendBack, input }) =>
   runWithUi(
-    updateCycleNotesProgram(input.cycleId, input.notes),
+    programUpdateCycleNotes(input.cycleId, input.notes),
     (result) => {
       sendBack({ type: Event.ON_NOTES_SAVED, result });
     },
     (error) => {
       sendBack(handleUpdateError(error));
     },
-  );
-});
+  ),
+);
 
-const updateFeelingsLogic = fromCallback<EventObject, { cycleId: string; feelings: string[] }>(
-  ({ sendBack, input }) => {
-    runWithUi(
-      updateCycleFeelingsProgram(input.cycleId, input.feelings),
-      (result) => {
-        sendBack({ type: Event.ON_FEELINGS_SAVED, result });
-      },
-      (error) => {
-        const errorMessage = 'message' in error && typeof error.message === 'string' ? error.message : String(error);
-        sendBack({ type: Event.ON_ERROR, error: errorMessage });
-      },
-    );
-  },
+const updateFeelingsLogic = fromCallback<EventObject, { cycleId: string; feelings: string[] }>(({ sendBack, input }) =>
+  runWithUi(
+    programUpdateCycleFeelings(input.cycleId, input.feelings),
+    (result) => {
+      sendBack({ type: Event.ON_FEELINGS_SAVED, result });
+    },
+    (error) => {
+      sendBack({ type: Event.ON_ERROR, error: extractErrorMessage(error) });
+    },
+  ),
 );
 
 export const cycleDetailMachine = setup({

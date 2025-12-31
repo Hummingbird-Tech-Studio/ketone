@@ -3,7 +3,7 @@ import { STATISTICS_PERIOD, type PeriodType } from '@ketone/shared';
 import { Match } from 'effect';
 import { assertEvent, assign, emit, fromCallback, setup, type EventObject } from 'xstate';
 import {
-  getStatisticsProgram,
+  programGetStatistics,
   type GetStatisticsError,
   type GetStatisticsSuccess,
 } from '../services/statistics.service';
@@ -80,7 +80,7 @@ function handleStatisticsError(error: GetStatisticsError): { type: Event.ON_ERRO
  */
 const loadStatisticsLogic = fromCallback<EventObject, { period: PeriodType; date: Date }>(({ sendBack, input }) => {
   runWithUi(
-    getStatisticsProgram(input.period, input.date),
+    programGetStatistics(input.period, input.date),
     (result) => {
       sendBack({ type: Event.ON_SUCCESS, result });
     },

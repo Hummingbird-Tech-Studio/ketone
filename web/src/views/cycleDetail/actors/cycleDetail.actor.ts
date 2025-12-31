@@ -4,12 +4,12 @@ import type { AdjacentCycle } from '@ketone/shared';
 import { Match } from 'effect';
 import { assertEvent, assign, emit, fromCallback, setup, type EventObject } from 'xstate';
 import {
-  deleteCycleProgram,
-  getCycleProgram,
-  updateCompletedCycleProgram,
-  updateCycleFeelingsProgram,
-  updateCycleNotesProgram,
-  updateCycleProgram,
+  programDeleteCycle,
+  programGetCycle,
+  programUpdateCompletedCycle,
+  programUpdateCycleFeelings,
+  programUpdateCycleNotes,
+  programUpdateCycle,
   type DeleteCycleError,
   type GetCycleSuccess,
   type UpdateCycleError,
@@ -171,7 +171,7 @@ function getOverlapWithNextMessage(newEndDate: Date, nextStartDate: Date): { sum
 
 const loadCycleLogic = fromCallback<EventObject, { cycleId: string }>(({ sendBack, input }) => {
   runWithUi(
-    getCycleProgram(input.cycleId),
+    programGetCycle(input.cycleId),
     (result) => {
       sendBack({ type: Event.ON_SUCCESS, result });
     },
@@ -186,8 +186,8 @@ const updateCycleLogic = fromCallback<EventObject, { cycleId: string; startDate:
   ({ sendBack, input }) => {
     const program =
       input.status === 'Completed'
-        ? updateCompletedCycleProgram(input.cycleId, input.startDate, input.endDate)
-        : updateCycleProgram(input.cycleId, input.startDate, input.endDate);
+        ? programUpdateCompletedCycle(input.cycleId, input.startDate, input.endDate)
+        : programUpdateCycle(input.cycleId, input.startDate, input.endDate);
 
     runWithUi(
       program,
@@ -203,7 +203,7 @@ const updateCycleLogic = fromCallback<EventObject, { cycleId: string; startDate:
 
 const deleteCycleLogic = fromCallback<EventObject, { cycleId: string }>(({ sendBack, input }) => {
   runWithUi(
-    deleteCycleProgram(input.cycleId),
+    programDeleteCycle(input.cycleId),
     () => {
       sendBack({ type: Event.ON_DELETE_SUCCESS });
     },
@@ -215,7 +215,7 @@ const deleteCycleLogic = fromCallback<EventObject, { cycleId: string }>(({ sendB
 
 const updateNotesLogic = fromCallback<EventObject, { cycleId: string; notes: string }>(({ sendBack, input }) => {
   runWithUi(
-    updateCycleNotesProgram(input.cycleId, input.notes),
+    programUpdateCycleNotes(input.cycleId, input.notes),
     (result) => {
       sendBack({ type: Event.ON_NOTES_SAVED, result });
     },
@@ -228,7 +228,7 @@ const updateNotesLogic = fromCallback<EventObject, { cycleId: string; notes: str
 const updateFeelingsLogic = fromCallback<EventObject, { cycleId: string; feelings: string[] }>(
   ({ sendBack, input }) => {
     runWithUi(
-      updateCycleFeelingsProgram(input.cycleId, input.feelings),
+      programUpdateCycleFeelings(input.cycleId, input.feelings),
       (result) => {
         sendBack({ type: Event.ON_FEELINGS_SAVED, result });
       },

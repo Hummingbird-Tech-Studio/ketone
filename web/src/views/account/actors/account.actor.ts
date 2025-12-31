@@ -3,9 +3,9 @@ import { LOCKOUT_DURATION_SECONDS, MAX_PASSWORD_ATTEMPTS } from '@ketone/shared'
 import { Match } from 'effect';
 import { assertEvent, assign, createActor, emit, fromCallback, setup, type EventObject } from 'xstate';
 import {
-  deleteAccountProgram,
-  updateEmailProgram,
-  updatePasswordProgram,
+  programDeleteAccount,
+  programUpdateEmail,
+  programUpdatePassword,
   type DeleteAccountError,
   type UpdateEmailError,
   type UpdateEmailSuccess,
@@ -152,7 +152,7 @@ function handleDeleteAccountError(error: DeleteAccountError) {
 
 const updateEmailLogic = fromCallback<EventObject, { email: string; password: string }>(({ sendBack, input }) => {
   runWithUi(
-    updateEmailProgram(input.email, input.password),
+    programUpdateEmail(input.email, input.password),
     (result) => {
       sendBack({ type: Event.ON_EMAIL_UPDATE_SUCCESS, result });
     },
@@ -165,7 +165,7 @@ const updateEmailLogic = fromCallback<EventObject, { email: string; password: st
 const updatePasswordLogic = fromCallback<EventObject, { currentPassword: string; newPassword: string }>(
   ({ sendBack, input }) => {
     runWithUi(
-      updatePasswordProgram(input.currentPassword, input.newPassword),
+      programUpdatePassword(input.currentPassword, input.newPassword),
       (result) => {
         sendBack({ type: Event.ON_PASSWORD_UPDATE_SUCCESS, result });
       },
@@ -178,7 +178,7 @@ const updatePasswordLogic = fromCallback<EventObject, { currentPassword: string;
 
 const deleteAccountLogic = fromCallback<EventObject, { password: string }>(({ sendBack, input }) => {
   runWithUi(
-    deleteAccountProgram(input.password),
+    programDeleteAccount(input.password),
     () => {
       sendBack({ type: Event.ON_DELETE_ACCOUNT_SUCCESS });
     },

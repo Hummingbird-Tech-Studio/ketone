@@ -1,7 +1,9 @@
 import {
+  extractErrorMessage,
   handleServerErrorResponse,
   handleUnauthorizedResponse,
   ServerError,
+  UnauthorizedError,
   ValidationError,
 } from '@/services/http/errors';
 import {
@@ -12,7 +14,6 @@ import {
   HttpClientRequest,
   HttpClientResponse,
   HttpClientWith401Interceptor,
-  UnauthorizedError,
 } from '@/services/http/http-client.service';
 import { HttpStatus } from '@/shared/constants/http-status';
 import type { HttpBodyError } from '@effect/platform/HttpBody';
@@ -90,8 +91,9 @@ export const StatisticsServiceLive = StatisticsService.Default.pipe(
 /**
  * Program to get cycle statistics
  */
-export const getStatisticsProgram = (period: PeriodType, date: Date) =>
-  Effect.gen(function* () {
-    const statisticsService = yield* StatisticsService;
-    return yield* statisticsService.getStatistics(period, date);
-  }).pipe(Effect.provide(StatisticsServiceLive));
+export const programGetStatistics = (period: PeriodType, date: Date) =>
+  StatisticsService.getStatistics(period, date).pipe(
+    Effect.tapError((error) => Effect.logError('Failed to get statistics', { cause: extractErrorMessage(error) })),
+    Effect.annotateLogs({ service: 'StatisticsService' }),
+    Effect.provide(StatisticsServiceLive),
+  );

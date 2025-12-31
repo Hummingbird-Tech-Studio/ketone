@@ -25,8 +25,21 @@ export { create401Interceptor, HttpClientWith401Interceptor } from './http-inter
 /**
  * Export Authenticated HTTP Client
  */
+export { AuthenticatedHttpClient, AuthenticatedHttpClientLive } from './authenticated-http-client.service';
+
+/**
+ * Export error types and utilities
+ */
 export {
-  AuthenticatedHttpClient,
-  AuthenticatedHttpClientLive,
+  extractErrorMessage,
+  handleInvalidPasswordResponse,
+  handleServerErrorResponse,
+  handleTooManyRequestsResponse,
+  handleUnauthorizedResponse,
+  handleValidationErrorResponse,
+  InvalidPasswordError,
+  ServerError,
+  TooManyRequestsError,
   UnauthorizedError,
-} from './authenticated-http-client.service';
+  ValidationError,
+} from './errors';

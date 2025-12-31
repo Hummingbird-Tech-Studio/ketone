@@ -9,6 +9,7 @@ import {
   SamePasswordErrorSchema,
   EmailAlreadyInUseErrorSchema,
   UserAccountServiceErrorSchema,
+  InternalServerErrorSchema,
   UpdatePasswordResponseSchema,
 } from './schemas';
 import { CurrentUser } from '../../auth/api/middleware';
@@ -36,7 +37,7 @@ export const UserAccountApiLive = HttpApiBuilder.group(Api, 'user-account', (han
           Effect.catchTags({
             ClientIpNotFoundError: () =>
               Effect.fail(
-                new UserAccountServiceErrorSchema({
+                new InternalServerErrorSchema({
                   message: 'Server configuration error',
                 }),
               ),
@@ -115,7 +116,7 @@ export const UserAccountApiLive = HttpApiBuilder.group(Api, 'user-account', (han
           Effect.catchTags({
             ClientIpNotFoundError: () =>
               Effect.fail(
-                new UserAccountServiceErrorSchema({
+                new InternalServerErrorSchema({
                   message: 'Server configuration error',
                 }),
               ),
@@ -181,7 +182,7 @@ export const UserAccountApiLive = HttpApiBuilder.group(Api, 'user-account', (han
           Effect.catchTags({
             ClientIpNotFoundError: () =>
               Effect.fail(
-                new UserAccountServiceErrorSchema({
+                new InternalServerErrorSchema({
                   message: 'Server configuration error',
                 }),
               ),

@@ -5,6 +5,8 @@ import { Schema as S } from 'effect';
  * These are S.TaggedError schemas that can be used in HTTP API responses
  */
 
+export { InternalServerErrorSchema } from '../../../../common';
+
 export class InvalidPasswordErrorSchema extends S.TaggedError<InvalidPasswordErrorSchema>()('InvalidPasswordError', {
   message: S.String,
   remainingAttempts: S.Number,

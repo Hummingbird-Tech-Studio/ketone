@@ -105,15 +105,11 @@ import { authenticationActor, Event as AuthEvent } from '@/actors/authentication
 import { PASSWORD_RULES, validatePasswordRule } from '@/utils';
 import { Emit, type EmitType } from '@/views/signUp/actors/signUp.actor';
 import { useSignUp } from '@/views/signUp/composables/useSignUp';
+import { createVeeValidateSchema } from '@/utils/validation';
 import { EmailSchema, PasswordSchema } from '@ketone/shared';
 import { Match, Schema } from 'effect';
-import { configure, Field, useForm } from 'vee-validate';
+import { Field, useForm } from 'vee-validate';
 import { onUnmounted, ref, watch } from 'vue';
-
-configure({
-  validateOnInput: false,
-  validateOnModelUpdate: true,
-});
 
 const { submit, submitting, actorRef } = useSignUp();
 const serviceError = ref<string | null>(null);
@@ -126,11 +122,7 @@ const schemaStruct = Schema.Struct({
 
 type FormValues = Schema.Schema.Type<typeof schemaStruct>;
 
-const StandardSchemaClass = Schema.standardSchemaV1(schemaStruct);
-const schema = {
-  ...StandardSchemaClass,
-  '~standard': StandardSchemaClass['~standard' as keyof typeof StandardSchemaClass],
-};
+const schema = createVeeValidateSchema(schemaStruct);
 
 const { handleSubmit } = useForm<FormValues>({
   validationSchema: schema,

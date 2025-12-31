@@ -1,3 +1,4 @@
+import { extractErrorMessage } from '@/services/http/errors';
 import { runWithUi } from '@/utils/effects/helpers';
 import { Match } from 'effect';
 import { assertEvent, emit, fromCallback, setup, type EventObject } from 'xstate';
@@ -44,10 +45,7 @@ function handleResetPasswordError(error: ResetPasswordError) {
       type: Event.ON_TOKEN_INVALID,
       error: err.message,
     })),
-    Match.orElse((err) => {
-      const errorMessage = 'message' in err && typeof err.message === 'string' ? err.message : String(err);
-      return { type: Event.ON_ERROR, error: errorMessage };
-    }),
+    Match.orElse((err) => ({ type: Event.ON_ERROR, error: extractErrorMessage(err) })),
   );
 }
 

@@ -74,6 +74,7 @@
 </template>
 
 <script setup lang="ts">
+import { createVeeValidateSchema } from '@/utils/validation';
 import { EmailSchema } from '@ketone/shared';
 import { Schema } from 'effect';
 import { Field, useForm } from 'vee-validate';
@@ -121,11 +122,7 @@ type FormValues = {
 
 const validationSchema = computed(() => {
   const schemaStruct = createChangeEmailSchema(props.currentEmail);
-  const StandardSchemaClass = Schema.standardSchemaV1(schemaStruct);
-  return {
-    ...StandardSchemaClass,
-    '~standard': StandardSchemaClass['~standard' as keyof typeof StandardSchemaClass],
-  };
+  return createVeeValidateSchema(schemaStruct);
 });
 
 const { handleSubmit, resetForm, values } = useForm<FormValues>({

@@ -59,6 +59,7 @@
 </template>
 
 <script setup lang="ts">
+import { createVeeValidateSchema } from '@/utils/validation';
 import { Schema } from 'effect';
 import { Field, useForm } from 'vee-validate';
 import { computed, onScopeDispose, ref, watch } from 'vue';
@@ -141,11 +142,7 @@ const passwordSchema = Schema.Struct({
 
 type FormValues = Schema.Schema.Type<typeof passwordSchema>;
 
-const StandardSchemaClass = Schema.standardSchemaV1(passwordSchema);
-const validationSchema = {
-  ...StandardSchemaClass,
-  '~standard': StandardSchemaClass['~standard' as keyof typeof StandardSchemaClass],
-};
+const validationSchema = createVeeValidateSchema(passwordSchema);
 
 const { handleSubmit, resetForm } = useForm<FormValues>({
   validationSchema,

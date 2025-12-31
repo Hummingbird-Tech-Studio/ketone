@@ -2,6 +2,7 @@ import { definePreset } from '@primevue/themes';
 import Aura from '@primevue/themes/aura';
 import { createHead } from '@unhead/vue/client';
 import 'primeicons/primeicons.css';
+import { configure } from 'vee-validate';
 import Button from 'primevue/button';
 import PrimeVue from 'primevue/config';
 import ConfirmationService from 'primevue/confirmationservice';
@@ -30,6 +31,11 @@ import App from './App.vue';
 import './assets/main.css';
 import router from './router';
 import { accountActor } from './views/account/actors/account.actor';
+
+configure({
+  validateOnInput: false,
+  validateOnModelUpdate: true,
+});
 
 const CustomPreset = definePreset(Aura, {
   components: {

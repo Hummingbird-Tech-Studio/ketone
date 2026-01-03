@@ -30,7 +30,7 @@ type PullState = 'pull' | 'pulled' | 'refreshing';
 
 const PULLER_HEIGHT = 40;
 const OFFSET_TOP = 20;
-const MAX_PULL_DISTANCE = 140;
+const MAX_PULL_DISTANCE = 130;
 
 const props = withDefaults(
   defineProps<{

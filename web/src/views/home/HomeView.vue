@@ -284,7 +284,7 @@ import StartFastIcon from './components/StartFastIcon.vue';
 
     li {
       &:last-child {
-        margin-bottom: 0;
+        margin-bottom: 4px;
       }
     }
   }

@@ -50,7 +50,7 @@
             data is fully portable, and control always stays with you. Export it, delete it, or walk away at any time.
           </p>
         </div>
-        <div class="home__feature-image home__feature-image--privacy">
+        <div class="home__feature-image">
           <HomePrivacy />
         </div>
       </div>
@@ -247,7 +247,7 @@ import StartFastIcon from './components/StartFastIcon.vue';
     :deep(svg) {
       width: 100%;
       height: auto;
-      max-width: 500px;
+      max-width: 400px;
     }
   }
 
@@ -279,12 +279,6 @@ import StartFastIcon from './components/StartFastIcon.vue';
       width: 100%;
       height: auto;
       max-width: 400px;
-    }
-
-    &--privacy {
-      :deep(svg) {
-        max-width: 300px;
-      }
     }
   }
 
@@ -549,7 +543,7 @@ import StartFastIcon from './components/StartFastIcon.vue';
       justify-content: center;
 
       :deep(svg) {
-        max-width: 435px;
+        max-width: 400px;
       }
     }
 
@@ -560,13 +554,7 @@ import StartFastIcon from './components/StartFastIcon.vue';
       justify-content: center;
 
       :deep(svg) {
-        max-width: 500px;
-      }
-
-      &--privacy {
-        :deep(svg) {
-          max-width: 370px;
-        }
+        max-width: 400px;
       }
     }
 

@@ -19,8 +19,7 @@
     <section class="home__benefits">
       <div class="home__container home__container--benefits">
         <p class="home__benefits-text">
-          Studies show that <strong>fasting</strong> can boost energy levels, support metabolic health, and improve
-          overall well-being.
+          Studies show that fasting can boost energy levels, support metabolic health, and improve overall well-being.
         </p>
       </div>
     </section>
@@ -51,7 +50,7 @@
             data is fully portable, and control always stays with you. Export it, delete it, or walk away at any time.
           </p>
         </div>
-        <div class="home__feature-image">
+        <div class="home__feature-image home__feature-image--privacy">
           <HomePrivacy />
         </div>
       </div>
@@ -251,13 +250,10 @@ import StartFastIcon from './components/StartFastIcon.vue';
   &__benefits-text {
     max-width: 600px;
     margin: 0 auto;
-    font-size: 18px;
+    font-size: 20px;
     line-height: 1.6;
     color: $color-info;
-
-    strong {
-      font-weight: 700;
-    }
+    font-weight: 700;
   }
 
   // Color modifiers
@@ -273,6 +269,12 @@ import StartFastIcon from './components/StartFastIcon.vue';
       width: 100%;
       height: auto;
       max-width: 400px;
+    }
+
+    &--privacy {
+      :deep(svg) {
+        max-width: 300px;
+      }
     }
   }
 
@@ -307,6 +309,8 @@ import StartFastIcon from './components/StartFastIcon.vue';
 
   // Color modifiers
   &__feature--purple {
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0.4) 57.96%, rgba(215, 149, 255, 0.4) 100.02%);
+
     .home__feature-label,
     .home__feature-text strong {
       color: $color-dark-purple;
@@ -314,6 +318,8 @@ import StartFastIcon from './components/StartFastIcon.vue';
   }
 
   &__feature--orange {
+    background: linear-gradient(90deg, rgba(247, 137, 96, 0.3) 0%, rgba(255, 255, 255, 0.3) 44.55%);
+
     .home__feature-label,
     .home__feature-text strong {
       color: $color-warn;
@@ -321,6 +327,8 @@ import StartFastIcon from './components/StartFastIcon.vue';
   }
 
   &__feature--blue {
+    background: linear-gradient(270deg, rgba(122, 189, 255, 0.4) 0%, rgba(255, 255, 255, 0.4) 41.15%);
+
     .home__feature-label,
     .home__feature-text strong {
       color: $color-info;
@@ -510,6 +518,12 @@ import StartFastIcon from './components/StartFastIcon.vue';
 
       :deep(svg) {
         max-width: 500px;
+      }
+
+      &--privacy {
+        :deep(svg) {
+          max-width: 370px;
+        }
       }
     }
 

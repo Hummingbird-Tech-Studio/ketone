@@ -8,12 +8,12 @@
       </RouterLink>
       <div v-if="showLoginButton">
         <Button
-          label="Login"
+          label="Log in"
           type="button"
           rounded
           size="large"
           variant="outlined"
-          aria-label="Login"
+          aria-label="Log in"
           @click="router.push('/sign-in')"
         />
       </div>
@@ -69,16 +69,40 @@
           <RouterLink to="/terms" class="app__footer-link">Terms of Service</RouterLink>
         </div>
         <div class="app__footer-social">
-          <a href="https://www.facebook.com/profile.php?id=61585987894066" class="app__footer-social-link" aria-label="Facebook" target="_blank" rel="noopener noreferrer">
+          <a
+            href="https://www.facebook.com/profile.php?id=61585987894066"
+            class="app__footer-social-link"
+            aria-label="Facebook"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
             <i class="pi pi-facebook"></i>
           </a>
-          <a href="https://www.tiktok.com/@ketone.dev" class="app__footer-social-link" aria-label="TikTok" target="_blank" rel="noopener noreferrer">
+          <a
+            href="https://www.tiktok.com/@ketone.dev"
+            class="app__footer-social-link"
+            aria-label="TikTok"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
             <i class="pi pi-tiktok"></i>
           </a>
-          <a href="https://x.com/KetoneDev" class="app__footer-social-link" aria-label="X" target="_blank" rel="noopener noreferrer">
+          <a
+            href="https://x.com/KetoneDev"
+            class="app__footer-social-link"
+            aria-label="X"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
             <i class="pi pi-twitter"></i>
           </a>
-          <a href="https://www.instagram.com/ketone.dev/" class="app__footer-social-link" aria-label="Instagram" target="_blank" rel="noopener noreferrer">
+          <a
+            href="https://www.instagram.com/ketone.dev/"
+            class="app__footer-social-link"
+            aria-label="Instagram"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
             <i class="pi pi-instagram"></i>
           </a>
         </div>

@@ -193,8 +193,11 @@ import StartFastIcon from './components/StartFastIcon.vue';
   &__title {
     font-size: 56px;
     font-weight: 700;
-    color: $color-primary-button-text;
     margin: 0 0 16px;
+    background: linear-gradient(to bottom right, $color-green 0%, $color-dark-blue 50%, $color-dark-purple 100%);
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
   }
 
   &__subtitle {

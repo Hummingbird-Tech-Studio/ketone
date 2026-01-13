@@ -4,12 +4,13 @@
       <div class="statistics__header">
         <h1 class="statistics__title">Fasting Statistics</h1>
         <SelectButton
-          v-model="selectedPeriodLocal"
+          :model-value="selectedPeriod"
           :options="periodOptions"
           :allow-empty="false"
           optionLabel="label"
           optionValue="value"
           class="statistics__period-selector"
+          @update:model-value="changePeriod"
         />
       </div>
       <StatisticsCards
@@ -40,8 +41,8 @@
 <script setup lang="ts">
 import { PullToRefresh, usePullToRefresh } from '@/components/PullToRefresh';
 import { formatDuration } from '@/utils';
-import { STATISTICS_PERIOD, type CycleStatisticsItem, type PeriodType } from '@ketone/shared';
-import { computed, onMounted, ref, watch } from 'vue';
+import { STATISTICS_PERIOD, type CycleStatisticsItem } from '@ketone/shared';
+import { computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import StatisticsCards from './components/StatisticsCards.vue';
 import { useStatistics } from './composables/useStatistics';
@@ -72,8 +73,6 @@ const router = useRouter();
 
 const { pullToRefreshRef, handleRefresh } = usePullToRefresh(isLoading, refreshStatistics);
 
-const selectedPeriodLocal = ref<PeriodType>(selectedPeriod.value);
-
 // Get effective duration for a cycle (proportional to the period)
 const getCycleDuration = (cycle: CycleStatisticsItem) => cycle.effectiveDuration;
 
@@ -99,16 +98,6 @@ const longestFast = computed(() => {
   if (!statistics.value?.cycles.length) return '0m';
   const longest = Math.max(...statistics.value.cycles.map(getCycleDuration));
   return formatDuration(Math.floor(longest / MS_PER_MINUTE));
-});
-
-// Sync local period with actor and trigger reload
-watch(selectedPeriodLocal, (newPeriod) => {
-  changePeriod(newPeriod);
-});
-
-// Sync local period when actor period changes (e.g., after refresh)
-watch(selectedPeriod, (newPeriod) => {
-  selectedPeriodLocal.value = newPeriod;
 });
 
 const handlePreviousPeriod = () => {

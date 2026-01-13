@@ -17,6 +17,7 @@ export function useStatistics() {
   // State checks
   const idle = useSelector(actorRef, (state) => state.matches(StatisticsState.Idle));
   const loading = useSelector(actorRef, (state) => state.matches(StatisticsState.Loading));
+  const navigating = useSelector(actorRef, (state) => state.matches(StatisticsState.Navigating));
   const loaded = useSelector(actorRef, (state) => state.matches(StatisticsState.Loaded));
   const error = useSelector(actorRef, (state) => state.matches(StatisticsState.Error));
 
@@ -26,7 +27,8 @@ export function useStatistics() {
   const errorMessage = useSelector(actorRef, (state) => state.context.error);
 
   // UI helpers
-  const showSkeleton = computed(() => loading.value);
+  const showSkeleton = computed(() => loading.value); // Only Loading shows skeleton, not Navigating
+  const isLoading = computed(() => loading.value || navigating.value); // For PullToRefresh and eCharts spinner
 
   // Actions
   const loadStatistics = () => {
@@ -53,6 +55,7 @@ export function useStatistics() {
     // State checks
     idle,
     loading,
+    navigating,
     loaded,
     error,
     // Context data
@@ -61,6 +64,7 @@ export function useStatistics() {
     errorMessage,
     // UI helpers
     showSkeleton,
+    isLoading,
     // Actions
     loadStatistics,
     refreshStatistics,

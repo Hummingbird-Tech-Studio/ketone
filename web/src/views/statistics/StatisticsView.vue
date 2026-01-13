@@ -19,7 +19,7 @@
         :daily-average="averageDuration"
         :longest-fast="longestFast"
         :selected-period="selectedPeriod"
-        :loading="loading"
+        :loading="isLoading"
         :show-skeleton="showSkeleton"
       />
       <StatisticsChart
@@ -27,7 +27,7 @@
         :cycles="statistics?.cycles ?? []"
         :period-start="statistics?.periodStart"
         :period-end="statistics?.periodEnd"
-        :loading="loading"
+        :loading="isLoading"
         :show-skeleton="showSkeleton"
         @previous-period="handlePreviousPeriod"
         @next-period="handleNextPeriod"
@@ -60,7 +60,7 @@ const {
   actorRef,
   statistics,
   selectedPeriod,
-  loading,
+  isLoading,
   showSkeleton,
   changePeriod,
   nextPeriod,
@@ -70,7 +70,7 @@ useStatisticsNotifications(actorRef);
 
 const router = useRouter();
 
-const { pullToRefreshRef, handleRefresh } = usePullToRefresh(loading, refreshStatistics);
+const { pullToRefreshRef, handleRefresh } = usePullToRefresh(isLoading, refreshStatistics);
 
 const selectedPeriodLocal = ref<PeriodType>(selectedPeriod.value);
 
@@ -104,6 +104,11 @@ const longestFast = computed(() => {
 // Sync local period with actor and trigger reload
 watch(selectedPeriodLocal, (newPeriod) => {
   changePeriod(newPeriod);
+});
+
+// Sync local period when actor period changes (e.g., after refresh)
+watch(selectedPeriod, (newPeriod) => {
+  selectedPeriodLocal.value = newPeriod;
 });
 
 const handlePreviousPeriod = () => {

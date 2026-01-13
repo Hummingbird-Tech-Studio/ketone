@@ -133,6 +133,9 @@ export const physicalInfoMachine = setup({
     physicalInfo: null,
   },
   initial: PhysicalInfoState.Idle,
+  on: {
+    [Event.REFRESH]: `.${PhysicalInfoState.Loading}`,
+  },
   states: {
     [PhysicalInfoState.Idle]: {
       on: {
@@ -159,7 +162,6 @@ export const physicalInfoMachine = setup({
       on: {
         [Event.SAVE]: PhysicalInfoState.Saving,
         [Event.LOAD]: PhysicalInfoState.Loading,
-        [Event.REFRESH]: PhysicalInfoState.Loading,
       },
     },
     [PhysicalInfoState.Saving]: {

@@ -133,6 +133,9 @@ export const profileMachine = setup({
     profile: null,
   },
   initial: ProfileState.Idle,
+  on: {
+    [Event.REFRESH]: `.${ProfileState.Loading}`,
+  },
   states: {
     [ProfileState.Idle]: {
       on: {
@@ -159,7 +162,6 @@ export const profileMachine = setup({
       on: {
         [Event.SAVE]: ProfileState.Saving,
         [Event.LOAD]: ProfileState.Loading,
-        [Event.REFRESH]: ProfileState.Loading,
       },
     },
     [ProfileState.Saving]: {

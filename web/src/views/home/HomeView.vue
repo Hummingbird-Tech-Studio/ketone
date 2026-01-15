@@ -83,6 +83,7 @@
     </section>
 
     <section class="home__features-carousel">
+      <Divider class="home__features-carousel-divider" />
       <div class="home__container home__container--features-carousel">
         <div class="home__features-carousel-label-container">
           <span class="home__features-carousel-label">Features</span>
@@ -105,14 +106,14 @@
                   <p class="home__carousel-card-description">{{ data.description }}</p>
                 </div>
                 <div class="home__carousel-card-image">
-                  <Devices v-if="data.color === 'green'" />
-                  <MacBook v-if="data.color === 'blue'" />
+                  <img :src="data.image" :alt="data.title" />
                 </div>
               </div>
             </div>
           </template>
         </Carousel>
       </div>
+      <Divider class="home__features-carousel-divider" />
     </section>
 
     <section class="home__how-it-works">
@@ -181,16 +182,17 @@
 </template>
 
 <script setup lang="ts">
+import devicesImg from '@/assets/images/devices.png';
+import macbookImg from '@/assets/images/macbook.png';
+import mobileImg from '@/assets/images/mobile.png';
 import { useIntersectionObserver } from '@vueuse/core';
 import { onMounted, onUnmounted, ref } from 'vue';
 import AddUserIcon from './components/AddUserIcon.vue';
 import BgDesign from './components/BgDesign.vue';
-import Devices from './components/Devices.vue';
 import HomeFasting from './components/HomeFasting.vue';
 import HomeFreedom from './components/HomeFreedom.vue';
 import HomeFreeForEveryone from './components/HomeFreeForEveryone.vue';
 import HomePrivacy from './components/HomePrivacy.vue';
-import MacBook from './components/MacBook.vue';
 import ProgressIcon from './components/ProgressIcon.vue';
 import StartFastIcon from './components/StartFastIcon.vue';
 
@@ -209,6 +211,7 @@ const features = ref([
     id: 1,
     color: 'green',
     svgColor: '#10b981',
+    image: devicesImg,
     title: 'Track your fasting, simply and clearly',
     description:
       'Ketone lets you track your fasting sessions with precision and zero distractions. Just a clean view of your fasting habits, available on web, mobile, and tablet.',
@@ -217,11 +220,20 @@ const features = ref([
     id: 2,
     color: 'blue',
     svgColor: '#7abdff',
+    image: macbookImg,
     title: 'Understand your progress with real statistics',
     description:
       'Visualize your fasting history through meaningful statistics that help you see patterns, consistency, and progress over time.',
   },
-  { id: 3, color: 'purple', svgColor: '#d795ff', title: '', description: '' },
+  {
+    id: 3,
+    color: 'purple',
+    svgColor: '#d795ff',
+    image: mobileImg,
+    title: 'Log how you feel, not just the numbers',
+    description:
+      'Register your mood and add personal notes to each fast, helping you connect physical results with how you feel mentally and emotionally.',
+  },
 ]);
 
 const carouselResponsiveOptions = ref([{ breakpoint: '1024px', numVisible: 1, numScroll: 1 }]);
@@ -507,9 +519,13 @@ onUnmounted(() => {
     padding-bottom: 64px;
   }
 
+  &__features-carousel-divider {
+    margin: 0;
+  }
+
   &__features-carousel-label-container {
     display: inline-flex;
-    padding: 12px 24px;
+    padding: 12px 40px;
     border-radius: 50px;
     background-color: #f5e6ff;
     margin-bottom: 16px;
@@ -517,7 +533,7 @@ onUnmounted(() => {
 
   &__features-carousel-label {
     font-weight: 600;
-    font-size: 18px;
+    font-size: 20px;
     color: #9333ea;
   }
 
@@ -643,14 +659,14 @@ onUnmounted(() => {
     width: 100%;
     overflow: hidden;
 
-    :deep(svg) {
+    img {
       width: auto;
       height: auto;
       max-height: 100%;
     }
   }
 
-  // Green card mobile styles
+  // Green card (devices) mobile styles
   &__carousel-card--green &__carousel-card-content {
     justify-content: center;
     gap: 24px;
@@ -659,12 +675,12 @@ onUnmounted(() => {
   &__carousel-card--green &__carousel-card-image {
     flex: 0 0 auto;
 
-    :deep(svg) {
-      max-width: 240px;
+    img {
+      max-width: 200px;
     }
   }
 
-  // Blue card mobile styles
+  // Blue card (macbook) mobile styles
   &__carousel-card--blue &__carousel-card-content {
     justify-content: center;
     gap: 32px;
@@ -672,6 +688,24 @@ onUnmounted(() => {
 
   &__carousel-card--blue &__carousel-card-image {
     flex: 0 0 auto;
+
+    img {
+      max-width: 280px;
+    }
+  }
+
+  // Purple card (mobile) mobile styles
+  &__carousel-card--purple &__carousel-card-content {
+    justify-content: center;
+    gap: 24px;
+  }
+
+  &__carousel-card--purple &__carousel-card-image {
+    flex: 0 0 auto;
+
+    img {
+      max-width: 140px;
+    }
   }
 
   &__carousel-card-title {
@@ -914,7 +948,7 @@ onUnmounted(() => {
       justify-content: center;
 
       :deep(svg) {
-        max-width: 350px;
+        max-width: 300px;
       }
     }
 
@@ -969,6 +1003,11 @@ onUnmounted(() => {
       flex: 0 0 60%;
       align-self: flex-start;
       order: 2;
+
+      img {
+        max-width: 100%;
+        max-height: 450px;
+      }
     }
 
     // Green card desktop styles - reset mobile overrides
@@ -979,6 +1018,10 @@ onUnmounted(() => {
 
     &__carousel-card--green &__carousel-card-image {
       flex: 0 0 60%;
+
+      img {
+        max-width: 100%;
+      }
     }
 
     // Blue card keeps column layout on desktop
@@ -998,6 +1041,24 @@ onUnmounted(() => {
       order: 1;
       flex: 0 0 auto;
       align-self: center;
+
+      img {
+        max-width: 100%;
+      }
+    }
+
+    // Purple card desktop styles - reset mobile overrides
+    &__carousel-card--purple &__carousel-card-content {
+      justify-content: space-around;
+      gap: 24px;
+    }
+
+    &__carousel-card--purple &__carousel-card-image {
+      flex: 0 0 60%;
+
+      img {
+        max-width: 100%;
+      }
     }
 
     &__container--how-it-works {

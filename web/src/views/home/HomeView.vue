@@ -104,8 +104,9 @@
                   <h3 class="home__carousel-card-title">{{ data.title }}</h3>
                   <p class="home__carousel-card-description">{{ data.description }}</p>
                 </div>
-                <div v-if="data.color === 'green'" class="home__carousel-card-image">
-                  <Devices />
+                <div class="home__carousel-card-image">
+                  <Devices v-if="data.color === 'green'" />
+                  <MacBook v-if="data.color === 'blue'" />
                 </div>
               </div>
             </div>
@@ -189,6 +190,7 @@ import HomeFasting from './components/HomeFasting.vue';
 import HomeFreedom from './components/HomeFreedom.vue';
 import HomeFreeForEveryone from './components/HomeFreeForEveryone.vue';
 import HomePrivacy from './components/HomePrivacy.vue';
+import MacBook from './components/MacBook.vue';
 import ProgressIcon from './components/ProgressIcon.vue';
 import StartFastIcon from './components/StartFastIcon.vue';
 
@@ -211,7 +213,14 @@ const features = ref([
     description:
       'Ketone lets you track your fasting sessions with precision and zero distractions. Just a clean view of your fasting habits, available on web, mobile, and tablet.',
   },
-  { id: 2, color: 'blue', svgColor: '#7abdff', title: '', description: '' },
+  {
+    id: 2,
+    color: 'blue',
+    svgColor: '#7abdff',
+    title: 'Understand your progress with real statistics',
+    description:
+      'Visualize your fasting history through meaningful statistics that help you see patterns, consistency, and progress over time.',
+  },
   { id: 3, color: 'purple', svgColor: '#d795ff', title: '', description: '' },
 ]);
 
@@ -635,10 +644,34 @@ onUnmounted(() => {
     overflow: hidden;
 
     :deep(svg) {
-      width: 100%;
+      width: auto;
       height: auto;
       max-height: 100%;
     }
+  }
+
+  // Green card mobile styles
+  &__carousel-card--green &__carousel-card-content {
+    justify-content: center;
+    gap: 24px;
+  }
+
+  &__carousel-card--green &__carousel-card-image {
+    flex: 0 0 auto;
+
+    :deep(svg) {
+      max-width: 240px;
+    }
+  }
+
+  // Blue card mobile styles
+  &__carousel-card--blue &__carousel-card-content {
+    justify-content: center;
+    gap: 32px;
+  }
+
+  &__carousel-card--blue &__carousel-card-image {
+    flex: 0 0 auto;
   }
 
   &__carousel-card-title {
@@ -936,6 +969,35 @@ onUnmounted(() => {
       flex: 0 0 60%;
       align-self: flex-start;
       order: 2;
+    }
+
+    // Green card desktop styles - reset mobile overrides
+    &__carousel-card--green &__carousel-card-content {
+      justify-content: space-around;
+      gap: 24px;
+    }
+
+    &__carousel-card--green &__carousel-card-image {
+      flex: 0 0 60%;
+    }
+
+    // Blue card keeps column layout on desktop
+    &__carousel-card--blue &__carousel-card-content {
+      flex-direction: column;
+      justify-content: center;
+      gap: 24px;
+    }
+
+    &__carousel-card--blue &__carousel-card-text {
+      text-align: center;
+      order: 2;
+      flex: 0 0 auto;
+    }
+
+    &__carousel-card--blue &__carousel-card-image {
+      order: 1;
+      flex: 0 0 auto;
+      align-self: center;
     }
 
     &__container--how-it-works {

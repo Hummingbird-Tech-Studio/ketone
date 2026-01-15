@@ -99,6 +99,15 @@
           <template #item="{ data }">
             <div class="home__carousel-card" :class="`home__carousel-card--${data.color}`">
               <BgDesign :color="data.svgColor" class="home__carousel-card-bg" />
+              <div class="home__carousel-card-content">
+                <div class="home__carousel-card-text">
+                  <h3 class="home__carousel-card-title">{{ data.title }}</h3>
+                  <p class="home__carousel-card-description">{{ data.description }}</p>
+                </div>
+                <div v-if="data.color === 'green'" class="home__carousel-card-image">
+                  <Devices />
+                </div>
+              </div>
             </div>
           </template>
         </Carousel>
@@ -175,6 +184,7 @@ import { useIntersectionObserver } from '@vueuse/core';
 import { onMounted, onUnmounted, ref } from 'vue';
 import AddUserIcon from './components/AddUserIcon.vue';
 import BgDesign from './components/BgDesign.vue';
+import Devices from './components/Devices.vue';
 import HomeFasting from './components/HomeFasting.vue';
 import HomeFreedom from './components/HomeFreedom.vue';
 import HomeFreeForEveryone from './components/HomeFreeForEveryone.vue';
@@ -193,9 +203,16 @@ const blueProgress = ref(0);
 const stepsVisible = ref(false);
 
 const features = ref([
-  { id: 1, color: 'green', svgColor: '#10b981', placeholder: 'Feature 1' },
-  { id: 2, color: 'blue', svgColor: '#7abdff', placeholder: 'Feature 2' },
-  { id: 3, color: 'purple', svgColor: '#d795ff', placeholder: 'Feature 3' },
+  {
+    id: 1,
+    color: 'green',
+    svgColor: '#10b981',
+    title: 'Track your fasting, simply and clearly',
+    description:
+      'Ketone lets you track your fasting sessions with precision and zero distractions. Just a clean view of your fasting habits, available on web, mobile, and tablet.',
+  },
+  { id: 2, color: 'blue', svgColor: '#7abdff', title: '', description: '' },
+  { id: 3, color: 'purple', svgColor: '#d795ff', title: '', description: '' },
 ]);
 
 const carouselResponsiveOptions = ref([{ breakpoint: '1024px', numVisible: 1, numScroll: 1 }]);
@@ -587,6 +604,55 @@ onUnmounted(() => {
     right: 0;
   }
 
+  &__carousel-card-content {
+    position: relative;
+    z-index: 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    width: 100%;
+    height: 100%;
+    padding: 24px;
+    gap: 16px;
+  }
+
+  &__carousel-card-text {
+    text-align: center;
+    max-width: 100%;
+    order: 2;
+  }
+
+  &__carousel-card-image {
+    order: 1;
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    overflow: hidden;
+
+    :deep(svg) {
+      width: 100%;
+      height: auto;
+      max-height: 100%;
+    }
+  }
+
+  &__carousel-card-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: $color-primary-button-text;
+    margin: 0 0 12px;
+  }
+
+  &__carousel-card-description {
+    font-size: 14px;
+    color: $color-primary-button-text;
+    margin: 0;
+    line-height: 1.5;
+  }
+
   // How it Works Section
   &__how-it-works {
     text-align: center;
@@ -838,6 +904,36 @@ onUnmounted(() => {
     &__carousel-card {
       max-width: 710px;
       height: 608px;
+    }
+
+    &__carousel-card-content {
+      flex-direction: row;
+      align-items: center;
+      justify-content: space-around;
+      padding: 40px;
+      gap: 24px;
+    }
+
+    &__carousel-card-text {
+      flex: 0 0 35%;
+      max-width: 220px;
+      text-align: left;
+      order: 1;
+    }
+
+    &__carousel-card-title {
+      font-size: 24px;
+      margin-bottom: 16px;
+    }
+
+    &__carousel-card-description {
+      font-size: 16px;
+    }
+
+    &__carousel-card-image {
+      flex: 0 0 60%;
+      align-self: flex-start;
+      order: 2;
     }
 
     &__container--how-it-works {

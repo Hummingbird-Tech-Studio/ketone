@@ -10,7 +10,7 @@
               >open source</a
             >.
           </p>
-          <router-link to="/sign-in" class="home__cta">Start your fast now!</router-link>
+          <router-link to="/sign-in" class="home__btn home__btn--green">Start your fast now!</router-link>
         </div>
         <div class="home__hero-image">
           <HomeFasting />
@@ -85,10 +85,10 @@
     <section class="home__features-carousel">
       <Divider class="home__features-carousel-divider" />
       <div class="home__container home__container--features-carousel">
-        <div class="home__features-carousel-label-container">
-          <span class="home__features-carousel-label">Features</span>
+        <div class="home__section-badge home__section-badge--purple">
+          <span class="home__section-badge-text">Features</span>
         </div>
-        <h2 class="home__features-carousel-title">Everything you need to track your fast</h2>
+        <h2 class="home__section-title">Everything you need to track your fast</h2>
         <Carousel
           :value="features"
           :num-visible="1"
@@ -118,10 +118,10 @@
 
     <section class="home__how-it-works">
       <div class="home__container home__container--how-it-works">
-        <div class="home__how-it-works-label-container">
-          <span class="home__how-it-works-label">How it Works</span>
+        <div class="home__section-badge home__section-badge--blue">
+          <span class="home__section-badge-text">How it Works</span>
         </div>
-        <h2 class="home__how-it-works-title">Track your fast in 3 simple steps</h2>
+        <h2 class="home__section-title">Track your fast in 3 simple steps</h2>
 
         <div ref="stepsSection" class="home__steps">
           <div class="home__steps-bar"></div>
@@ -162,20 +162,20 @@
           </div>
         </div>
 
-        <router-link to="/sign-in" class="home__cta">Start your fast now!</router-link>
+        <router-link to="/sign-in" class="home__btn home__btn--green">Start your fast now!</router-link>
       </div>
     </section>
 
     <section class="home__donate">
       <div class="home__container home__container--donate">
-        <h2 class="home__donate-title">Software made for people, not for profit</h2>
+        <h2 class="home__section-title home__section-title--tight">Software made for people, not for profit</h2>
         <p class="home__donate-text">
           We believe in free, open source software built with care and sustained by trust. Ketone exists to create tools
           that serve and respect the people who use them. The project is supported by voluntary donations, and every
           contribution helps us improve the app and invest in more open tools for everyone. Because quality software
           doesn't have to come with a price tag, it just needs people who believe in it.
         </p>
-        <a href="#" class="home__donate-button">Donate 💙</a>
+        <a href="#" class="home__btn home__btn--blue">Donate 💙</a>
       </div>
     </section>
   </main>
@@ -354,27 +354,45 @@ onUnmounted(() => {
     margin: 0 0 32px;
   }
 
-  &__cta {
+  &__btn {
     display: inline-block;
     padding: 14px 24px;
-    background: #e2fae5;
     border-radius: 50px;
-    color: $color-primary;
     font-weight: 600;
     font-size: 16px;
-    border: 1px solid $color-primary;
     text-decoration: none;
+    border: 1px solid;
     transition:
       background-color 0.2s,
       transform 0.2s;
 
     &:hover {
-      background-color: #d4f4e8;
       transform: translateY(-1px);
     }
 
     &:active {
       transform: translateY(0);
+    }
+
+    &--green {
+      background: $color-home-cta-green-bg;
+      color: $color-primary;
+      border-color: $color-primary;
+
+      &:hover {
+        background-color: $color-home-cta-green-bg-hover;
+      }
+    }
+
+    &--blue {
+      padding: 14px 32px;
+      background-color: $color-home-donate-blue-bg;
+      color: $color-home-donate-blue-accent;
+      border-color: $color-home-donate-blue-accent;
+
+      &:hover {
+        background-color: $color-home-donate-blue-bg-hover;
+      }
     }
   }
 
@@ -523,25 +541,44 @@ onUnmounted(() => {
     margin: 0;
   }
 
-  &__features-carousel-label-container {
+  // Unified section badge
+  &__section-badge {
     display: inline-flex;
     padding: 12px 40px;
     border-radius: 50px;
-    background-color: #f5e6ff;
     margin-bottom: 16px;
+
+    &--purple {
+      background-color: $color-home-badge-purple-bg;
+    }
+
+    &--blue {
+      background-color: $color-ultra-light-blue;
+    }
   }
 
-  &__features-carousel-label {
+  &__section-badge-text {
     font-weight: 600;
     font-size: 20px;
-    color: #9333ea;
   }
 
-  &__features-carousel-title {
+  &__section-badge--purple &__section-badge-text {
+    color: $color-home-badge-purple-text;
+  }
+
+  &__section-badge--blue &__section-badge-text {
+    color: $color-dark-blue;
+  }
+
+  &__section-title {
     font-size: 28px;
     font-weight: 700;
     color: $color-primary-button-text;
     margin: 0 0 48px;
+
+    &--tight {
+      margin-bottom: 24px;
+    }
   }
 
   &__carousel {
@@ -572,7 +609,7 @@ onUnmounted(() => {
       width: 10px;
       height: 10px;
       border-radius: 50%;
-      background-color: #e0e0e0;
+      background-color: $color-home-indicator-inactive;
       border: none;
     }
 
@@ -616,7 +653,7 @@ onUnmounted(() => {
     }
 
     &--blue {
-      border: 1px solid #e9e9e9;
+      border: 1px solid $color-primary-button-outline;
     }
   }
 
@@ -725,27 +762,6 @@ onUnmounted(() => {
   // How it Works Section
   &__how-it-works {
     text-align: center;
-  }
-
-  &__how-it-works-label-container {
-    display: inline-flex;
-    padding: 12px 40px;
-    border-radius: 50px;
-    background-color: $color-ultra-light-blue;
-    margin-bottom: 16px;
-  }
-
-  &__how-it-works-label {
-    font-weight: 600;
-    font-size: 20px;
-    color: $color-dark-blue;
-  }
-
-  &__how-it-works-title {
-    font-size: 28px;
-    font-weight: 700;
-    color: $color-primary-button-text;
-    margin: 0 0 48px;
   }
 
   &__steps {
@@ -864,43 +880,11 @@ onUnmounted(() => {
     background-color: $color-ultra-light-blue;
   }
 
-  &__donate-title {
-    font-size: 28px;
-    font-weight: 700;
-    color: $color-primary-button-text;
-    margin: 0 0 24px;
-    line-height: 1.3;
-  }
-
   &__donate-text {
     font-size: 20px;
     margin: 0 auto 24px;
     max-width: 760px;
     color: $color-primary-button-text;
-  }
-
-  &__donate-button {
-    display: inline-block;
-    padding: 14px 32px;
-    background-color: #a3d1ff;
-    color: #1382ee;
-    font-weight: 600;
-    font-size: 1rem;
-    border-radius: 50px;
-    border: 1px solid #1382ee;
-    text-decoration: none;
-    transition:
-      background-color 0.2s,
-      transform 0.2s;
-
-    &:hover {
-      background-color: #abd2fa;
-      transform: translateY(-1px);
-    }
-
-    &:active {
-      transform: translateY(0);
-    }
   }
 
   // Desktop styles
@@ -965,7 +949,7 @@ onUnmounted(() => {
       padding-bottom: 80px;
     }
 
-    &__features-carousel-title {
+    &__section-title {
       font-size: 2.25rem;
     }
 
@@ -1065,10 +1049,6 @@ onUnmounted(() => {
       padding-bottom: 80px;
     }
 
-    &__how-it-works-title {
-      font-size: 2.25rem;
-    }
-
     &__steps {
       flex-direction: row;
       justify-content: center;
@@ -1084,7 +1064,7 @@ onUnmounted(() => {
       transform: translateX(-50%);
       width: 100%;
       height: 12px;
-      background-color: #e5e5e5;
+      background-color: $color-home-bar-grey;
       border-radius: 12px;
       z-index: 0;
     }
@@ -1097,10 +1077,6 @@ onUnmounted(() => {
     &__container--donate {
       padding-top: 80px;
       padding-bottom: 80px;
-    }
-
-    &__donate-title {
-      font-size: 2.25rem;
     }
   }
 }

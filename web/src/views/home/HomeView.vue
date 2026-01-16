@@ -709,14 +709,14 @@ onUnmounted(() => {
   }
 
   &__carousel-card-title {
-    font-size: 20px;
+    font-size: 24px;
     font-weight: 700;
     color: $color-primary-button-text;
     margin: 0 0 12px;
   }
 
   &__carousel-card-description {
-    font-size: 14px;
+    font-size: 16px;
     color: $color-primary-button-text;
     margin: 0;
     line-height: 1.5;
@@ -728,18 +728,17 @@ onUnmounted(() => {
   }
 
   &__how-it-works-label-container {
-    display: flex;
-    width: 260px;
-    height: 60px;
+    display: inline-flex;
+    padding: 12px 40px;
     border-radius: 50px;
-    margin: 0 auto 12px;
+    background-color: $color-ultra-light-blue;
+    margin-bottom: 16px;
   }
 
   &__how-it-works-label {
-    margin: auto;
-    font-weight: 700;
-    font-size: 25px;
-    color: #2ecd68;
+    font-weight: 600;
+    font-size: 20px;
+    color: $color-dark-blue;
   }
 
   &__how-it-works-title {

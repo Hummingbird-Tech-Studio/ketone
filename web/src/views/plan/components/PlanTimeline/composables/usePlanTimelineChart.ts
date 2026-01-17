@@ -1,4 +1,4 @@
-import { computed, shallowRef, watch, type Ref, type ShallowRef } from 'vue';
+import { computed, ref, shallowRef, watch, type Ref, type ShallowRef } from 'vue';
 import {
   echarts,
   type CustomRenderItem,
@@ -27,12 +27,19 @@ import {
   ROW_HEIGHT,
 } from './chart/constants';
 
+// Highlight colors (slightly darker/more saturated)
+const COLOR_FASTING_HIGHLIGHT = '#4a8ac4';
+const COLOR_EATING_HIGHLIGHT = '#e5a070';
+const UNHOVERED_OPACITY = 0.4;
+
 interface UsePlanTimelineChartOptions {
   numRows: Ref<number>;
   dayLabels: Ref<string[]>;
   hourLabels: Ref<string[]>;
   hourPositions: Ref<number[]>;
   timelineBars: Ref<TimelineBar[]>;
+  fastingDuration: Ref<number>;
+  eatingWindow: Ref<number>;
 }
 
 function getDayLabelWidth(chartWidth: number): number {
@@ -44,6 +51,9 @@ export function usePlanTimelineChart(
   options: UsePlanTimelineChartOptions,
 ) {
   const chartInstance: ShallowRef<echarts.ECharts | null> = shallowRef(null);
+
+  // Track which period is currently hovered (-1 = none)
+  const hoveredPeriodIndex = ref(-1);
 
   // Parse day labels for direct access in renderItem
   const parsedDayLabels = computed(() => {
@@ -68,6 +78,7 @@ export function usePlanTimelineChart(
         bar.startHour,
         bar.endHour,
         i, // index to look up bar data
+        bar.periodIndex, // period index for grouping
       ],
     }));
   });
@@ -211,6 +222,7 @@ export function usePlanTimelineChart(
     const startHour = api.value(1) as number;
     const endHour = api.value(2) as number;
     const barIndex = api.value(3) as number;
+    const periodIndex = api.value(4) as number;
 
     const barData = options.timelineBars.value[barIndex];
     if (!barData) return { type: 'group', children: [] };
@@ -220,13 +232,93 @@ export function usePlanTimelineChart(
     const dayLabelWidth = getDayLabelWidth(chartWidth);
     const gridWidth = chartWidth - dayLabelWidth;
 
+    // Check for connecting bars in the same period
+    const allBars = options.timelineBars.value;
+
+    // Check for connecting bar on the same day
+    const hasConnectingBarBeforeSameDay = allBars.some(
+      (bar) =>
+        bar.periodIndex === periodIndex &&
+        bar.dayIndex === dayIndex &&
+        Math.abs(bar.endHour - startHour) < 0.01 &&
+        bar !== barData,
+    );
+    const hasConnectingBarAfterSameDay = allBars.some(
+      (bar) =>
+        bar.periodIndex === periodIndex &&
+        bar.dayIndex === dayIndex &&
+        Math.abs(bar.startHour - endHour) < 0.01 &&
+        bar !== barData,
+    );
+
+    // Check for continuation from previous/next day
+    // A bar continues from previous day if there's ANY bar on the previous day that ends at 24
+    // (regardless of period - the visual should be seamless)
+    const continuesFromPreviousDay = allBars.some(
+      (bar) => bar.dayIndex === dayIndex - 1 && bar.endHour > 23.99,
+    );
+    const continuesToNextDay = allBars.some(
+      (bar) => bar.dayIndex === dayIndex + 1 && bar.startHour < 0.5,
+    );
+
+    // Check if this bar is the leftmost/rightmost on its day
+    const isLeftmostOnDay = !allBars.some(
+      (bar) => bar.dayIndex === dayIndex && bar.startHour < startHour - 0.01,
+    );
+    const isRightmostOnDay = !allBars.some(
+      (bar) => bar.dayIndex === dayIndex && bar.endHour > endHour + 0.01,
+    );
+
+    // Bar should extend to left edge if it's leftmost and either:
+    // - starts very close to 0, OR
+    // - there's a bar on the previous day that ends at 24 (continuation)
+    const shouldExtendToLeftEdge = isLeftmostOnDay && (startHour < 0.5 || continuesFromPreviousDay);
+    const shouldExtendToRightEdge = isRightmostOnDay && (endHour > 23.5 || continuesToNextDay);
+
+    const hasConnectingBarBefore = hasConnectingBarBeforeSameDay || shouldExtendToLeftEdge;
+    const hasConnectingBarAfter = hasConnectingBarAfterSameDay || shouldExtendToRightEdge;
+
+    // Calculate padding - no padding on sides that connect to another bar or extend to grid edges
+    const leftPadding = hasConnectingBarBefore ? 0 : BAR_PADDING_HORIZONTAL;
+    const rightPadding = hasConnectingBarAfter ? 0 : BAR_PADDING_HORIZONTAL;
+
     // Calculate bar dimensions
-    const barX = dayLabelWidth + (startHour / 24) * gridWidth + BAR_PADDING_HORIZONTAL;
-    const barWidth = ((endHour - startHour) / 24) * gridWidth - BAR_PADDING_HORIZONTAL * 2;
+    const barX = dayLabelWidth + (startHour / 24) * gridWidth + leftPadding;
+    const barWidth = ((endHour - startHour) / 24) * gridWidth - leftPadding - rightPadding;
     const barY = HEADER_HEIGHT + dayIndex * ROW_HEIGHT + BAR_PADDING_TOP;
 
     const finalWidth = Math.max(barWidth, 2);
-    const barColor = type === 'fasting' ? COLOR_FASTING : COLOR_EATING;
+
+    // Calculate border radius - only round corners that don't connect to another bar or extend to grid edges
+    const leftRadius = hasConnectingBarBefore ? 0 : BAR_BORDER_RADIUS;
+    const rightRadius = hasConnectingBarAfter ? 0 : BAR_BORDER_RADIUS;
+
+    // Determine if this bar's period is highlighted
+    const isHovered = hoveredPeriodIndex.value === periodIndex;
+    const hasHover = hoveredPeriodIndex.value !== -1;
+
+    // Apply colors based on hover state
+    let barColor: string;
+    let textOpacity = 1;
+    if (hasHover && !isHovered) {
+      // Another period is hovered - dim this one
+      barColor = type === 'fasting' ? COLOR_FASTING : COLOR_EATING;
+      textOpacity = UNHOVERED_OPACITY;
+    } else if (isHovered) {
+      // This period is hovered - highlight
+      barColor = type === 'fasting' ? COLOR_FASTING_HIGHLIGHT : COLOR_EATING_HIGHLIGHT;
+    } else {
+      // No hover - normal colors
+      barColor = type === 'fasting' ? COLOR_FASTING : COLOR_EATING;
+    }
+
+    // Border radius: [top-left, top-right, bottom-right, bottom-left]
+    const borderRadius: [number, number, number, number] = [
+      leftRadius,
+      rightRadius,
+      rightRadius,
+      leftRadius,
+    ];
 
     const children: RenderItemReturn[] = [
       {
@@ -236,10 +328,11 @@ export function usePlanTimelineChart(
           y: 0,
           width: finalWidth,
           height: BAR_HEIGHT,
-          r: BAR_BORDER_RADIUS,
+          r: borderRadius,
         },
         style: {
           fill: barColor,
+          opacity: hasHover && !isHovered ? UNHOVERED_OPACITY : 1,
         },
       },
     ];
@@ -258,6 +351,7 @@ export function usePlanTimelineChart(
           fontSize,
           fontWeight: 600,
           fill: COLOR_BAR_TEXT,
+          opacity: textOpacity,
         },
       });
     }
@@ -275,10 +369,49 @@ export function usePlanTimelineChart(
     return HEADER_HEIGHT + options.numRows.value * ROW_HEIGHT;
   });
 
+  // Format tooltip content for period info
+  function formatTooltipContent(barData: TimelineBar): string {
+    const fastingHours = options.fastingDuration.value;
+    const eatingHours = options.eatingWindow.value;
+    const totalHours = fastingHours + eatingHours;
+    const periodNumber = barData.periodIndex + 1;
+
+    return `
+      <div style="line-height: 1.6; min-width: 140px;">
+        <div style="font-weight: 600; margin-bottom: 4px; color: ${COLOR_TEXT};">Period ${periodNumber}</div>
+        <div><span style="font-weight: 500;">Fast Duration:</span> ${fastingHours}h</div>
+        <div><span style="font-weight: 500;">Eating Window:</span> ${eatingHours}h</div>
+        <div style="border-top: 1px solid #eee; margin-top: 4px; padding-top: 4px;">
+          <span style="font-weight: 600;">Total:</span> ${totalHours}h
+        </div>
+      </div>
+    `;
+  }
+
   // Build chart options
   function buildChartOptions(): ECOption {
     return {
       animation: false,
+      tooltip: {
+        trigger: 'item',
+        backgroundColor: '#fff',
+        borderColor: COLOR_BORDER,
+        borderWidth: 1,
+        padding: [8, 12],
+        textStyle: {
+          color: COLOR_TEXT,
+          fontSize: 12,
+        },
+        formatter: (params: unknown) => {
+          const p = params as { seriesIndex: number; data: { value: number[] } };
+          if (p.seriesIndex !== 2) return '';
+          const barIndex = p.data?.value?.[3];
+          if (barIndex === undefined) return '';
+          const bar = options.timelineBars.value[barIndex];
+          if (!bar) return '';
+          return formatTooltipContent(bar);
+        },
+      },
       grid: {
         left: 0,
         right: 0,
@@ -312,12 +445,11 @@ export function usePlanTimelineChart(
           data: [{ value: [0] }],
           silent: true,
         },
-        // Series 2: Timeline bars
+        // Series 2: Timeline bars (not silent for tooltip interaction)
         {
           type: 'custom',
           renderItem: renderTimelineBar as unknown as CustomRenderItem,
           data: timelineBarsData.value,
-          silent: true,
         },
       ],
     };
@@ -335,6 +467,21 @@ export function usePlanTimelineChart(
 
     chartInstance.value = echarts.init(chartContainer.value);
     chartInstance.value.setOption(buildChartOptions());
+
+    // Set up hover event handlers for period highlighting
+    chartInstance.value.on('mouseover', { seriesIndex: 2 }, (params: unknown) => {
+      const p = params as { data: { value: number[] } };
+      const periodIndex = p.data?.value?.[4];
+      if (periodIndex !== undefined && periodIndex !== hoveredPeriodIndex.value) {
+        hoveredPeriodIndex.value = periodIndex;
+      }
+    });
+
+    chartInstance.value.on('mouseout', { seriesIndex: 2 }, () => {
+      if (hoveredPeriodIndex.value !== -1) {
+        hoveredPeriodIndex.value = -1;
+      }
+    });
   }
 
   // Setup lifecycle (resize observer, cleanup)
@@ -353,6 +500,13 @@ export function usePlanTimelineChart(
     },
     { deep: true },
   );
+
+  // Watch for hover state changes to update bar highlighting
+  watch(hoveredPeriodIndex, () => {
+    if (chartInstance.value) {
+      chartInstance.value.setOption(buildChartOptions());
+    }
+  });
 
   return {
     chartInstance,

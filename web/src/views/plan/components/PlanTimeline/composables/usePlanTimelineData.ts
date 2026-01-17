@@ -69,6 +69,7 @@ export function usePlanTimelineData(options: UsePlanTimelineDataOptions) {
       // Split fasting period across days
       addBarsForTimeRange(
         bars,
+        periodIndex,
         periodStart,
         fastingEnd,
         'fasting',
@@ -80,6 +81,7 @@ export function usePlanTimelineData(options: UsePlanTimelineDataOptions) {
       if (options.eatingWindow.value > 0) {
         addBarsForTimeRange(
           bars,
+          periodIndex,
           fastingEnd,
           eatingEnd,
           'eating',
@@ -95,6 +97,7 @@ export function usePlanTimelineData(options: UsePlanTimelineDataOptions) {
   // Helper function to add bars for a time range, splitting across days
   function addBarsForTimeRange(
     bars: TimelineBar[],
+    periodIndex: number,
     rangeStart: Date,
     rangeEnd: Date,
     type: 'fasting' | 'eating',
@@ -124,6 +127,7 @@ export function usePlanTimelineData(options: UsePlanTimelineDataOptions) {
 
       if (durationHours > 0 && dayIndex >= 0) {
         bars.push({
+          periodIndex,
           dayIndex,
           startHour,
           endHour,

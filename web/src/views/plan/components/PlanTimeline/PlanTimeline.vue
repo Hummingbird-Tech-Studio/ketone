@@ -52,6 +52,8 @@ const { chartHeight } = usePlanTimelineChart(chartContainerRef, {
   hourLabels: timelineData.hourLabels,
   hourPositions: timelineData.hourPositions,
   timelineBars: timelineData.timelineBars,
+  fastingDuration: toRef(() => props.fastingDuration),
+  eatingWindow: toRef(() => props.eatingWindow),
 });
 
 // Dynamic height

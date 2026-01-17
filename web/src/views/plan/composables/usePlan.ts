@@ -38,9 +38,7 @@ export function usePlan() {
 
   // Combined loading state for UI
   const loading = computed(() => loadingActivePlan.value || loadingPlan.value || loadingPlans.value);
-
   const isActionLoading = computed(() => creating.value || cancelling.value || deleting.value);
-
   const showSkeleton = computed(() => loadingActivePlan.value);
 
   // Context data

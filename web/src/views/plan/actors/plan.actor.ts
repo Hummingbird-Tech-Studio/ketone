@@ -241,6 +241,10 @@ export const planMachine = setup({
       return {
         activePlan: null,
         plans: context.plans.map((p) => (p.id === event.result.id ? { ...p, status: event.result.status } : p)),
+        selectedPlan:
+          context.selectedPlan?.id === event.result.id
+            ? { ...context.selectedPlan, status: event.result.status }
+            : context.selectedPlan,
       };
     }),
     removePlan: assign(({ context, event }) => {

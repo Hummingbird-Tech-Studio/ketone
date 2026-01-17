@@ -14,6 +14,7 @@ You are a read-only specialist in the API layer of this Effect-based backend. Yo
 ## Your Domain
 
 ### Files You Analyze
+
 - `api/src/features/*/api/*.ts` - Endpoint definitions and handlers
 - `api/src/features/*/api/schemas/` - Request, response, error schemas
 - `api/src/features/*/services/*.service.ts` - Service implementations
@@ -21,6 +22,7 @@ You are a read-only specialist in the API layer of this Effect-based backend. Yo
 - `api/src/api.ts` - API composition
 
 ### Technology Stack
+
 - **Effect HttpApi** - Declarative endpoint definitions
 - **Effect.Service** - Dependency injection pattern
 - **Effect Schema** - Request/response validation
@@ -58,51 +60,62 @@ export class AuthApiGroup extends HttpApiGroup.make('auth')
 ## Handler Pattern
 
 ```typescript
-export const AuthApiLive = HttpApiBuilder.group(Api, 'auth', (handlers) =>
+export const AuthApiLive = HttpApiBuilder.group(Api, "auth", (handlers) =>
   Effect.gen(function* () {
     const authService = yield* AuthService;
 
-    return handlers.handle('signup', ({ payload, request }) =>
+    return handlers.handle("signup", ({ payload, request }) =>
       Effect.gen(function* () {
-        const result = yield* authService.signup(payload.email, payload.password)
-          .pipe(Effect.catchTags({
-            UserAlreadyExistsError: (e) =>
-              Effect.fail(new UserAlreadyExistsErrorSchema({ message: e.message }))
-          }));
+        const result = yield* authService
+          .signup(payload.email, payload.password)
+          .pipe(
+            Effect.catchTags({
+              UserAlreadyExistsError: (e) =>
+                Effect.fail(
+                  new UserAlreadyExistsErrorSchema({ message: e.message }),
+                ),
+            }),
+          );
         return result;
-      }).pipe(Effect.annotateLogs({ handler: 'auth.signup' }))
+      }).pipe(Effect.annotateLogs({ handler: "auth.signup" })),
     );
-  })
+  }),
 );
 ```
 
 ## Schema Patterns
 
 ### Request Schema
+
 ```typescript
-export class SignupRequestSchema extends S.Class<SignupRequestSchema>('SignupRequestSchema')({
+export class SignupRequestSchema extends S.Class<SignupRequestSchema>(
+  "SignupRequestSchema",
+)({
   email: EmailSchema,
   password: PasswordSchema,
 }) {}
 ```
 
 ### Error Schema
+
 ```typescript
 export class UserAlreadyExistsErrorSchema extends S.TaggedError<UserAlreadyExistsErrorSchema>()(
-  'UserAlreadyExistsError',
-  { message: S.String, email: S.String }
+  "UserAlreadyExistsError",
+  { message: S.String, email: S.String },
 ) {}
 ```
 
 ## Services
 
 ### Domain Services
+
 - **AuthService** - signup, login
 - **CycleService** - cycle management, statistics
 - **ProfileService** - user profiles
 - **UserAccountService** - account management
 
 ### Cache Services
+
 - **UserAuthCache** - LRU, 50k capacity, 24h TTL
 - **CycleRefCache** - LRU, 10k capacity, 30m TTL
 - **LoginAttemptCache** - rate limiting
@@ -110,11 +123,10 @@ export class UserAlreadyExistsErrorSchema extends S.TaggedError<UserAlreadyExist
 ## Authentication Middleware
 
 ```typescript
-HttpApiEndpoint.get('getProfile', '/v1/profile')
-  .middleware(Authentication)  // Requires auth
+HttpApiEndpoint.get("getProfile", "/v1/profile").middleware(Authentication); // Requires auth
 
 // In handler:
-const currentUser = yield* CurrentUser;
+const currentUser = yield * CurrentUser;
 const userId = currentUser.userId;
 ```
 

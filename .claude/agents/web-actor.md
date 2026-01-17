@@ -14,11 +14,13 @@ You are a read-only specialist in XState state machines and Vue composables for 
 ## Your Domain
 
 ### Files You Analyze
+
 - `web/src/views/*/actors/*.actor.ts` - State machines
 - `web/src/views/*/composables/use*.ts` - Vue composables
 - `web/src/utils/effects/helpers.ts` - runWithUi helper
 
 ### Technology Stack
+
 - **XState v5** - State machines, actors
 - **@xstate/vue** - Vue bindings (useActor, useSelector)
 - **Effect** - Async operations via runWithUi
@@ -26,32 +28,33 @@ You are a read-only specialist in XState state machines and Vue composables for 
 ## Actor Structure
 
 ### Naming Conventions
-| Type | Convention | Example |
-|------|------------|---------|
-| State enum | `{Name}State` | `CycleState`, `ProfileState` |
-| Event enum | `Event` | Standard across actors |
-| Emit enum | `Emit` | Standard across actors |
-| Machine | `{name}Machine` | `cycleMachine` |
+
+| Type       | Convention      | Example                      |
+| ---------- | --------------- | ---------------------------- |
+| State enum | `{Name}State`   | `CycleState`, `ProfileState` |
+| Event enum | `Event`         | Standard across actors       |
+| Emit enum  | `Emit`          | Standard across actors       |
+| Machine    | `{name}Machine` | `cycleMachine`               |
 
 ### Actor Definition Pattern
 
 ```typescript
 // 1. Enums
 export enum ProfileState {
-  Idle = 'Idle',
-  Loading = 'Loading',
-  Loaded = 'Loaded',
+  Idle = "Idle",
+  Loading = "Loading",
+  Loaded = "Loaded",
 }
 
 export enum Event {
-  LOAD = 'LOAD',
-  ON_SUCCESS = 'ON_SUCCESS',
-  ON_ERROR = 'ON_ERROR',
+  LOAD = "LOAD",
+  ON_SUCCESS = "ON_SUCCESS",
+  ON_ERROR = "ON_ERROR",
 }
 
 export enum Emit {
-  PROFILE_LOADED = 'PROFILE_LOADED',
-  PROFILE_ERROR = 'PROFILE_ERROR',
+  PROFILE_LOADED = "PROFILE_LOADED",
+  PROFILE_ERROR = "PROFILE_ERROR",
 }
 
 // 2. Event types
@@ -60,8 +63,7 @@ type EventType =
   | { type: Event.ON_SUCCESS; result: Profile };
 
 // 3. Emit types
-export type EmitType =
-  | { type: Emit.PROFILE_LOADED; result: Profile };
+export type EmitType = { type: Emit.PROFILE_LOADED; result: Profile };
 
 // 4. Context
 type Context = { profile: Profile | null };
@@ -90,7 +92,7 @@ export const profileMachine = setup({
     loadActor: loadProfileLogic,
   },
 }).createMachine({
-  id: 'profile',
+  id: "profile",
   context: { profile: null },
   initial: ProfileState.Idle,
   states: {
@@ -98,10 +100,10 @@ export const profileMachine = setup({
       on: { [Event.LOAD]: ProfileState.Loading },
     },
     [ProfileState.Loading]: {
-      invoke: { src: 'loadActor' },
+      invoke: { src: "loadActor" },
       on: {
         [Event.ON_SUCCESS]: {
-          actions: ['setProfile', 'emitLoaded'],
+          actions: ["setProfile", "emitLoaded"],
           target: ProfileState.Loaded,
         },
       },
@@ -117,8 +119,9 @@ const loadProfileLogic = fromCallback<EventObject>(({ sendBack }) =>
   runWithUi(
     programGetProfile(),
     (result) => sendBack({ type: Event.ON_SUCCESS, result }),
-    (error) => sendBack({ type: Event.ON_ERROR, error: extractErrorMessage(error) }),
-  )
+    (error) =>
+      sendBack({ type: Event.ON_ERROR, error: extractErrorMessage(error) }),
+  ),
 );
 
 // With input
@@ -128,7 +131,7 @@ const createLogic = fromCallback<EventObject, { data: Data }>(
       programCreate(input.data),
       (result) => sendBack({ type: Event.ON_SUCCESS, result }),
       (error) => sendBack({ type: Event.ON_ERROR, error }),
-    )
+    ),
 );
 ```
 
@@ -156,27 +159,35 @@ export function useProfile() {
 ## Key XState Features
 
 ### assign() - Update context
+
 ```typescript
-setData: assign(({ event }) => ({ data: event.result }))
+setData: assign(({ event }) => ({ data: event.result }));
 ```
 
 ### emit() - Publish to listeners
+
 ```typescript
-emitDone: emit(({ event }) => ({ type: Emit.DONE, result: event.result }))
+emitDone: emit(({ event }) => ({ type: Emit.DONE, result: event.result }));
 ```
 
 ### assertEvent() - Type-safe event access
+
 ```typescript
 assertEvent(event, Event.ON_SUCCESS);
 return { data: event.result }; // TypeScript knows result exists
 ```
 
 ### sendParent() - Child to parent
+
 ```typescript
-notifyParent: sendParent(({ context }) => ({ type: 'CHILD_DONE', data: context.data }))
+notifyParent: sendParent(({ context }) => ({
+  type: "CHILD_DONE",
+  data: context.data,
+}));
 ```
 
 ### enqueueActions() - Spawn child actors
+
 ```typescript
 spawnChild: enqueueActions(({ enqueue }) => {
   enqueue.spawnChild('childMachine', { id: 'child', input: { ... } });
@@ -227,7 +238,7 @@ function handleEmit(emitType: EmitType) {
 
 // Subscribe to all emit types
 const subscriptions = Object.values(Emit).map((emit) =>
-  actorRef.on(emit, handleEmit)
+  actorRef.on(emit, handleEmit),
 );
 
 // Cleanup on unmount
@@ -237,20 +248,21 @@ onUnmounted(() => {
 ```
 
 ### Match Pattern Benefits
+
 - **Type-safe**: TypeScript ensures all emit types are handled
 - **Exhaustive**: `Match.exhaustive` errors if a case is missing
 - **Clean**: Centralized emission handling logic
 
 ## Actors in This Project
 
-| Actor | Purpose |
-|-------|---------|
-| `signUp.actor` | Registration flow |
-| `signIn.actor` | Login flow |
-| `cycle.actor` | Fasting cycle management |
-| `profile.actor` | User profile |
-| `account.actor` | Account settings |
-| `schedulerDialog.actor` | Date picker dialog |
+| Actor                   | Purpose                  |
+| ----------------------- | ------------------------ |
+| `signUp.actor`          | Registration flow        |
+| `signIn.actor`          | Login flow               |
+| `cycle.actor`           | Fasting cycle management |
+| `profile.actor`         | User profile             |
+| `account.actor`         | Account settings         |
+| `schedulerDialog.actor` | Date picker dialog       |
 
 ## What You Can Do
 

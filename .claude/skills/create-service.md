@@ -362,16 +362,16 @@ const load{Resource}Logic = fromCallback<EventObject, { id: string }>(
 Available in `http-client.service.ts`:
 
 ```typescript
-HttpStatus.Ok           // 200
-HttpStatus.Created      // 201
-HttpStatus.NoContent    // 204
-HttpStatus.BadRequest   // 400
-HttpStatus.Unauthorized // 401
-HttpStatus.NotFound     // 404
-HttpStatus.Conflict     // 409
-HttpStatus.UnprocessableEntity // 422
-HttpStatus.TooManyRequests    // 429
-HttpStatus.InternalServerError // 500
+HttpStatus.Ok; // 200
+HttpStatus.Created; // 201
+HttpStatus.NoContent; // 204
+HttpStatus.BadRequest; // 400
+HttpStatus.Unauthorized; // 401
+HttpStatus.NotFound; // 404
+HttpStatus.Conflict; // 409
+HttpStatus.UnprocessableEntity; // 422
+HttpStatus.TooManyRequests; // 429
+HttpStatus.InternalServerError; // 500
 ```
 
 ## Public Service (No Auth)

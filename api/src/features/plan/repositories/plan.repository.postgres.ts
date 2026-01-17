@@ -9,14 +9,9 @@ import {
   PlanInvalidStateError,
   PeriodNotFoundError,
   ActiveCycleExistsError,
+  InvalidPeriodCountError,
 } from '../domain';
-import {
-  type PeriodData,
-  type PlanStatus,
-  type PeriodStatus,
-  PlanRecordSchema,
-  PeriodRecordSchema,
-} from './schemas';
+import { type PeriodData, type PlanStatus, type PeriodStatus, PlanRecordSchema, PeriodRecordSchema } from './schemas';
 import { and, asc, desc, eq } from 'drizzle-orm';
 import type { IPlanRepository } from './plan.repository.interface';
 
@@ -27,8 +22,23 @@ export class PlanRepositoryPostgres extends Effect.Service<PlanRepositoryPostgre
 
     const repository: IPlanRepository = {
       createPlan: (userId: string, startDate: Date, periods: PeriodData[]) =>
-        sql
-          .withTransaction(
+        Effect.gen(function* () {
+          // Validate period count before starting transaction
+          const MIN_PERIODS = 1;
+          const MAX_PERIODS = 31;
+
+          if (periods.length < MIN_PERIODS || periods.length > MAX_PERIODS) {
+            return yield* Effect.fail(
+              new InvalidPeriodCountError({
+                message: `Plan must have between ${MIN_PERIODS} and ${MAX_PERIODS} periods, got ${periods.length}`,
+                periodCount: periods.length,
+                minPeriods: MIN_PERIODS,
+                maxPeriods: MAX_PERIODS,
+              }),
+            );
+          }
+
+          return yield* sql.withTransaction(
             Effect.gen(function* () {
               // First check for active standalone cycle
               const activeCycles = yield* drizzle
@@ -148,26 +158,27 @@ export class PlanRepositoryPostgres extends Effect.Service<PlanRepositoryPostgre
                 periods: validatedPeriods.sort((a, b) => a.order - b.order),
               };
             }),
-          )
-          .pipe(
-            Effect.mapError((error) => {
-              // If error is already one of our domain errors, return it as-is
-              if (
-                error instanceof PlanRepositoryError ||
-                error instanceof PlanAlreadyActiveError ||
-                error instanceof ActiveCycleExistsError
-              ) {
-                return error;
-              }
-              // Otherwise wrap it as a repository error
-              return new PlanRepositoryError({
-                message: 'Failed to create plan in database',
-                cause: error,
-              });
-            }),
-            Effect.tapError((error) => Effect.logError('Database error in createPlan', error)),
-            Effect.annotateLogs({ repository: 'PlanRepository' }),
-          ),
+          );
+        }).pipe(
+          Effect.mapError((error) => {
+            // If error is already one of our domain errors, return it as-is
+            if (
+              error instanceof PlanRepositoryError ||
+              error instanceof PlanAlreadyActiveError ||
+              error instanceof ActiveCycleExistsError ||
+              error instanceof InvalidPeriodCountError
+            ) {
+              return error;
+            }
+            // Otherwise wrap it as a repository error
+            return new PlanRepositoryError({
+              message: 'Failed to create plan in database',
+              cause: error,
+            });
+          }),
+          Effect.tapError((error) => Effect.logError('Database error in createPlan', error)),
+          Effect.annotateLogs({ repository: 'PlanRepository' }),
+        ),
 
       getPlanById: (userId: string, planId: string) =>
         Effect.gen(function* () {

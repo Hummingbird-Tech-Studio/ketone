@@ -14,6 +14,7 @@ import {
   PlanInvalidStateError,
   PeriodNotFoundError,
   ActiveCycleExistsError,
+  InvalidPeriodCountError,
 } from '../domain';
 
 export interface IPlanRepository {
@@ -29,6 +30,7 @@ export interface IPlanRepository {
    * @param startDate - The start date of the plan
    * @param periods - Array of period data (1-31 periods)
    * @returns Effect that resolves to the created PlanWithPeriodsRecord
+   * @throws InvalidPeriodCountError if periods array length is not between 1 and 31
    * @throws PlanAlreadyActiveError if user already has an active plan
    * @throws ActiveCycleExistsError if user has an active standalone cycle
    * @throws PlanRepositoryError for other database errors
@@ -37,7 +39,10 @@ export interface IPlanRepository {
     userId: string,
     startDate: Date,
     periods: PeriodData[],
-  ): Effect.Effect<PlanWithPeriodsRecord, PlanRepositoryError | PlanAlreadyActiveError | ActiveCycleExistsError>;
+  ): Effect.Effect<
+    PlanWithPeriodsRecord,
+    PlanRepositoryError | PlanAlreadyActiveError | ActiveCycleExistsError | InvalidPeriodCountError
+  >;
 
   /**
    * Retrieve a plan by its ID and user ID.

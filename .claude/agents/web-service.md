@@ -14,12 +14,14 @@ You are a read-only specialist in the HTTP service layer of this Vue/Effect web 
 ## Your Domain
 
 ### Files You Analyze
+
 - `web/src/services/http/` - HTTP client infrastructure
 - `web/src/services/auth/` - Authentication session
 - `web/src/views/*/services/*.service.ts` - Feature services
 - `web/src/utils/effects/helpers.ts` - runWithUi helper
 
 ### Technology Stack
+
 - **Effect** - Async operations, error handling
 - **Effect HttpClient** - HTTP requests
 - **Effect Schema** - Response validation
@@ -28,6 +30,7 @@ You are a read-only specialist in the HTTP service layer of this Vue/Effect web 
 ## Service Structure
 
 ### Global Services (`web/src/services/`)
+
 - `http/http-client.service.ts` - Base HTTP client
 - `http/authenticated-http-client.service.ts` - Bearer token client
 - `http/http-interceptor.ts` - 401 interceptor
@@ -35,6 +38,7 @@ You are a read-only specialist in the HTTP service layer of this Vue/Effect web 
 - `auth/auth-session.service.ts` - Token management
 
 ### Feature Services (`web/src/views/*/services/`)
+
 - `signUp.service.ts` - Registration
 - `signIn.service.ts` - Authentication
 - `cycle.service.ts` - Cycle management
@@ -44,15 +48,14 @@ You are a read-only specialist in the HTTP service layer of this Vue/Effect web 
 ## Service Pattern
 
 ```typescript
-export class MyService extends Effect.Service<MyService>()('MyService', {
+export class MyService extends Effect.Service<MyService>()("MyService", {
   effect: Effect.gen(function* () {
     const client = yield* HttpClient.HttpClient;
     return {
       fetchData: (id: string) =>
-        client.execute(HttpClientRequest.get(`/api/data/${id}`)).pipe(
-          Effect.scoped,
-          Effect.flatMap(handleResponse)
-        ),
+        client
+          .execute(HttpClientRequest.get(`/api/data/${id}`))
+          .pipe(Effect.scoped, Effect.flatMap(handleResponse)),
     };
   }),
   accessors: true,
@@ -64,8 +67,8 @@ export class MyService extends Effect.Service<MyService>()('MyService', {
 ```typescript
 export const programFetchData = (id: string) =>
   MyService.fetchData(id).pipe(
-    Effect.tapError((e) => Effect.logError('Failed', { cause: e })),
-    Effect.annotateLogs({ service: 'MyService' }),
+    Effect.tapError((e) => Effect.logError("Failed", { cause: e })),
+    Effect.annotateLogs({ service: "MyService" }),
     Effect.provide(MyServiceLive),
   );
 ```
@@ -75,13 +78,13 @@ export const programFetchData = (id: string) =>
 ```typescript
 Match.value(response.status).pipe(
   Match.when(HttpStatus.Ok, () =>
-    HttpClientResponse.schemaBodyJson(ResponseSchema)(response)
+    HttpClientResponse.schemaBodyJson(ResponseSchema)(response),
   ),
   Match.when(HttpStatus.NotFound, () =>
-    Effect.fail(new NotFoundError({ message: 'Not found' }))
+    Effect.fail(new NotFoundError({ message: "Not found" })),
   ),
-  Match.orElse(() => handleServerErrorResponse(response))
-)
+  Match.orElse(() => handleServerErrorResponse(response)),
+);
 ```
 
 ## XState Integration
@@ -91,9 +94,9 @@ Match.value(response.status).pipe(
 const fetchLogic = fromCallback(({ sendBack, input }) =>
   runWithUi(
     programFetchData(input.id),
-    (result) => sendBack({ type: 'ON_DONE', result }),
-    (error) => sendBack({ type: 'ON_ERROR', error }),
-  )
+    (result) => sendBack({ type: "ON_DONE", result }),
+    (error) => sendBack({ type: "ON_ERROR", error }),
+  ),
 );
 ```
 

@@ -364,7 +364,7 @@ onMounted(() => {
 
 <template>
   <Skeleton v-if="loading" />
-  <div v-else-if="{resource}">
+  <div v-else-if="{ resource }">
     <!-- Render content -->
   </div>
   <Message v-if="serviceError" severity="error" :text="serviceError" />

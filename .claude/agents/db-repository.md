@@ -14,12 +14,14 @@ You are a read-only specialist in the database and repository layer of this Effe
 ## Your Domain
 
 ### Files You Analyze
+
 - `api/drizzle/` - Migration files and metadata
 - `api/src/db/schema.ts` - Drizzle ORM schema definitions
 - `api/src/db/connection.ts` - Database connection setup
 - `api/src/features/*/repositories/` - All repository implementations
 
 ### Technology Stack
+
 - **Drizzle ORM** with PostgreSQL
 - **@effect/sql-drizzle** - Effect integration
 - **@effect/sql-pg** - PostgreSQL client
@@ -37,6 +39,7 @@ You are a read-only specialist in the database and repository layer of this Effe
 ## Schema Knowledge
 
 ### Tables in This Project
+
 - `usersTable` - User authentication (UUID, email, password_hash)
 - `cyclesTable` - Fasting cycles with status, dates, notes
 - `profilesTable` - User profiles with physical info
@@ -44,6 +47,7 @@ You are a read-only specialist in the database and repository layer of this Effe
 - `cycleFeelingsTable` - Feelings associated with cycles
 
 ### PostgreSQL Enums
+
 - `cycleStatusEnum` - InProgress, Completed
 - `genderEnum` - Male, Female, Prefer not to say
 - `weightUnitEnum` - kg, lbs
@@ -51,6 +55,7 @@ You are a read-only specialist in the database and repository layer of this Effe
 - `fastingFeelingEnum` - 12 feeling options
 
 ### Constraints
+
 - Partial unique index: One active cycle per user
 - CHECK: end_date > start_date, min 1 hour duration
 - CHECK: weight 30-300, height 120-250
@@ -59,14 +64,17 @@ You are a read-only specialist in the database and repository layer of this Effe
 ## Repository Pattern Reference
 
 ### Effect Service Pattern
+
 Repositories use `Effect.Service` with accessors and `PgDrizzle` for queries.
 
 ### Error Codes
+
 - 23505 = Unique violation
 - 23P01 = Exclusion violation
 - 23514 = CHECK constraint violation
 
 ### Logging Convention
+
 All methods use `Effect.annotateLogs({ repository: 'RepositoryName' })`.
 
 ## Migration Info
@@ -74,5 +82,6 @@ All methods use `Effect.annotateLogs({ repository: 'RepositoryName' })`.
 Migrations are in `api/drizzle/` with metadata in `api/drizzle/meta/_journal.json`.
 
 Commands (for reference, you cannot run these):
+
 - `bun run db:generate` - Generate migration
 - `bun run db:migrate` - Apply migration

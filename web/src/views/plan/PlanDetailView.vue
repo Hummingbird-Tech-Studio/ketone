@@ -2,13 +2,7 @@
   <div class="plan-detail">
     <div class="plan-detail__header">
       <div class="plan-detail__back">
-        <Button
-          icon="pi pi-chevron-left"
-          label="Plans"
-          variant="text"
-          severity="secondary"
-          @click="handleBack"
-        />
+        <Button icon="pi pi-chevron-left" label="Plans" variant="text" severity="secondary" @click="handleBack" />
       </div>
       <h1 class="plan-detail__title">Settings</h1>
     </div>
@@ -28,7 +22,7 @@
         :fasting-duration="fastingDuration"
         :eating-window="eatingWindow"
         :start-date="startDate"
-        :days="7"
+        :periods="DEFAULT_PERIODS_TO_SHOW"
       />
     </div>
 
@@ -36,7 +30,7 @@
       <Button label="Reset" severity="secondary" variant="outlined" @click="handleReset" />
       <div class="plan-detail__footer-right">
         <Button label="Cancel" severity="secondary" variant="outlined" @click="handleCancel" />
-        <Button label="Start Plan" severity="success" @click="handleStartPlan" />
+        <Button label="Start Plan" @click="handleStartPlan" />
       </div>
     </div>
   </div>
@@ -48,6 +42,7 @@ import { useRoute, useRouter } from 'vue-router';
 import PlanConfigCard from './components/PlanConfigCard.vue';
 import PlanSettingsCard from './components/PlanSettingsCard.vue';
 import PlanTimeline from './components/PlanTimeline/PlanTimeline.vue';
+import { DEFAULT_PERIODS_TO_SHOW, DEFAULT_START_OFFSET_MINUTES } from './constants';
 import { findPresetById, getDefaultCustomPreset } from './presets';
 
 const route = useRoute();
@@ -67,10 +62,9 @@ const planDescription = ref('');
 const fastingDuration = ref(currentPreset.value.fastingDuration);
 const eatingWindow = ref(currentPreset.value.eatingWindow);
 
-// Default start: 10 minutes from now
 const getDefaultStartDate = () => {
   const date = new Date();
-  date.setMinutes(date.getMinutes() + 10);
+  date.setMinutes(date.getMinutes() + DEFAULT_START_OFFSET_MINUTES);
   date.setSeconds(0);
   date.setMilliseconds(0);
   return date;

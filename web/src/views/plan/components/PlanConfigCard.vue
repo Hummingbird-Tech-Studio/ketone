@@ -24,7 +24,7 @@
             severity="secondary"
             size="small"
             aria-label="Decrease fasting duration"
-            :disabled="fastingDuration <= 1"
+            :disabled="fastingDuration <= MIN_FASTING_DURATION_HOURS"
             @click="decrementFasting"
           />
           <span class="plan-config-card__control-value">{{ fastingDuration }}h</span>
@@ -36,7 +36,7 @@
             severity="secondary"
             size="small"
             aria-label="Increase fasting duration"
-            :disabled="fastingDuration >= 168"
+            :disabled="fastingDuration >= MAX_FASTING_DURATION_HOURS"
             @click="incrementFasting"
           />
         </div>
@@ -53,7 +53,7 @@
             severity="secondary"
             size="small"
             aria-label="Decrease eating window"
-            :disabled="eatingWindow <= 0"
+            :disabled="eatingWindow <= MIN_EATING_WINDOW_HOURS"
             @click="decrementEating"
           />
           <span class="plan-config-card__control-value">{{ eatingWindow }}h</span>
@@ -65,7 +65,7 @@
             severity="secondary"
             size="small"
             aria-label="Increase eating window"
-            :disabled="eatingWindow >= 24"
+            :disabled="eatingWindow >= MAX_EATING_WINDOW_HOURS"
             @click="incrementEating"
           />
         </div>
@@ -94,7 +94,7 @@
     <DateTimePickerDialog
       v-if="showDatePicker"
       :visible="showDatePicker"
-      title="Select Start Date & Time"
+      title="Start Date"
       :dateTime="startDate"
       @update:visible="handleDialogVisibilityChange"
       @update:dateTime="handleDateUpdate"
@@ -106,6 +106,12 @@
 import DateTimePickerDialog from '@/components/DateTimePickerDialog/DateTimePickerDialog.vue';
 import StartTimeIcon from '@/components/Icons/StartTime.vue';
 import { computed, ref } from 'vue';
+import {
+  MAX_EATING_WINDOW_HOURS,
+  MAX_FASTING_DURATION_HOURS,
+  MIN_EATING_WINDOW_HOURS,
+  MIN_FASTING_DURATION_HOURS,
+} from '../constants';
 
 const props = defineProps<{
   ratio: string;
@@ -133,25 +139,25 @@ const formattedStartDate = computed(() => {
 });
 
 const incrementFasting = () => {
-  if (props.fastingDuration < 168) {
+  if (props.fastingDuration < MAX_FASTING_DURATION_HOURS) {
     emit('update:fastingDuration', props.fastingDuration + 1);
   }
 };
 
 const decrementFasting = () => {
-  if (props.fastingDuration > 1) {
+  if (props.fastingDuration > MIN_FASTING_DURATION_HOURS) {
     emit('update:fastingDuration', props.fastingDuration - 1);
   }
 };
 
 const incrementEating = () => {
-  if (props.eatingWindow < 24) {
+  if (props.eatingWindow < MAX_EATING_WINDOW_HOURS) {
     emit('update:eatingWindow', props.eatingWindow + 1);
   }
 };
 
 const decrementEating = () => {
-  if (props.eatingWindow > 0) {
+  if (props.eatingWindow > MIN_EATING_WINDOW_HOURS) {
     emit('update:eatingWindow', props.eatingWindow - 1);
   }
 };

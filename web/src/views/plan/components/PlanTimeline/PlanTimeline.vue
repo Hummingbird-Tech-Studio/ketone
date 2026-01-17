@@ -20,6 +20,16 @@
         <span class="plan-timeline__legend-text">Eating Window</span>
       </div>
     </div>
+
+    <PeriodEditDialog
+      v-model:visible="isDialogVisible"
+      :period-index="selectedPeriodIndex"
+      :fasting-duration="props.fastingDuration"
+      :eating-window="props.eatingWindow"
+      :max-expandable-hours="null"
+      @save="handlePeriodSave"
+      @delete="handlePeriodDelete"
+    />
   </div>
 </template>
 
@@ -27,6 +37,7 @@
 import { computed, ref, toRef } from 'vue';
 import { usePlanTimelineData } from './composables/usePlanTimelineData';
 import { usePlanTimelineChart } from './composables/usePlanTimelineChart';
+import PeriodEditDialog from './PeriodEditDialog.vue';
 
 const props = defineProps<{
   fastingDuration: number;
@@ -35,7 +46,17 @@ const props = defineProps<{
   periods: number;
 }>();
 
+const emit = defineEmits<{
+  (e: 'update:fastingDuration', value: number): void;
+  (e: 'update:eatingWindow', value: number): void;
+  (e: 'deletePeriod', periodIndex: number): void;
+}>();
+
 const chartContainerRef = ref<HTMLElement | null>(null);
+
+// Dialog state
+const isDialogVisible = ref(false);
+const selectedPeriodIndex = ref(0);
 
 // Data transformation
 const timelineData = usePlanTimelineData({
@@ -44,6 +65,12 @@ const timelineData = usePlanTimelineData({
   startDate: toRef(() => props.startDate),
   periods: toRef(() => props.periods),
 });
+
+// Handle period click
+function handlePeriodClick(periodIndex: number) {
+  selectedPeriodIndex.value = periodIndex;
+  isDialogVisible.value = true;
+}
 
 // Chart rendering
 const { chartHeight } = usePlanTimelineChart(chartContainerRef, {
@@ -54,12 +81,25 @@ const { chartHeight } = usePlanTimelineChart(chartContainerRef, {
   timelineBars: timelineData.timelineBars,
   fastingDuration: toRef(() => props.fastingDuration),
   eatingWindow: toRef(() => props.eatingWindow),
+  onPeriodClick: handlePeriodClick,
 });
 
 // Dynamic height
 const chartContainerStyle = computed(() => ({
   height: `${chartHeight.value}px`,
 }));
+
+// Dialog handlers
+function handlePeriodSave(data: { periodIndex: number; fastingDuration: number; eatingWindow: number }) {
+  emit('update:fastingDuration', data.fastingDuration);
+  emit('update:eatingWindow', data.eatingWindow);
+  isDialogVisible.value = false;
+}
+
+function handlePeriodDelete(periodIndex: number) {
+  emit('deletePeriod', periodIndex);
+  isDialogVisible.value = false;
+}
 </script>
 
 <style scoped lang="scss">

@@ -40,6 +40,7 @@ interface UsePlanTimelineChartOptions {
   timelineBars: Ref<TimelineBar[]>;
   fastingDuration: Ref<number>;
   eatingWindow: Ref<number>;
+  onPeriodClick?: (periodIndex: number) => void;
 }
 
 function getDayLabelWidth(chartWidth: number): number {
@@ -484,6 +485,15 @@ export function usePlanTimelineChart(
     chartInstance.value.on('mouseout', { seriesIndex: 2 }, () => {
       if (hoveredPeriodIndex.value !== -1) {
         hoveredPeriodIndex.value = -1;
+      }
+    });
+
+    // Set up click handler for period selection
+    chartInstance.value.on('click', { seriesIndex: 2 }, (params: unknown) => {
+      const p = params as { data: { value: number[] } };
+      const periodIndex = p.data?.value?.[4];
+      if (periodIndex !== undefined && options.onPeriodClick) {
+        options.onPeriodClick(periodIndex);
       }
     });
   }

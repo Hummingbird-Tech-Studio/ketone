@@ -19,10 +19,11 @@
       </div>
 
       <PlanTimeline
-        :fasting-duration="fastingDuration"
-        :eating-window="eatingWindow"
+        v-model:fasting-duration="fastingDuration"
+        v-model:eating-window="eatingWindow"
         :start-date="startDate"
         :periods="DEFAULT_PERIODS_TO_SHOW"
+        @delete-period="handleDeletePeriod"
       />
     </div>
 
@@ -97,6 +98,11 @@ const handleStartPlan = () => {
     eatingWindow: eatingWindow.value,
     startDate: startDate.value,
   });
+};
+
+const handleDeletePeriod = (periodIndex: number) => {
+  // TODO: Handle period deletion
+  console.log('Delete period:', periodIndex);
 };
 </script>
 

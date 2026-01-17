@@ -2,35 +2,72 @@
   <div class="plan-config-card">
     <div class="plan-config-card__header">
       <span class="plan-config-card__ratio">{{ ratio }}</span>
-      <button class="plan-config-card__bookmark">
-        <i class="pi pi-bookmark"></i>
-      </button>
+      <Button
+        type="button"
+        icon="pi pi-bookmark"
+        rounded
+        variant="outlined"
+        severity="secondary"
+        aria-label="Bookmark"
+      />
     </div>
 
     <div class="plan-config-card__controls">
       <div class="plan-config-card__control">
         <span class="plan-config-card__control-label">Fast Duration</span>
         <div class="plan-config-card__control-input">
-          <button class="plan-config-card__btn" @click="decrementFasting" :disabled="fastingDuration <= 1">
-            <i class="pi pi-minus"></i>
-          </button>
+          <Button
+            type="button"
+            icon="pi pi-minus"
+            rounded
+            outlined
+            severity="secondary"
+            size="small"
+            aria-label="Decrease fasting duration"
+            :disabled="fastingDuration <= 1"
+            @click="decrementFasting"
+          />
           <span class="plan-config-card__control-value">{{ fastingDuration }}h</span>
-          <button class="plan-config-card__btn" @click="incrementFasting" :disabled="fastingDuration >= 168">
-            <i class="pi pi-plus"></i>
-          </button>
+          <Button
+            type="button"
+            icon="pi pi-plus"
+            rounded
+            outlined
+            severity="secondary"
+            size="small"
+            aria-label="Increase fasting duration"
+            :disabled="fastingDuration >= 168"
+            @click="incrementFasting"
+          />
         </div>
       </div>
 
       <div class="plan-config-card__control">
         <span class="plan-config-card__control-label">Eating Window</span>
         <div class="plan-config-card__control-input">
-          <button class="plan-config-card__btn" @click="decrementEating" :disabled="eatingWindow <= 0">
-            <i class="pi pi-minus"></i>
-          </button>
+          <Button
+            type="button"
+            icon="pi pi-minus"
+            rounded
+            outlined
+            severity="secondary"
+            size="small"
+            aria-label="Decrease eating window"
+            :disabled="eatingWindow <= 0"
+            @click="decrementEating"
+          />
           <span class="plan-config-card__control-value">{{ eatingWindow }}h</span>
-          <button class="plan-config-card__btn" @click="incrementEating" :disabled="eatingWindow >= 24">
-            <i class="pi pi-plus"></i>
-          </button>
+          <Button
+            type="button"
+            icon="pi pi-plus"
+            rounded
+            outlined
+            severity="secondary"
+            size="small"
+            aria-label="Increase eating window"
+            :disabled="eatingWindow >= 24"
+            @click="incrementEating"
+          />
         </div>
       </div>
     </div>
@@ -43,9 +80,15 @@
         <span class="plan-config-card__start-label">Start:</span>
         <span class="plan-config-card__start-value">{{ formattedStartDate }}</span>
       </div>
-      <button class="plan-config-card__edit" @click="showDatePicker = true">
-        <i class="pi pi-pencil"></i>
-      </button>
+      <Button
+        type="button"
+        icon="pi pi-pencil"
+        rounded
+        variant="outlined"
+        severity="secondary"
+        aria-label="Edit Start Date"
+        @click="showDatePicker = true"
+      />
     </div>
 
     <Dialog v-model:visible="showDatePicker" header="Select Start Date & Time" modal :style="{ width: '320px' }">
@@ -151,32 +194,6 @@ const saveStartDate = () => {
     color: $color-primary-button-text;
   }
 
-  &__bookmark {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 36px;
-    height: 36px;
-    background: transparent;
-    border: 1px solid $color-primary-button-outline;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all 0.2s;
-
-    i {
-      font-size: 16px;
-      color: $color-primary-light-text;
-    }
-
-    &:hover {
-      border-color: $color-primary-light-text;
-
-      i {
-        color: $color-primary-button-text;
-      }
-    }
-  }
-
   &__controls {
     display: flex;
     gap: 16px;
@@ -212,37 +229,6 @@ const saveStartDate = () => {
     color: $color-primary-button-text;
     min-width: 40px;
     text-align: center;
-  }
-
-  &__btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 28px;
-    height: 28px;
-    background: $color-white;
-    border: 1px solid $color-primary-button-outline;
-    border-radius: 6px;
-    cursor: pointer;
-    transition: all 0.2s;
-
-    i {
-      font-size: 12px;
-      color: $color-primary-light-text;
-    }
-
-    &:hover:not(:disabled) {
-      border-color: $color-primary-light-text;
-
-      i {
-        color: $color-primary-button-text;
-      }
-    }
-
-    &:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
   }
 
   &__start {
@@ -286,32 +272,6 @@ const saveStartDate = () => {
     font-size: 14px;
     font-weight: 600;
     color: $color-primary-button-text;
-  }
-
-  &__edit {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    background: transparent;
-    border: 1px solid $color-primary-button-outline;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all 0.2s;
-
-    i {
-      font-size: 14px;
-      color: $color-primary-light-text;
-    }
-
-    &:hover {
-      border-color: $color-primary-light-text;
-
-      i {
-        color: $color-primary-button-text;
-      }
-    }
   }
 
   &__datepicker {

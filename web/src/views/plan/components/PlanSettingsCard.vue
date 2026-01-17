@@ -3,18 +3,30 @@
     <div class="plan-settings-card__field">
       <span class="plan-settings-card__label">Name:</span>
       <span class="plan-settings-card__value">{{ name }}</span>
-      <button class="plan-settings-card__edit" @click="editName">
-        <i class="pi pi-pencil"></i>
-      </button>
+      <Button
+        type="button"
+        icon="pi pi-pencil"
+        rounded
+        variant="outlined"
+        severity="secondary"
+        aria-label="Edit Name"
+        @click="editName"
+      />
     </div>
     <div class="plan-settings-card__field">
       <span class="plan-settings-card__label">Description:</span>
       <span class="plan-settings-card__value plan-settings-card__value--placeholder">
         {{ description || 'Add a description...' }}
       </span>
-      <button class="plan-settings-card__edit" @click="editDescription">
-        <i class="pi pi-pencil"></i>
-      </button>
+      <Button
+        type="button"
+        icon="pi pi-pencil"
+        rounded
+        variant="outlined"
+        severity="secondary"
+        aria-label="Edit Description"
+        @click="editDescription"
+      />
     </div>
 
     <Dialog v-model:visible="showNameDialog" header="Edit Name" modal :style="{ width: '300px' }">
@@ -115,32 +127,6 @@ const saveDescription = () => {
     &--placeholder {
       color: $color-primary-light-text;
       font-style: italic;
-    }
-  }
-
-  &__edit {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    background: transparent;
-    border: 1px solid $color-primary-button-outline;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all 0.2s;
-
-    i {
-      font-size: 14px;
-      color: $color-primary-light-text;
-    }
-
-    &:hover {
-      border-color: $color-primary-light-text;
-
-      i {
-        color: $color-primary-button-text;
-      }
     }
   }
 

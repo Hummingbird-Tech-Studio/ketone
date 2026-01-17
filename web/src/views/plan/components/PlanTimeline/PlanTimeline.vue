@@ -24,9 +24,9 @@
     <PeriodEditDialog
       v-model:visible="isDialogVisible"
       :period-index="selectedPeriodIndex"
-      :fasting-duration="props.fastingDuration"
-      :eating-window="props.eatingWindow"
-      :max-expandable-hours="null"
+      :fasting-duration="selectedPeriodConfig?.fastingDuration ?? 0"
+      :eating-window="selectedPeriodConfig?.eatingWindow ?? 0"
+      :max-expandable-hours="selectedPeriodMaxExpandableHours"
       @save="handlePeriodSave"
       @delete="handlePeriodDelete"
     />
@@ -38,17 +38,14 @@ import { computed, ref, toRef } from 'vue';
 import { usePlanTimelineData } from './composables/usePlanTimelineData';
 import { usePlanTimelineChart } from './composables/usePlanTimelineChart';
 import PeriodEditDialog from './PeriodEditDialog.vue';
+import type { PeriodConfig } from './types';
 
 const props = defineProps<{
-  fastingDuration: number;
-  eatingWindow: number;
-  startDate: Date;
-  periods: number;
+  periodConfigs: PeriodConfig[];
 }>();
 
 const emit = defineEmits<{
-  (e: 'update:fastingDuration', value: number): void;
-  (e: 'update:eatingWindow', value: number): void;
+  (e: 'update:periodConfigs', value: PeriodConfig[]): void;
   (e: 'deletePeriod', periodIndex: number): void;
 }>();
 
@@ -58,12 +55,49 @@ const chartContainerRef = ref<HTMLElement | null>(null);
 const isDialogVisible = ref(false);
 const selectedPeriodIndex = ref(0);
 
+// Get the selected period's config
+const selectedPeriodConfig = computed(() => {
+  return props.periodConfigs[selectedPeriodIndex.value];
+});
+
+// Calculate max expandable hours for the selected period
+// This is the gap between this period's end and the next non-deleted period's start
+const selectedPeriodMaxExpandableHours = computed<number | null>(() => {
+  const configs = props.periodConfigs;
+  const currentIndex = selectedPeriodIndex.value;
+  const currentConfig = configs[currentIndex];
+
+  if (!currentConfig) return null;
+
+  // Find the next non-deleted period
+  let nextPeriodConfig: PeriodConfig | null = null;
+  for (let i = currentIndex + 1; i < configs.length; i++) {
+    if (!configs[i]!.deleted) {
+      nextPeriodConfig = configs[i]!;
+      break;
+    }
+  }
+
+  // If no next period found, no collision possible
+  if (!nextPeriodConfig) return null;
+
+  // Calculate current period's end time
+  const currentEndTime = new Date(currentConfig.startTime);
+  currentEndTime.setHours(
+    currentEndTime.getHours() + currentConfig.fastingDuration + currentConfig.eatingWindow,
+  );
+
+  // Calculate gap in hours between current end and next start
+  const gapMs = nextPeriodConfig.startTime.getTime() - currentEndTime.getTime();
+  const gapHours = gapMs / (1000 * 60 * 60);
+
+  // Return the gap (can be negative if already overlapping, which shouldn't happen)
+  return Math.max(0, gapHours);
+});
+
 // Data transformation
 const timelineData = usePlanTimelineData({
-  fastingDuration: toRef(() => props.fastingDuration),
-  eatingWindow: toRef(() => props.eatingWindow),
-  startDate: toRef(() => props.startDate),
-  periods: toRef(() => props.periods),
+  periodConfigs: toRef(() => props.periodConfigs),
 });
 
 // Handle period click
@@ -79,8 +113,7 @@ const { chartHeight } = usePlanTimelineChart(chartContainerRef, {
   hourLabels: timelineData.hourLabels,
   hourPositions: timelineData.hourPositions,
   timelineBars: timelineData.timelineBars,
-  fastingDuration: toRef(() => props.fastingDuration),
-  eatingWindow: toRef(() => props.eatingWindow),
+  periodConfigs: toRef(() => props.periodConfigs),
   onPeriodClick: handlePeriodClick,
 });
 
@@ -91,12 +124,23 @@ const chartContainerStyle = computed(() => ({
 
 // Dialog handlers
 function handlePeriodSave(data: { periodIndex: number; fastingDuration: number; eatingWindow: number }) {
-  emit('update:fastingDuration', data.fastingDuration);
-  emit('update:eatingWindow', data.eatingWindow);
+  const newConfigs = [...props.periodConfigs];
+  newConfigs[data.periodIndex] = {
+    ...newConfigs[data.periodIndex]!,
+    fastingDuration: data.fastingDuration,
+    eatingWindow: data.eatingWindow,
+  };
+  emit('update:periodConfigs', newConfigs);
   isDialogVisible.value = false;
 }
 
 function handlePeriodDelete(periodIndex: number) {
+  const newConfigs = [...props.periodConfigs];
+  newConfigs[periodIndex] = {
+    ...newConfigs[periodIndex]!,
+    deleted: true,
+  };
+  emit('update:periodConfigs', newConfigs);
   emit('deletePeriod', periodIndex);
   isDialogVisible.value = false;
 }

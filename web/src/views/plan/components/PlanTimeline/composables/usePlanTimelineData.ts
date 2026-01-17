@@ -1,25 +1,36 @@
 import { computed, type Ref } from 'vue';
-import type { TimelineBar } from '../types';
+import type { PeriodConfig, TimelineBar } from '../types';
 
 interface UsePlanTimelineDataOptions {
-  fastingDuration: Ref<number>;
-  eatingWindow: Ref<number>;
-  startDate: Ref<Date>;
-  periods: Ref<number>;
+  periodConfigs: Ref<PeriodConfig[]>;
 }
 
 export function usePlanTimelineData(options: UsePlanTimelineDataOptions) {
-  // Calculate the end time of the last complete period
-  const lastPeriodEndTime = computed(() => {
-    const periodDurationHours = options.fastingDuration.value + options.eatingWindow.value;
-    const endTime = new Date(options.startDate.value);
-    endTime.setHours(endTime.getHours() + options.periods.value * periodDurationHours);
-    return endTime;
+  // Get the earliest start time from all non-deleted periods
+  const timelineStartTime = computed(() => {
+    const nonDeletedConfigs = options.periodConfigs.value.filter((c) => !c.deleted);
+    if (nonDeletedConfigs.length === 0) return new Date();
+
+    return nonDeletedConfigs.reduce((earliest, config) => {
+      return config.startTime < earliest ? config.startTime : earliest;
+    }, nonDeletedConfigs[0]!.startTime);
   });
 
-  // Calculate number of days needed to show all complete periods
+  // Calculate the end time of the last period (latest end time)
+  const lastPeriodEndTime = computed(() => {
+    const nonDeletedConfigs = options.periodConfigs.value.filter((c) => !c.deleted);
+    if (nonDeletedConfigs.length === 0) return new Date();
+
+    return nonDeletedConfigs.reduce((latest, config) => {
+      const periodEnd = new Date(config.startTime);
+      periodEnd.setHours(periodEnd.getHours() + config.fastingDuration + config.eatingWindow);
+      return periodEnd > latest ? periodEnd : latest;
+    }, new Date(0));
+  });
+
+  // Calculate number of days needed to show all periods
   const numRows = computed(() => {
-    const startDay = new Date(options.startDate.value);
+    const startDay = new Date(timelineStartTime.value);
     startDay.setHours(0, 0, 0, 0);
 
     const endDay = new Date(lastPeriodEndTime.value);
@@ -31,7 +42,7 @@ export function usePlanTimelineData(options: UsePlanTimelineDataOptions) {
 
   const dayLabels = computed(() => {
     const labels: string[] = [];
-    const startTime = new Date(options.startDate.value);
+    const startTime = new Date(timelineStartTime.value);
 
     for (let i = 0; i < numRows.value; i++) {
       const currentDate = new Date(startTime);
@@ -51,20 +62,21 @@ export function usePlanTimelineData(options: UsePlanTimelineDataOptions) {
 
   const timelineBars = computed<TimelineBar[]>(() => {
     const bars: TimelineBar[] = [];
-    const startTime = new Date(options.startDate.value);
+    const startTime = new Date(timelineStartTime.value);
     const endTimeLimit = lastPeriodEndTime.value.getTime();
 
-    // Generate bars for exactly the specified number of periods
-    for (let periodIndex = 0; periodIndex < options.periods.value; periodIndex++) {
-      const periodDurationHours = options.fastingDuration.value + options.eatingWindow.value;
-      const periodStart = new Date(startTime);
-      periodStart.setHours(periodStart.getHours() + periodIndex * periodDurationHours);
+    // Generate bars for each period based on its individual config
+    options.periodConfigs.value.forEach((config, periodIndex) => {
+      // Skip deleted periods
+      if (config.deleted) return;
+
+      const periodStart = new Date(config.startTime);
 
       const fastingEnd = new Date(periodStart);
-      fastingEnd.setHours(fastingEnd.getHours() + options.fastingDuration.value);
+      fastingEnd.setHours(fastingEnd.getHours() + config.fastingDuration);
 
       const eatingEnd = new Date(fastingEnd);
-      eatingEnd.setHours(eatingEnd.getHours() + options.eatingWindow.value);
+      eatingEnd.setHours(eatingEnd.getHours() + config.eatingWindow);
 
       // Split fasting period across days
       addBarsForTimeRange(
@@ -78,7 +90,7 @@ export function usePlanTimelineData(options: UsePlanTimelineDataOptions) {
       );
 
       // Split eating period across days
-      if (options.eatingWindow.value > 0) {
+      if (config.eatingWindow > 0) {
         addBarsForTimeRange(
           bars,
           periodIndex,
@@ -89,7 +101,7 @@ export function usePlanTimelineData(options: UsePlanTimelineDataOptions) {
           endTimeLimit,
         );
       }
-    }
+    });
 
     return bars;
   });
@@ -109,7 +121,7 @@ export function usePlanTimelineData(options: UsePlanTimelineDataOptions) {
 
     let currentStart = new Date(rangeStart);
 
-    while (currentStart < rangeEnd && currentStart.getTime() < endTimeLimit) {
+    while (currentStart < rangeEnd && currentStart.getTime() <= endTimeLimit) {
       const dayStart = new Date(currentStart);
       dayStart.setHours(0, 0, 0, 0);
 
@@ -117,7 +129,7 @@ export function usePlanTimelineData(options: UsePlanTimelineDataOptions) {
       dayEnd.setDate(dayEnd.getDate() + 1);
 
       const barStart = currentStart;
-      const barEnd = new Date(Math.min(rangeEnd.getTime(), dayEnd.getTime(), endTimeLimit));
+      const barEnd = new Date(Math.min(rangeEnd.getTime(), dayEnd.getTime()));
 
       const dayIndex = Math.floor((dayStart.getTime() - timelineStartDay.getTime()) / (1000 * 60 * 60 * 24));
 
@@ -147,5 +159,6 @@ export function usePlanTimelineData(options: UsePlanTimelineDataOptions) {
     hourLabels,
     hourPositions,
     timelineBars,
+    timelineStartTime,
   };
 }

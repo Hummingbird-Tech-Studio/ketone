@@ -12,17 +12,15 @@
         <PlanSettingsCard v-model:name="planName" v-model:description="planDescription" />
         <PlanConfigCard
           :ratio="currentPreset.ratio"
-          v-model:fasting-duration="fastingDuration"
-          v-model:eating-window="eatingWindow"
+          v-model:fasting-duration="baseFastingDuration"
+          v-model:eating-window="baseEatingWindow"
           v-model:start-date="startDate"
         />
       </div>
 
       <PlanTimeline
-        v-model:fasting-duration="fastingDuration"
-        v-model:eating-window="eatingWindow"
-        :start-date="startDate"
-        :periods="DEFAULT_PERIODS_TO_SHOW"
+        :period-configs="periodConfigs"
+        @update:period-configs="handlePeriodConfigsUpdate"
         @delete-period="handleDeletePeriod"
       />
     </div>
@@ -38,11 +36,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import PlanConfigCard from './components/PlanConfigCard.vue';
 import PlanSettingsCard from './components/PlanSettingsCard.vue';
 import PlanTimeline from './components/PlanTimeline/PlanTimeline.vue';
+import type { PeriodConfig } from './components/PlanTimeline/types';
 import { DEFAULT_PERIODS_TO_SHOW, DEFAULT_START_OFFSET_MINUTES } from './constants';
 import { findPresetById, getDefaultCustomPreset } from './presets';
 
@@ -57,11 +56,11 @@ const currentPreset = computed(() => {
   return findPresetById(presetId.value) ?? getDefaultCustomPreset();
 });
 
-// Editable state
+// Base settings for new periods (from PlanConfigCard)
 const planName = ref(currentPreset.value.ratio);
 const planDescription = ref('');
-const fastingDuration = ref(currentPreset.value.fastingDuration);
-const eatingWindow = ref(currentPreset.value.eatingWindow);
+const baseFastingDuration = ref(currentPreset.value.fastingDuration);
+const baseEatingWindow = ref(currentPreset.value.eatingWindow);
 
 const getDefaultStartDate = () => {
   const date = new Date();
@@ -73,12 +72,81 @@ const getDefaultStartDate = () => {
 
 const startDate = ref(getDefaultStartDate());
 
+// Initialize period configs with fixed start times
+const createInitialPeriodConfigs = (
+  numPeriods: number,
+  firstStartTime: Date,
+  fastingDuration: number,
+  eatingWindow: number,
+): PeriodConfig[] => {
+  const configs: PeriodConfig[] = [];
+  let currentStartTime = new Date(firstStartTime);
+
+  for (let i = 0; i < numPeriods; i++) {
+    configs.push({
+      startTime: new Date(currentStartTime),
+      fastingDuration,
+      eatingWindow,
+      deleted: false,
+    });
+
+    // Calculate next period's start time (end of current period)
+    const periodDuration = fastingDuration + eatingWindow;
+    currentStartTime = new Date(currentStartTime.getTime() + periodDuration * 60 * 60 * 1000);
+  }
+
+  return configs;
+};
+
+const periodConfigs = ref<PeriodConfig[]>(
+  createInitialPeriodConfigs(
+    DEFAULT_PERIODS_TO_SHOW,
+    startDate.value,
+    currentPreset.value.fastingDuration,
+    currentPreset.value.eatingWindow,
+  ),
+);
+
+// When start date changes, reinitialize all periods with new start times
+// This keeps the same durations but shifts all periods
+watch(startDate, (newStartDate) => {
+  const configs: PeriodConfig[] = [];
+  let currentStartTime = new Date(newStartDate);
+
+  for (const config of periodConfigs.value) {
+    configs.push({
+      ...config,
+      startTime: new Date(currentStartTime),
+    });
+
+    // Calculate next period's start time based on current config's duration
+    const periodDuration = config.fastingDuration + config.eatingWindow;
+    currentStartTime = new Date(currentStartTime.getTime() + periodDuration * 60 * 60 * 1000);
+  }
+
+  periodConfigs.value = configs;
+});
+
+// When base settings change from PlanConfigCard, only apply to periods that haven't been edited
+// For simplicity, we'll skip this behavior - periods are now independent once created
+// The PlanConfigCard only affects newly created periods or reset
+
+const handlePeriodConfigsUpdate = (newConfigs: PeriodConfig[]) => {
+  periodConfigs.value = newConfigs;
+};
+
 const handleReset = () => {
   planName.value = currentPreset.value.ratio;
   planDescription.value = '';
-  fastingDuration.value = currentPreset.value.fastingDuration;
-  eatingWindow.value = currentPreset.value.eatingWindow;
+  baseFastingDuration.value = currentPreset.value.fastingDuration;
+  baseEatingWindow.value = currentPreset.value.eatingWindow;
   startDate.value = getDefaultStartDate();
+  periodConfigs.value = createInitialPeriodConfigs(
+    DEFAULT_PERIODS_TO_SHOW,
+    startDate.value,
+    currentPreset.value.fastingDuration,
+    currentPreset.value.eatingWindow,
+  );
 };
 
 const handleBack = () => {
@@ -94,14 +162,11 @@ const handleStartPlan = () => {
   console.log('Start plan:', {
     name: planName.value,
     description: planDescription.value,
-    fastingDuration: fastingDuration.value,
-    eatingWindow: eatingWindow.value,
-    startDate: startDate.value,
+    periodConfigs: periodConfigs.value,
   });
 };
 
 const handleDeletePeriod = (periodIndex: number) => {
-  // TODO: Handle period deletion
   console.log('Delete period:', periodIndex);
 };
 </script>

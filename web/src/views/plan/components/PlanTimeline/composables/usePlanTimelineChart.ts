@@ -8,7 +8,7 @@ import {
   type RenderItemReturn,
 } from '@/views/statistics/StatisticsChart/composables/chart/types';
 import { useChartLifecycle } from '@/views/statistics/StatisticsChart/composables/chart/lifecycle';
-import type { TimelineBar } from '../types';
+import type { PeriodConfig, TimelineBar } from '../types';
 import {
   BAR_BORDER_RADIUS,
   BAR_HEIGHT,
@@ -38,8 +38,7 @@ interface UsePlanTimelineChartOptions {
   hourLabels: Ref<string[]>;
   hourPositions: Ref<number[]>;
   timelineBars: Ref<TimelineBar[]>;
-  fastingDuration: Ref<number>;
-  eatingWindow: Ref<number>;
+  periodConfigs: Ref<PeriodConfig[]>;
   onPeriodClick?: (periodIndex: number) => void;
 }
 
@@ -376,8 +375,11 @@ export function usePlanTimelineChart(
 
   // Format tooltip content for period info
   function formatTooltipContent(barData: TimelineBar): string {
-    const fastingHours = options.fastingDuration.value;
-    const eatingHours = options.eatingWindow.value;
+    const periodConfig = options.periodConfigs.value[barData.periodIndex];
+    if (!periodConfig) return '';
+
+    const fastingHours = periodConfig.fastingDuration;
+    const eatingHours = periodConfig.eatingWindow;
     const totalHours = fastingHours + eatingHours;
     const periodNumber = barData.periodIndex + 1;
 

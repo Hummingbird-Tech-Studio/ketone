@@ -225,10 +225,7 @@ const canDecrementFasting = computed(() => {
 const canIncrementFasting = computed(() => {
   if (localFastingDuration.value >= MAX_FASTING_DURATION_HOURS) return false;
   // Check collision: if we increase by 1, would we exceed the expandable limit?
-  if (localMaxExpandableHours.value !== null && localMaxExpandableHours.value < 1) {
-    return false;
-  }
-  return true;
+  return !(localMaxExpandableHours.value !== null && localMaxExpandableHours.value < 1);
 });
 
 // Eating window constraints
@@ -239,10 +236,8 @@ const canDecrementEating = computed(() => {
 const canIncrementEating = computed(() => {
   if (localEatingWindow.value >= MAX_EATING_WINDOW_HOURS) return false;
   // Check collision: if we increase by 1, would we exceed the expandable limit?
-  if (localMaxExpandableHours.value !== null && localMaxExpandableHours.value < 1) {
-    return false;
-  }
-  return true;
+  return !(localMaxExpandableHours.value !== null && localMaxExpandableHours.value < 1);
+
 });
 
 const hasChanges = computed(() => {

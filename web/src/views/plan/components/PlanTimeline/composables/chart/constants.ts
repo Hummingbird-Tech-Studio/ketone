@@ -21,4 +21,3 @@ export const GRID_BORDER_RADIUS = 8;
 // Drag resize constants
 export const RESIZE_HANDLE_WIDTH = 10;
 export const CURSOR_RESIZE_EW = 'ew-resize';
-export const CURSOR_DEFAULT = 'default';

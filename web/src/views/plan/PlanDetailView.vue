@@ -1,5 +1,15 @@
 <template>
   <div class="plan-detail">
+    <div v-if="isChecking" class="plan-detail__loading-overlay">
+      <ProgressSpinner :style="{ width: '40px', height: '40px' }" />
+    </div>
+
+    <CycleInProgressDialog
+      :visible="showCycleBlockDialog"
+      @update:visible="handleCycleBlockDialogClose"
+      @go-to-cycle="goToCycle"
+    />
+
     <div class="plan-detail__header">
       <div class="plan-detail__back">
         <Button icon="pi pi-chevron-left" label="Plans" variant="text" severity="secondary" @click="handleBack" />
@@ -31,17 +41,33 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import CycleInProgressDialog from './components/CycleInProgressDialog.vue';
 import PlanConfigCard from './components/PlanConfigCard.vue';
 import PlanSettingsCard from './components/PlanSettingsCard.vue';
 import PlanTimeline from './components/PlanTimeline/PlanTimeline.vue';
 import type { PeriodConfig } from './components/PlanTimeline/types';
+import { useCycleBlockDialog } from './composables/useCycleBlockDialog';
 import { DEFAULT_PERIODS_TO_SHOW, MAX_PERIODS, MIN_PERIODS } from './constants';
 import { findPresetById, getDefaultCustomPreset } from './presets';
 
 const route = useRoute();
 const router = useRouter();
+const { showDialog: showCycleBlockDialog, isChecking, checkAndProceed, dismiss, goToCycle } = useCycleBlockDialog();
+
+const handleCycleBlockDialogClose = (value: boolean) => {
+  if (!value) {
+    dismiss();
+    router.push('/plans');
+  }
+};
+
+onMounted(() => {
+  checkAndProceed(() => {
+    // Page can render normally - no cycle in progress
+  });
+});
 
 const presetId = computed(() => route.params.presetId as string);
 const currentPreset = computed(() => {
@@ -252,6 +278,16 @@ const handleDeletePeriod = (periodIndex: number) => {
   &__footer-right {
     display: flex;
     gap: 12px;
+  }
+
+  &__loading-overlay {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(255, 255, 255, 0.7);
+    z-index: 1000;
   }
 }
 </style>

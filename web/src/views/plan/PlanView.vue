@@ -1,5 +1,15 @@
 <template>
   <div class="plans">
+    <div v-if="isChecking" class="plans__loading-overlay">
+      <ProgressSpinner :style="{ width: '40px', height: '40px' }" />
+    </div>
+
+    <CycleInProgressDialog
+      :visible="showCycleBlockDialog"
+      @update:visible="handleCycleBlockDialogClose"
+      @go-to-cycle="goToCycle"
+    />
+
     <PresetConfigDialog
       v-if="selectedPreset"
       :visible="showConfigDialog"
@@ -47,19 +57,30 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
+import CycleInProgressDialog from './components/CycleInProgressDialog.vue';
 import PresetConfigDialog, { type PresetInitialConfig } from './components/PresetConfigDialog.vue';
+import { useCycleBlockDialog } from './composables/useCycleBlockDialog';
 import { sections, type Preset, type Theme } from './presets';
 
 const router = useRouter();
+const { showDialog: showCycleBlockDialog, isChecking, checkAndProceed, dismiss, goToCycle } = useCycleBlockDialog();
 
 const showConfigDialog = ref(false);
 const selectedPreset = ref<Preset | null>(null);
 const selectedTheme = ref<Theme>('green');
 
+const handleCycleBlockDialogClose = (value: boolean) => {
+  if (!value) {
+    dismiss();
+  }
+};
+
 const selectPreset = (preset: Preset, theme: Theme) => {
-  selectedPreset.value = preset;
-  selectedTheme.value = theme;
-  showConfigDialog.value = true;
+  checkAndProceed(() => {
+    selectedPreset.value = preset;
+    selectedTheme.value = theme;
+    showConfigDialog.value = true;
+  });
 };
 
 const handleDialogClose = (value: boolean) => {
@@ -83,7 +104,9 @@ const handleConfirm = (config: PresetInitialConfig) => {
 };
 
 const selectCustom = () => {
-  router.push('/plans/custom');
+  checkAndProceed(() => {
+    router.push('/plans/custom');
+  });
 };
 </script>
 
@@ -288,6 +311,16 @@ const selectCustom = () => {
   &__custom-arrow {
     font-size: 14px;
     color: $color-primary-light-text;
+  }
+
+  &__loading-overlay {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: rgba(255, 255, 255, 0.7);
+    z-index: 1000;
   }
 }
 </style>

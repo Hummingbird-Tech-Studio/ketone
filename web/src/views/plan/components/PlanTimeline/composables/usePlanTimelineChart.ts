@@ -367,9 +367,18 @@ export function usePlanTimelineChart(chartContainer: Ref<HTMLElement | null>, op
     const totalHours = fastingHours + eatingHours;
     const periodNumber = barData.periodIndex + 1;
 
+    const formattedStartDate = new Intl.DateTimeFormat('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    }).format(periodConfig.startTime);
+
     return `
       <div style="line-height: 1.6; min-width: 140px;">
         <div style="font-weight: 600; margin-bottom: 4px; color: ${COLOR_TEXT};">Period ${periodNumber}</div>
+        <div><span style="font-weight: 500;">Start:</span> ${formattedStartDate}</div>
         <div><span style="font-weight: 500;">Fast Duration:</span> ${fastingHours}h</div>
         <div><span style="font-weight: 500;">Eating Window:</span> ${eatingHours}h</div>
         <div style="border-top: 1px solid #eee; margin-top: 4px; padding-top: 4px;">

@@ -42,7 +42,7 @@ import { computed, ref, toRef } from 'vue';
 import { usePlanTimelineChart } from './composables/usePlanTimelineChart';
 import { usePlanTimelineData } from './composables/usePlanTimelineData';
 import PeriodEditDialog from './PeriodEditDialog.vue';
-import type { GapInfo, PeriodConfig } from './types';
+import type { GapInfo, PeriodConfig, PeriodUpdate } from './types';
 
 const props = defineProps<{
   periodConfigs: PeriodConfig[];
@@ -204,13 +204,15 @@ function handleGapClick(gapInfo: GapInfo) {
   isDialogVisible.value = true;
 }
 
-// Handle period drag (resize)
-function handlePeriodDrag(periodIndex: number, newConfig: Partial<PeriodConfig>) {
+// Handle period drag (resize) - applies updates to multiple periods
+function handlePeriodDrag(updates: PeriodUpdate[]) {
   const newConfigs = [...props.periodConfigs];
-  newConfigs[periodIndex] = {
-    ...newConfigs[periodIndex]!,
-    ...newConfig,
-  };
+  for (const update of updates) {
+    newConfigs[update.periodIndex] = {
+      ...newConfigs[update.periodIndex]!,
+      ...update.changes,
+    };
+  }
   emit('update:periodConfigs', newConfigs);
 }
 

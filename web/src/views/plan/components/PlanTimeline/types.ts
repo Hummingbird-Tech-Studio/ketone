@@ -33,6 +33,12 @@ export interface PeriodConfig {
 export type DragEdge = 'left' | 'right';
 export type DragBarType = 'fasting' | 'eating';
 
+/** Represents an update to a single period during drag operations */
+export interface PeriodUpdate {
+  periodIndex: number;
+  changes: Partial<PeriodConfig>;
+}
+
 export interface DragState {
   isDragging: boolean;
   edge: DragEdge;
@@ -44,6 +50,15 @@ export interface DragState {
   originalStartTime: Date;
   originalFastingDuration: number;
   originalEatingWindow: number;
+  // Original values of previous period (for propagation without cumulative errors)
+  prevPeriodIndex: number;
+  originalPrevFastingDuration: number;
+  originalPrevEatingWindow: number;
+  // Original values of next period (for propagation without cumulative errors)
+  nextPeriodIndex: number;
+  originalNextStartTime: Date | null;
+  originalNextFastingDuration: number;
+  originalNextEatingWindow: number;
 }
 
 export interface ResizeZone {

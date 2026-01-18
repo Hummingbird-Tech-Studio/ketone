@@ -8,7 +8,7 @@ import {
   type RenderItemReturn,
 } from '@/views/statistics/StatisticsChart/composables/chart/types';
 import { computed, onUnmounted, ref, shallowRef, watch, type Ref, type ShallowRef } from 'vue';
-import type { DragBarType, DragEdge, DragState, GapInfo, PeriodConfig, ResizeZone, TimelineBar } from '../types';
+import type { DragBarType, DragEdge, DragState, GapInfo, PeriodConfig, PeriodUpdate, ResizeZone, TimelineBar } from '../types';
 import {
   BAR_BORDER_RADIUS,
   BAR_HEIGHT,
@@ -45,7 +45,7 @@ interface UsePlanTimelineChartOptions {
   periodConfigs: Ref<PeriodConfig[]>;
   onPeriodClick?: (periodIndex: number) => void;
   onGapClick?: (gapInfo: GapInfo) => void;
-  onPeriodDrag?: (periodIndex: number, newConfig: Partial<PeriodConfig>) => void;
+  onPeriodDrag?: (updates: PeriodUpdate[]) => void;
 }
 
 function getDayLabelWidth(chartWidth: number): number {
@@ -167,38 +167,31 @@ export function usePlanTimelineChart(chartContainer: Ref<HTMLElement | null>, op
     return Math.round(pixelDelta * hoursPerPixel);
   }
 
-  // Find previous non-deleted period
-  function findPreviousNonDeletedPeriod(periodIndex: number): PeriodConfig | null {
+  // Find previous non-deleted period index
+  function findPreviousNonDeletedPeriodIndex(periodIndex: number): number {
     for (let i = periodIndex - 1; i >= 0; i--) {
       const config = options.periodConfigs.value[i];
-      if (config && !config.deleted) return config;
+      if (config && !config.deleted) return i;
     }
-    return null;
+    return -1;
   }
 
-  // Find next non-deleted period
-  function findNextNonDeletedPeriod(periodIndex: number): PeriodConfig | null {
+  // Find next non-deleted period index
+  function findNextNonDeletedPeriodIndex(periodIndex: number): number {
     for (let i = periodIndex + 1; i < options.periodConfigs.value.length; i++) {
       const config = options.periodConfigs.value[i];
-      if (config && !config.deleted) return config;
+      if (config && !config.deleted) return i;
     }
-    return null;
+    return -1;
   }
 
-  // Calculate end time of a period
-  function getPeriodEndTime(config: PeriodConfig): Date {
-    const endTime = new Date(config.startTime);
-    endTime.setHours(endTime.getHours() + config.fastingDuration + config.eatingWindow);
-    return endTime;
-  }
-
-  // Apply drag delta and return new config (uses original values from dragState)
+  // Apply drag delta and return updates for affected periods (uses original values from dragState)
   function applyDragDelta(
     periodIndex: number,
     edge: DragEdge,
     barType: DragBarType,
     hourDelta: number,
-  ): Partial<PeriodConfig> | null {
+  ): PeriodUpdate[] | null {
     if (!dragState.value) return null;
 
     // Use original values from drag start to avoid cumulative errors
@@ -206,25 +199,16 @@ export function usePlanTimelineChart(chartContainer: Ref<HTMLElement | null>, op
     const originalFastingDuration = dragState.value.originalFastingDuration;
     const originalEatingWindow = dragState.value.originalEatingWindow;
 
-    const prevPeriod = findPreviousNonDeletedPeriod(periodIndex);
-    const nextPeriod = findNextNonDeletedPeriod(periodIndex);
-    const prevEndTime = prevPeriod ? getPeriodEndTime(prevPeriod) : null;
-    // Ensure nextStartTime is a proper Date object for comparison
-    const nextStartTime = nextPeriod ? new Date(nextPeriod.startTime) : null;
+    // Use stored previous period values from drag start
+    const prevPeriodIndex = dragState.value.prevPeriodIndex;
+    const originalPrevEatingWindow = dragState.value.originalPrevEatingWindow;
+    const hasPrevPeriod = prevPeriodIndex !== -1;
 
-    console.log('[Drag] applyDragDelta called:', {
-      periodIndex,
-      edge,
-      barType,
-      hourDelta,
-      originalStartTime: originalStartTime instanceof Date ? originalStartTime.toISOString() : String(originalStartTime),
-      originalFastingDuration,
-      originalEatingWindow,
-      prevEndTime: prevEndTime ? prevEndTime.toISOString() : null,
-      nextStartTime: nextStartTime ? nextStartTime.toISOString() : null,
-      nextPeriodStartTimeRaw: nextPeriod?.startTime,
-      nextPeriodStartTimeType: nextPeriod ? typeof nextPeriod.startTime : null,
-    });
+    // Use stored next period values from drag start
+    const nextPeriodIndex = dragState.value.nextPeriodIndex;
+    const originalNextFastingDuration = dragState.value.originalNextFastingDuration;
+    const originalNextEatingWindow = dragState.value.originalNextEatingWindow;
+    const hasNextPeriod = nextPeriodIndex !== -1;
 
     if (barType === 'fasting' && edge === 'left') {
       // Adjust startTime, keep fasting end fixed by adjusting fastingDuration
@@ -233,43 +217,71 @@ export function usePlanTimelineChart(chartContainer: Ref<HTMLElement | null>, op
       const newFastingDuration = originalFastingDuration - hourDelta;
 
       // Constraints
-      if (newFastingDuration < 1) {
-        console.log('[Drag] Blocked: newFastingDuration < 1', { newFastingDuration, hourDelta });
-        return null;
-      }
-      if (prevEndTime && newStartTime < prevEndTime) {
-        console.log('[Drag] Blocked: collision with prev period', {
-          newStartTime: newStartTime.toISOString(),
-          prevEndTime: prevEndTime.toISOString(),
-          hourDelta,
-        });
-        return null;
+      if (newFastingDuration < 1) return null;
+
+      // If there's a previous period, shrink/grow its eating window to compensate
+      if (hasPrevPeriod) {
+        // hourDelta < 0 means fasting grows (start moves earlier), prev eating shrinks
+        // hourDelta > 0 means fasting shrinks (start moves later), prev eating grows
+        const prevNewEating = originalPrevEatingWindow + hourDelta;
+
+        // Constraint: prev period eating must stay >= 1 and <= 24
+        if (prevNewEating < 1) return null;
+        if (prevNewEating > 24) return null;
+
+        return [
+          {
+            periodIndex: prevPeriodIndex,
+            changes: { eatingWindow: prevNewEating },
+          },
+          {
+            periodIndex,
+            changes: { startTime: newStartTime, fastingDuration: newFastingDuration },
+          },
+        ];
       }
 
-      return {
-        startTime: newStartTime,
-        fastingDuration: newFastingDuration,
-      };
+      return [{ periodIndex, changes: { startTime: newStartTime, fastingDuration: newFastingDuration } }];
     }
 
     if (barType === 'fasting' && edge === 'right') {
-      // Adjust fastingDuration
+      // Adjust fastingDuration - extends fasting, shrinks next period's eating
       const newFastingDuration = originalFastingDuration + hourDelta;
 
       // Constraints
       if (newFastingDuration < 1) return null;
       if (newFastingDuration > 168) return null;
 
-      // Check collision with eating window end and next period
+      // Calculate new period end time (fasting grows, eating stays same)
       const newPeriodEndTime = new Date(originalStartTime);
       newPeriodEndTime.setHours(newPeriodEndTime.getHours() + newFastingDuration + originalEatingWindow);
-      if (nextStartTime && newPeriodEndTime > nextStartTime) return null;
 
-      return { fastingDuration: newFastingDuration };
+      // If there's a next period, shrink its eating window to compensate
+      if (hasNextPeriod) {
+        // Use original next period eating from drag start to avoid cumulative errors
+        const nextNewEating = originalNextEatingWindow - hourDelta;
+
+        // Constraint: next period eating must stay >= 1
+        if (nextNewEating < 1) return null;
+        if (nextNewEating > 24) return null;
+
+        return [
+          { periodIndex, changes: { fastingDuration: newFastingDuration } },
+          {
+            periodIndex: nextPeriodIndex,
+            changes: {
+              startTime: newPeriodEndTime,
+              eatingWindow: nextNewEating,
+            },
+          },
+        ];
+      }
+
+      return [{ periodIndex, changes: { fastingDuration: newFastingDuration } }];
     }
 
     if (barType === 'eating' && edge === 'left') {
-      // Move fasting/eating boundary
+      // Move fasting/eating boundary (doesn't affect other periods)
       const newFastingDuration = originalFastingDuration + hourDelta;
       const newEatingWindow = originalEatingWindow - hourDelta;
 
@@ -277,42 +289,45 @@ export function usePlanTimelineChart(chartContainer: Ref<HTMLElement | null>, op
       if (newFastingDuration < 1 || newEatingWindow < 1) return null;
       if (newFastingDuration > 168 || newEatingWindow > 24) return null;
 
-      return {
-        fastingDuration: newFastingDuration,
-        eatingWindow: newEatingWindow,
-      };
+      return [{ periodIndex, changes: { fastingDuration: newFastingDuration, eatingWindow: newEatingWindow } }];
     }
 
     if (barType === 'eating' && edge === 'right') {
-      // Adjust eatingWindow
+      // Adjust eatingWindow - propagate to next period
       const newEatingWindow = originalEatingWindow + hourDelta;
 
-      // Constraints
-      if (newEatingWindow < 1) {
-        console.log('[Drag] Blocked: newEatingWindow < 1', { newEatingWindow, hourDelta });
-        return null;
-      }
-      if (newEatingWindow > 24) {
-        console.log('[Drag] Blocked: newEatingWindow > 24', { newEatingWindow, hourDelta });
-        return null;
-      }
+      // Constraints for current period
+      if (newEatingWindow < 1) return null;
+      if (newEatingWindow > 24) return null;
 
-      // Check collision with next period
+      // Calculate new period end time
       const newPeriodEndTime = new Date(originalStartTime);
       newPeriodEndTime.setHours(newPeriodEndTime.getHours() + originalFastingDuration + newEatingWindow);
-      if (nextStartTime && newPeriodEndTime > nextStartTime) {
-        console.log('[Drag] Blocked: collision with next period', {
-          newPeriodEndTime: newPeriodEndTime.toISOString(),
-          nextStartTime: nextStartTime.toISOString(),
-          originalStartTime: originalStartTime.toISOString(),
-          originalFastingDuration,
-          newEatingWindow,
-          hourDelta,
-        });
-        return null;
+
+      // If there's a next period, propagate the change
+      if (hasNextPeriod) {
+        // Use original next period fasting from drag start to avoid cumulative errors
+        // hourDelta > 0 means eating grows, next fasting shrinks
+        // hourDelta < 0 means eating shrinks, next fasting grows
+        const nextNewFasting = originalNextFastingDuration - hourDelta;
+
+        // Constraint: next period fasting must stay >= 1
+        if (nextNewFasting < 1) return null;
+
+        return [
+          { periodIndex, changes: { eatingWindow: newEatingWindow } },
+          {
+            periodIndex: nextPeriodIndex,
+            changes: {
+              startTime: newPeriodEndTime,
+              fastingDuration: nextNewFasting,
+            },
+          },
+        ];
       }
 
-      return { eatingWindow: newEatingWindow };
+      // No next period - just update current period (last period case)
+      return [{ periodIndex, changes: { eatingWindow: newEatingWindow } }];
     }
 
     return null;
@@ -801,6 +816,12 @@ export function usePlanTimelineChart(chartContainer: Ref<HTMLElement | null>, op
     const config = options.periodConfigs.value[zone.periodIndex];
     if (!config) return;
 
+    // Find previous and next periods for propagation
+    const prevPeriodIdx = findPreviousNonDeletedPeriodIndex(zone.periodIndex);
+    const prevConfig = prevPeriodIdx !== -1 ? options.periodConfigs.value[prevPeriodIdx] : null;
+    const nextPeriodIdx = findNextNonDeletedPeriodIndex(zone.periodIndex);
+    const nextConfig = nextPeriodIdx !== -1 ? options.periodConfigs.value[nextPeriodIdx] : null;
+
     // Store original values at drag start to avoid cumulative errors
     dragState.value = {
       isDragging: true,
@@ -812,6 +833,15 @@ export function usePlanTimelineChart(chartContainer: Ref<HTMLElement | null>, op
       originalStartTime: new Date(config.startTime),
       originalFastingDuration: config.fastingDuration,
       originalEatingWindow: config.eatingWindow,
+      // Store previous period's original values for propagation
+      prevPeriodIndex: prevPeriodIdx,
+      originalPrevFastingDuration: prevConfig?.fastingDuration ?? 0,
+      originalPrevEatingWindow: prevConfig?.eatingWindow ?? 0,
+      // Store next period's original values for propagation
+      nextPeriodIndex: nextPeriodIdx,
+      originalNextStartTime: nextConfig ? new Date(nextConfig.startTime) : null,
+      originalNextFastingDuration: nextConfig?.fastingDuration ?? 0,
+      originalNextEatingWindow: nextConfig?.eatingWindow ?? 0,
     };
 
     document.body.style.userSelect = 'none';
@@ -830,19 +860,19 @@ export function usePlanTimelineChart(chartContainer: Ref<HTMLElement | null>, op
     const hourDelta = pixelsToHours(pixelDelta, gridWidth);
 
     if (hourDelta !== dragState.value.hourDelta) {
-      const newConfig = applyDragDelta(
+      const updates = applyDragDelta(
         dragState.value.periodIndex,
         dragState.value.edge,
         dragState.value.barType,
         hourDelta,
       );
 
-      if (newConfig) {
+      if (updates) {
         dragState.value.hourDelta = hourDelta;
         dragOccurred = true;
 
         if (options.onPeriodDrag) {
-          options.onPeriodDrag(dragState.value.periodIndex, newConfig);
+          options.onPeriodDrag(updates);
         }
       }
     }
@@ -931,6 +961,9 @@ export function usePlanTimelineChart(chartContainer: Ref<HTMLElement | null>, op
 
     // Set up hover event handlers for period highlighting
     chartInstance.value.on('mouseover', { seriesIndex: 2 }, (params: unknown) => {
+      // Don't update hover state during drag - keep the dragged period highlighted
+      if (dragState.value?.isDragging) return;
+
       const p = params as { data: { value: number[] } };
       const barIndex = p.data?.value?.[3];
       if (barIndex === undefined) return;
@@ -954,6 +987,9 @@ export function usePlanTimelineChart(chartContainer: Ref<HTMLElement | null>, op
     });
 
     chartInstance.value.on('mouseout', { seriesIndex: 2 }, () => {
+      // Don't clear hover state during drag - keep the dragged period highlighted
+      if (dragState.value?.isDragging) return;
+
       if (hoveredPeriodIndex.value !== -1) {
         hoveredPeriodIndex.value = -1;
       }

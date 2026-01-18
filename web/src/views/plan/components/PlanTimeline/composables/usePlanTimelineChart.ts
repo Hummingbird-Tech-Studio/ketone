@@ -365,7 +365,15 @@ export function usePlanTimelineChart(chartContainer: Ref<HTMLElement | null>, op
     const fastingHours = periodConfig.fastingDuration;
     const eatingHours = periodConfig.eatingWindow;
     const totalHours = fastingHours + eatingHours;
-    const periodNumber = barData.periodIndex + 1;
+
+    // Calculate visible period number (counting only non-deleted periods)
+    let periodNumber = 0;
+    for (let i = 0; i <= barData.periodIndex; i++) {
+      const config = options.periodConfigs.value[i];
+      if (config && !config.deleted) {
+        periodNumber++;
+      }
+    }
 
     const formattedStartDate = new Intl.DateTimeFormat('en-US', {
       month: 'short',

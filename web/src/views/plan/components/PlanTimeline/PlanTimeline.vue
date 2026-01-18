@@ -20,6 +20,7 @@
     <PeriodEditDialog
       v-model:visible="isDialogVisible"
       :period-index="selectedPeriodIndex"
+      :visible-period-number="selectedPeriodVisibleNumber"
       :fasting-duration="selectedPeriodConfig?.fastingDuration ?? 0"
       :eating-window="selectedPeriodConfig?.eatingWindow ?? 0"
       :start-time="selectedPeriodConfig?.startTime ?? new Date()"
@@ -56,6 +57,18 @@ const selectedPeriodIndex = ref(0);
 // Get the selected period's config
 const selectedPeriodConfig = computed(() => {
   return props.periodConfigs[selectedPeriodIndex.value];
+});
+
+// Calculate the visible period number (counting only non-deleted periods)
+const selectedPeriodVisibleNumber = computed(() => {
+  let visibleNumber = 0;
+  for (let i = 0; i <= selectedPeriodIndex.value; i++) {
+    const config = props.periodConfigs[i];
+    if (config && !config.deleted) {
+      visibleNumber++;
+    }
+  }
+  return visibleNumber;
 });
 
 // Calculate min start time for the selected period

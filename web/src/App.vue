@@ -197,7 +197,7 @@ const getActiveSeverity = (paths: string | string[]) => {
 };
 
 const homeSeverity = getActiveSeverity('/cycle');
-const plansSeverity = getActiveSeverity('/plans');
+const plansSeverity = getActiveSeverity('/plans*');
 const statsSeverity = getActiveSeverity('/statistics');
 const accountSeverity = getActiveSeverity(['/account*', '/settings*', '/profile*']);
 

@@ -99,6 +99,10 @@
             />
           </div>
         </div>
+
+        <Message severity="info" icon="pi pi-info-circle" class="preset-config-dialog__info">
+          A period is one complete fasting and eating window.
+        </Message>
       </div>
 
       <div class="preset-config-dialog__start">
@@ -335,6 +339,13 @@ function handleConfirm() {
     display: flex;
     flex-direction: column;
     gap: 16px;
+  }
+
+  &__info {
+    margin-top: 2px;
+    :deep(.p-message-text) {
+      font-size: 12px;
+    }
   }
 
   &__control {

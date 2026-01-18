@@ -128,6 +128,8 @@ import {
 interface Props {
   visible: boolean;
   periodIndex: number;
+  /** The visible period number (counting only non-deleted periods) */
+  visiblePeriodNumber: number;
   fastingDuration: number;
   eatingWindow: number;
   startTime: Date;
@@ -151,7 +153,7 @@ const localEatingWindow = ref(props.eatingWindow);
 const localStartTime = ref(new Date(props.startTime));
 const showDatePicker = ref(false);
 
-const periodNumber = computed(() => props.periodIndex + 1);
+const periodNumber = computed(() => props.visiblePeriodNumber);
 
 const formattedStartDate = computed(() => {
   return new Intl.DateTimeFormat('en-US', {

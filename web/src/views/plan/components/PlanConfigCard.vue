@@ -5,7 +5,7 @@
         type="button"
         icon="pi pi-bookmark"
         rounded
-        variant="text"
+        variant="outlined"
         severity="primary"
         aria-label="Bookmark"
       />

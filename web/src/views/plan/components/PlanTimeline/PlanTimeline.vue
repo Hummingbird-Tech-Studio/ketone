@@ -320,7 +320,12 @@ const chartContainerStyle = computed(() => ({
 // DIALOG HANDLERS
 // ============================================================
 
-function handlePeriodSave(data: { periodIndex: number; fastingDuration: number; eatingWindow: number; startTime: Date }) {
+function handlePeriodSave(data: {
+  periodIndex: number;
+  fastingDuration: number;
+  eatingWindow: number;
+  startTime: Date;
+}) {
   saveDialog(data.fastingDuration, data.eatingWindow, data.startTime);
 }
 

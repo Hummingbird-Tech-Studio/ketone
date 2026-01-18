@@ -102,9 +102,7 @@ export function usePlanTimelineData(options: UsePlanTimelineDataOptions) {
 
       // Calculate current period end time
       const currentEndTime = new Date(currentConfig.startTime);
-      currentEndTime.setHours(
-        currentEndTime.getHours() + currentConfig.fastingDuration + currentConfig.eatingWindow,
-      );
+      currentEndTime.setHours(currentEndTime.getHours() + currentConfig.fastingDuration + currentConfig.eatingWindow);
 
       // Calculate gap duration in milliseconds
       const gapMs = nextConfig.startTime.getTime() - currentEndTime.getTime();

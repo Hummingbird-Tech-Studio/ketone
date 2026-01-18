@@ -277,10 +277,7 @@ export const planTimelineMachine = setup({
       assertEvent(event, Event.DRAG_MOVE);
       if (!context.dragState || context.chartDimensions.gridWidth <= 0) return false;
 
-      const hourDelta = pixelsToHours(
-        event.currentX - context.dragState.startX,
-        context.chartDimensions.gridWidth,
-      );
+      const hourDelta = pixelsToHours(event.currentX - context.dragState.startX, context.chartDimensions.gridWidth);
 
       const updates = calculateDragUpdates(context, hourDelta);
       return updates !== null;
@@ -353,10 +350,7 @@ export const planTimelineMachine = setup({
       assertEvent(event, Event.DRAG_MOVE);
       if (!context.dragState) return {};
 
-      const hourDelta = pixelsToHours(
-        event.currentX - context.dragState.startX,
-        context.chartDimensions.gridWidth,
-      );
+      const hourDelta = pixelsToHours(event.currentX - context.dragState.startX, context.chartDimensions.gridWidth);
 
       return {
         dragState: {
@@ -464,10 +458,7 @@ export const planTimelineMachine = setup({
         throw new Error('No drag state for emit');
       }
 
-      const hourDelta = pixelsToHours(
-        event.currentX - context.dragState.startX,
-        context.chartDimensions.gridWidth,
-      );
+      const hourDelta = pixelsToHours(event.currentX - context.dragState.startX, context.chartDimensions.gridWidth);
 
       const updates = calculateDragUpdates(context, hourDelta);
       return {

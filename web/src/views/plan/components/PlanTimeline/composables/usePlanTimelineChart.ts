@@ -145,12 +145,7 @@ export function usePlanTimelineChart(chartContainer: Ref<HTMLElement | null>, op
     const matchingZones: ResizeZone[] = [];
 
     for (const zone of resizeZones.value) {
-      if (
-        mouseX >= zone.x &&
-        mouseX <= zone.x + zone.width &&
-        mouseY >= zone.y &&
-        mouseY <= zone.y + zone.height
-      ) {
+      if (mouseX >= zone.x && mouseX <= zone.x + zone.width && mouseY >= zone.y && mouseY <= zone.y + zone.height) {
         matchingZones.push(zone);
       }
     }
@@ -423,9 +418,10 @@ export function usePlanTimelineChart(chartContainer: Ref<HTMLElement | null>, op
     let barOpacity = 1;
 
     // Get highlighted period (either from drag or hover)
-    const highlightedPeriod = options.isDragging.value && options.dragPeriodIndex.value !== null
-      ? options.dragPeriodIndex.value
-      : options.hoveredPeriodIndex.value;
+    const highlightedPeriod =
+      options.isDragging.value && options.dragPeriodIndex.value !== null
+        ? options.dragPeriodIndex.value
+        : options.hoveredPeriodIndex.value;
 
     if (isGap) {
       // Gap bar coloring

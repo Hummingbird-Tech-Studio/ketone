@@ -1,4 +1,5 @@
 import { useActor, useSelector } from '@xstate/vue';
+import { Match } from 'effect';
 import { computed, onUnmounted, watch, type Ref } from 'vue';
 import {
   DialogState,
@@ -33,12 +34,8 @@ export function usePlanTimeline(options: UsePlanTimelineOptions) {
   const isHoveringGap = useSelector(actorRef, (state) => state.matches(State.HoveringGap));
   const isDragging = useSelector(actorRef, (state) => state.matches(State.Dragging));
   const isDialogOpen = useSelector(actorRef, (state) => state.matches(State.DialogOpen));
-  const isEditMode = useSelector(actorRef, (state) =>
-    state.matches({ [State.DialogOpen]: DialogState.Edit }),
-  );
-  const isAddMode = useSelector(actorRef, (state) =>
-    state.matches({ [State.DialogOpen]: DialogState.Add }),
-  );
+  const isEditMode = useSelector(actorRef, (state) => state.matches({ [State.DialogOpen]: DialogState.Edit }));
+  const isAddMode = useSelector(actorRef, (state) => state.matches({ [State.DialogOpen]: DialogState.Add }));
 
   // ============================================================
   // CONTEXT DATA SELECTORS
@@ -53,9 +50,7 @@ export function usePlanTimeline(options: UsePlanTimelineOptions) {
   // COMPUTED PROPERTIES
   // ============================================================
 
-  const hasActiveHover = computed(() =>
-    hoveredPeriodIndex.value !== -1 || hoveredGapKey.value !== null,
-  );
+  const hasActiveHover = computed(() => hoveredPeriodIndex.value !== -1 || hoveredGapKey.value !== null);
 
   const highlightedPeriodIndex = computed(() => {
     if (dragState.value?.isDragging) {
@@ -146,25 +141,24 @@ export function usePlanTimeline(options: UsePlanTimelineOptions) {
   // ============================================================
 
   const handleEmit = (emittedEvent: EmitType) => {
-    switch (emittedEvent.type) {
-      case Emit.PERIOD_UPDATED:
-        options.onPeriodUpdated?.(emittedEvent.periodIndex, emittedEvent.changes);
-        break;
-      case Emit.PERIOD_DELETED:
-        options.onPeriodDeleted?.(emittedEvent.periodIndex);
-        break;
-      case Emit.PERIOD_ADDED:
-        options.onPeriodAdded?.(emittedEvent.afterPeriodIndex, emittedEvent.newPeriod);
-        break;
-      case Emit.PERIODS_DRAG_UPDATED:
-        options.onPeriodsDragUpdated?.(emittedEvent.updates);
-        break;
-    }
+    Match.value(emittedEvent).pipe(
+      Match.when({ type: Emit.PERIOD_UPDATED }, (event) => {
+        options.onPeriodUpdated?.(event.periodIndex, event.changes);
+      }),
+      Match.when({ type: Emit.PERIOD_DELETED }, (event) => {
+        options.onPeriodDeleted?.(event.periodIndex);
+      }),
+      Match.when({ type: Emit.PERIOD_ADDED }, (event) => {
+        options.onPeriodAdded?.(event.afterPeriodIndex, event.newPeriod);
+      }),
+      Match.when({ type: Emit.PERIODS_DRAG_UPDATED }, (event) => {
+        options.onPeriodsDragUpdated?.(event.updates);
+      }),
+      Match.exhaustive,
+    );
   };
 
-  const subscriptions = Object.values(Emit).map((emitType) =>
-    actorRef.on(emitType, handleEmit),
-  );
+  const subscriptions = Object.values(Emit).map((emitType) => actorRef.on(emitType, handleEmit));
 
   onUnmounted(() => {
     subscriptions.forEach((sub) => sub.unsubscribe());

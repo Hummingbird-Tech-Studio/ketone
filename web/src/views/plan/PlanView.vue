@@ -21,7 +21,12 @@
       </div>
 
       <div v-if="section.presets" class="plans__grid">
-        <div v-for="preset in section.presets" :key="preset.id" class="plans__card" @click="selectPreset(preset, section.theme)">
+        <div
+          v-for="preset in section.presets"
+          :key="preset.id"
+          class="plans__card"
+          @click="selectPreset(preset, section.theme)"
+        >
           <div class="plans__card-ratio">{{ preset.ratio }}</div>
           <div class="plans__card-duration">{{ preset.duration }}</div>
           <div class="plans__card-tagline" :class="`plans__card-tagline--${section.theme}`">

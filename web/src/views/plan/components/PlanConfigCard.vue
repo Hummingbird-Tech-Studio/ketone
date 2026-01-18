@@ -1,14 +1,7 @@
 <template>
   <div class="plan-config-card">
     <div class="plan-config-card__header">
-      <Button
-        type="button"
-        icon="pi pi-bookmark"
-        rounded
-        variant="outlined"
-        severity="primary"
-        aria-label="Bookmark"
-      />
+      <Button type="button" icon="pi pi-bookmark" rounded variant="outlined" severity="primary" aria-label="Bookmark" />
     </div>
 
     <div class="plan-config-card__start">

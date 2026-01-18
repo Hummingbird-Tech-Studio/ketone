@@ -6,7 +6,7 @@
         icon="pi pi-bookmark"
         rounded
         variant="text"
-        severity="secondary"
+        severity="primary"
         aria-label="Bookmark"
       />
     </div>

@@ -8,6 +8,25 @@
     @update:visible="handleVisibilityChange"
   >
     <div class="period-edit-dialog">
+      <div class="period-edit-dialog__start">
+        <div class="period-edit-dialog__start-icon">
+          <StartTimeIcon />
+        </div>
+        <div class="period-edit-dialog__start-info">
+          <div class="period-edit-dialog__start-label">Start:</div>
+          <div class="period-edit-dialog__start-value">{{ formattedStartDate }}</div>
+        </div>
+        <Button
+          type="button"
+          icon="pi pi-pencil"
+          rounded
+          variant="outlined"
+          severity="secondary"
+          aria-label="Edit Start Date"
+          @click="showDatePicker = true"
+        />
+      </div>
+
       <div class="period-edit-dialog__control">
         <span class="period-edit-dialog__label">Fast Duration</span>
         <div class="period-edit-dialog__input">
@@ -67,6 +86,15 @@
       </div>
     </div>
 
+    <DateTimePickerDialog
+      v-if="showDatePicker"
+      :visible="showDatePicker"
+      title="Start Date"
+      :dateTime="localStartTime"
+      @update:visible="showDatePicker = $event"
+      @update:dateTime="handleDateUpdate"
+    />
+
     <template #footer>
       <div class="period-edit-dialog__actions">
         <Button
@@ -87,6 +115,8 @@
 </template>
 
 <script setup lang="ts">
+import DateTimePickerDialog from '@/components/DateTimePickerDialog/DateTimePickerDialog.vue';
+import StartTimeIcon from '@/components/Icons/StartTime.vue';
 import { computed, ref, watch } from 'vue';
 import {
   MAX_EATING_WINDOW_HOURS,
@@ -100,13 +130,16 @@ interface Props {
   periodIndex: number;
   fastingDuration: number;
   eatingWindow: number;
-  /** Maximum hours this period can expand before hitting the next period (null if last period) */
-  maxExpandableHours: number | null;
+  startTime: Date;
+  /** Minimum allowed start time (end of previous period, or null if first period) */
+  minStartTime: Date | null;
+  /** Start time of the next period for collision detection (null if last period) */
+  nextPeriodStartTime: Date | null;
 }
 
 interface Emits {
   (e: 'update:visible', value: boolean): void;
-  (e: 'save', data: { periodIndex: number; fastingDuration: number; eatingWindow: number }): void;
+  (e: 'save', data: { periodIndex: number; fastingDuration: number; eatingWindow: number; startTime: Date }): void;
   (e: 'delete', periodIndex: number): void;
 }
 
@@ -115,8 +148,20 @@ const emit = defineEmits<Emits>();
 
 const localFastingDuration = ref(props.fastingDuration);
 const localEatingWindow = ref(props.eatingWindow);
+const localStartTime = ref(new Date(props.startTime));
+const showDatePicker = ref(false);
 
 const periodNumber = computed(() => props.periodIndex + 1);
+
+const formattedStartDate = computed(() => {
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  }).format(localStartTime.value);
+});
 
 // Reset local state when dialog opens or props change
 watch(
@@ -125,25 +170,44 @@ watch(
     if (isOpen) {
       localFastingDuration.value = props.fastingDuration;
       localEatingWindow.value = props.eatingWindow;
+      localStartTime.value = new Date(props.startTime);
     }
   },
 );
 
 watch(
-  () => [props.fastingDuration, props.eatingWindow],
+  () => [props.fastingDuration, props.eatingWindow, props.startTime],
   () => {
     if (props.visible) {
       localFastingDuration.value = props.fastingDuration;
       localEatingWindow.value = props.eatingWindow;
+      localStartTime.value = new Date(props.startTime);
     }
   },
 );
 
-// Calculate total duration change from original
-const durationChange = computed(() => {
-  const originalTotal = props.fastingDuration + props.eatingWindow;
-  const newTotal = localFastingDuration.value + localEatingWindow.value;
-  return newTotal - originalTotal;
+// Calculate max start time dynamically (period end can't exceed next period start)
+const maxStartTime = computed<Date | null>(() => {
+  if (!props.nextPeriodStartTime) return null;
+
+  const totalDuration = localFastingDuration.value + localEatingWindow.value;
+  const maxStart = new Date(props.nextPeriodStartTime);
+  maxStart.setHours(maxStart.getHours() - totalDuration);
+
+  return maxStart;
+});
+
+// Calculate max expandable hours dynamically based on current local state
+const localMaxExpandableHours = computed<number | null>(() => {
+  if (!props.nextPeriodStartTime) return null;
+
+  const currentEndTime = new Date(localStartTime.value);
+  currentEndTime.setHours(currentEndTime.getHours() + localFastingDuration.value + localEatingWindow.value);
+
+  const gapMs = props.nextPeriodStartTime.getTime() - currentEndTime.getTime();
+  const gapHours = gapMs / (1000 * 60 * 60);
+
+  return Math.max(0, gapHours);
 });
 
 // Fasting duration constraints
@@ -154,7 +218,7 @@ const canDecrementFasting = computed(() => {
 const canIncrementFasting = computed(() => {
   if (localFastingDuration.value >= MAX_FASTING_DURATION_HOURS) return false;
   // Check collision: if we increase by 1, would we exceed the expandable limit?
-  if (props.maxExpandableHours !== null && durationChange.value + 1 > props.maxExpandableHours) {
+  if (localMaxExpandableHours.value !== null && localMaxExpandableHours.value < 1) {
     return false;
   }
   return true;
@@ -168,14 +232,18 @@ const canDecrementEating = computed(() => {
 const canIncrementEating = computed(() => {
   if (localEatingWindow.value >= MAX_EATING_WINDOW_HOURS) return false;
   // Check collision: if we increase by 1, would we exceed the expandable limit?
-  if (props.maxExpandableHours !== null && durationChange.value + 1 > props.maxExpandableHours) {
+  if (localMaxExpandableHours.value !== null && localMaxExpandableHours.value < 1) {
     return false;
   }
   return true;
 });
 
 const hasChanges = computed(() => {
-  return localFastingDuration.value !== props.fastingDuration || localEatingWindow.value !== props.eatingWindow;
+  return (
+    localFastingDuration.value !== props.fastingDuration ||
+    localEatingWindow.value !== props.eatingWindow ||
+    localStartTime.value.getTime() !== props.startTime.getTime()
+  );
 });
 
 function decrementFasting() {
@@ -210,11 +278,29 @@ function handleCancel() {
   emit('update:visible', false);
 }
 
+function handleDateUpdate(newDate: Date) {
+  let clampedDate = newDate;
+
+  // Clamp to minStartTime (can't start before previous period ends)
+  if (props.minStartTime && clampedDate.getTime() < props.minStartTime.getTime()) {
+    clampedDate = new Date(props.minStartTime);
+  }
+
+  // Clamp to maxStartTime (can't end after next period starts)
+  if (maxStartTime.value && clampedDate.getTime() > maxStartTime.value.getTime()) {
+    clampedDate = new Date(maxStartTime.value);
+  }
+
+  localStartTime.value = clampedDate;
+  showDatePicker.value = false;
+}
+
 function handleSave() {
   emit('save', {
     periodIndex: props.periodIndex,
     fastingDuration: localFastingDuration.value,
     eatingWindow: localEatingWindow.value,
+    startTime: localStartTime.value,
   });
 }
 
@@ -231,6 +317,45 @@ function handleDelete() {
   flex-direction: column;
   gap: 20px;
   padding: 8px 0;
+
+  &__start {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    background: rgba($color-primary-button-outline, 0.3);
+    border-radius: 8px;
+  }
+
+  &__start-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    background: rgba($color-theme-green, 0.1);
+    border-radius: 8px;
+    flex-shrink: 0;
+  }
+
+  &__start-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  &__start-label {
+    font-weight: 600;
+    font-size: 14px;
+    color: $color-primary-button-text;
+  }
+
+  &__start-value {
+    font-weight: 400;
+    font-size: 13px;
+    color: $color-primary-button-text;
+  }
 
   &__control {
     display: flex;

@@ -136,24 +136,18 @@ const periodConfigs = ref<PeriodConfig[]>(
   ),
 );
 
-// When start date changes, reinitialize all periods with new start times
-// This keeps the same durations but shifts all periods
-watch(startDate, (newStartDate) => {
-  const configs: PeriodConfig[] = [];
-  let currentStartTime = new Date(newStartDate);
+// When start date changes, shift all periods by the same delta
+// This preserves gaps between periods
+watch(startDate, (newStartDate, oldStartDate) => {
+  if (!oldStartDate) return;
 
-  for (const config of periodConfigs.value) {
-    configs.push({
-      ...config,
-      startTime: new Date(currentStartTime),
-    });
+  const deltaMs = newStartDate.getTime() - oldStartDate.getTime();
+  if (deltaMs === 0) return;
 
-    // Calculate next period's start time based on current config's duration
-    const periodDuration = config.fastingDuration + config.eatingWindow;
-    currentStartTime = new Date(currentStartTime.getTime() + periodDuration * 60 * 60 * 1000);
-  }
-
-  periodConfigs.value = configs;
+  periodConfigs.value = periodConfigs.value.map((config) => ({
+    ...config,
+    startTime: new Date(config.startTime.getTime() + deltaMs),
+  }));
 });
 
 const handlePeriodConfigsUpdate = (newConfigs: PeriodConfig[]) => {

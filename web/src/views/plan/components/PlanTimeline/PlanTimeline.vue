@@ -22,7 +22,9 @@
       :period-index="selectedPeriodIndex"
       :fasting-duration="selectedPeriodConfig?.fastingDuration ?? 0"
       :eating-window="selectedPeriodConfig?.eatingWindow ?? 0"
-      :max-expandable-hours="selectedPeriodMaxExpandableHours"
+      :start-time="selectedPeriodConfig?.startTime ?? new Date()"
+      :min-start-time="selectedPeriodMinStartTime"
+      :next-period-start-time="nextPeriodStartTime"
       @save="handlePeriodSave"
       @delete="handlePeriodDelete"
     />
@@ -56,37 +58,44 @@ const selectedPeriodConfig = computed(() => {
   return props.periodConfigs[selectedPeriodIndex.value];
 });
 
-// Calculate max expandable hours for the selected period
-// This is the gap between this period's end and the next non-deleted period's start
-const selectedPeriodMaxExpandableHours = computed<number | null>(() => {
+// Calculate min start time for the selected period
+// This is the end time of the previous non-deleted period
+const selectedPeriodMinStartTime = computed<Date | null>(() => {
   const configs = props.periodConfigs;
   const currentIndex = selectedPeriodIndex.value;
-  const currentConfig = configs[currentIndex];
 
-  if (!currentConfig) return null;
-
-  // Find the next non-deleted period
-  let nextPeriodConfig: PeriodConfig | null = null;
-  for (let i = currentIndex + 1; i < configs.length; i++) {
+  // Find the previous non-deleted period
+  let prevPeriodConfig: PeriodConfig | null = null;
+  for (let i = currentIndex - 1; i >= 0; i--) {
     if (!configs[i]!.deleted) {
-      nextPeriodConfig = configs[i]!;
+      prevPeriodConfig = configs[i]!;
       break;
     }
   }
 
-  // If no next period found, no collision possible
-  if (!nextPeriodConfig) return null;
+  // If no previous period found, no minimum constraint
+  if (!prevPeriodConfig) return null;
 
-  // Calculate current period's end time
-  const currentEndTime = new Date(currentConfig.startTime);
-  currentEndTime.setHours(currentEndTime.getHours() + currentConfig.fastingDuration + currentConfig.eatingWindow);
+  // Calculate previous period's end time
+  const prevEndTime = new Date(prevPeriodConfig.startTime);
+  prevEndTime.setHours(prevEndTime.getHours() + prevPeriodConfig.fastingDuration + prevPeriodConfig.eatingWindow);
 
-  // Calculate gap in hours between current end and next start
-  const gapMs = nextPeriodConfig.startTime.getTime() - currentEndTime.getTime();
-  const gapHours = gapMs / (1000 * 60 * 60);
+  return prevEndTime;
+});
 
-  // Return the gap (can be negative if already overlapping, which shouldn't happen)
-  return Math.max(0, gapHours);
+// Get the next period's start time for collision validation
+const nextPeriodStartTime = computed<Date | null>(() => {
+  const configs = props.periodConfigs;
+  const currentIndex = selectedPeriodIndex.value;
+
+  // Find the next non-deleted period
+  for (let i = currentIndex + 1; i < configs.length; i++) {
+    if (!configs[i]!.deleted) {
+      return configs[i]!.startTime;
+    }
+  }
+
+  return null; // No next period
 });
 
 // Data transformation
@@ -117,12 +126,13 @@ const chartContainerStyle = computed(() => ({
 }));
 
 // Dialog handlers
-function handlePeriodSave(data: { periodIndex: number; fastingDuration: number; eatingWindow: number }) {
+function handlePeriodSave(data: { periodIndex: number; fastingDuration: number; eatingWindow: number; startTime: Date }) {
   const newConfigs = [...props.periodConfigs];
   newConfigs[data.periodIndex] = {
     ...newConfigs[data.periodIndex]!,
     fastingDuration: data.fastingDuration,
     eatingWindow: data.eatingWindow,
+    startTime: data.startTime,
   };
   emit('update:periodConfigs', newConfigs);
   isDialogVisible.value = false;

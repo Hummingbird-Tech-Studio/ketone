@@ -9,7 +9,7 @@ import {
 } from '@/views/statistics/StatisticsChart/composables/chart/types';
 import { computed, onUnmounted, ref, shallowRef, watch, type Ref, type ShallowRef } from 'vue';
 import type { ChartDimensions } from '../actors/planTimeline.actor';
-import type { DragBarType, DragEdge, DragState, GapInfo, PeriodConfig, ResizeZone, TimelineBar } from '../types';
+import type { DragBarType, DragEdge, DragState, PeriodConfig, ResizeZone, TimelineBar } from '../types';
 import {
   BAR_BORDER_RADIUS,
   BAR_HEIGHT,
@@ -19,7 +19,6 @@ import {
   COLOR_BORDER,
   COLOR_EATING,
   COLOR_FASTING,
-  COLOR_GAP,
   COLOR_TEXT,
   CURSOR_RESIZE_EW,
   DAY_LABEL_WIDTH_DESKTOP,
@@ -34,7 +33,6 @@ import {
 // Highlight colors (slightly darker/more saturated)
 const COLOR_FASTING_HIGHLIGHT = '#4a8ac4';
 const COLOR_EATING_HIGHLIGHT = '#e5a070';
-const COLOR_GAP_HIGHLIGHT = '#9a9a9a';
 const UNHOVERED_OPACITY = 0.4;
 
 interface UsePlanTimelineChartOptions {
@@ -48,17 +46,13 @@ interface UsePlanTimelineChartOptions {
 
   // State from machine (passed from composable)
   hoveredPeriodIndex: Ref<number>;
-  hoveredGapKey: Ref<string | null>;
   isDragging: Ref<boolean>;
   dragPeriodIndex: Ref<number | null>;
   dragState: Ref<DragState | null>;
 
   // Event dispatchers to machine
   onHoverPeriod: (periodIndex: number) => void;
-  onHoverGap: (gapKey: string) => void;
   onHoverExit: () => void;
-  onClickPeriod: (periodIndex: number) => void;
-  onClickGap: (gapInfo: GapInfo) => void;
   onDragStart: (edge: DragEdge, barType: DragBarType, periodIndex: number, startX: number) => void;
   onDragMove: (currentX: number) => void;
   onDragEnd: () => void;
@@ -179,7 +173,6 @@ export function usePlanTimelineChart(chartContainer: Ref<HTMLElement | null>, op
     // Group bars by period AND type to find first/last segments for multi-day periods
     const barsByPeriodAndType = new Map<string, TimelineBar[]>();
     for (const bar of options.timelineBars.value) {
-      if (bar.type === 'gap') continue;
       const key = `${bar.periodIndex}-${bar.type}`;
       const existing = barsByPeriodAndType.get(key) || [];
       existing.push(bar);
@@ -187,8 +180,6 @@ export function usePlanTimelineChart(chartContainer: Ref<HTMLElement | null>, op
     }
 
     for (const bar of options.timelineBars.value) {
-      if (bar.type === 'gap') continue;
-
       const key = `${bar.periodIndex}-${bar.type}`;
       const typeBars = barsByPeriodAndType.get(key) || [];
       const sortedBars = [...typeBars].sort((a, b) => {
@@ -506,9 +497,6 @@ export function usePlanTimelineChart(chartContainer: Ref<HTMLElement | null>, op
     const leftRadius = hasConnectingBarBefore ? 0 : BAR_BORDER_RADIUS;
     const rightRadius = hasConnectingBarAfter ? 0 : BAR_BORDER_RADIUS;
 
-    const { gapInfo } = barData;
-    const isGap = type === 'gap';
-
     // Determine colors based on type and hover state (using state from machine)
     let barColor: string;
     let textOpacity = 1;
@@ -522,34 +510,21 @@ export function usePlanTimelineChart(chartContainer: Ref<HTMLElement | null>, op
       ? (localDragPeriodIndex ?? options.dragPeriodIndex.value ?? -1)
       : options.hoveredPeriodIndex.value;
 
-    if (isGap) {
-      // Gap bar coloring - no hover effects during drag
-      const gapKey = gapInfo ? `${gapInfo.afterPeriodIndex}-${gapInfo.beforePeriodIndex}` : '';
-      const isGapHovered = !isDraggingNow && options.hoveredGapKey.value === gapKey;
+    // Fasting/eating bar coloring
+    const isHighlighted = highlightedPeriod === periodIndex;
+    const hasHighlight = highlightedPeriod !== -1;
 
-      if (isGapHovered) {
-        barColor = COLOR_GAP_HIGHLIGHT;
-      } else {
-        barColor = COLOR_GAP;
-      }
-      barOpacity = 0.7;
+    if (hasHighlight && !isHighlighted) {
+      // Another period is highlighted - dim this one
+      barColor = type === 'fasting' ? COLOR_FASTING : COLOR_EATING;
+      textOpacity = UNHOVERED_OPACITY;
+      barOpacity = UNHOVERED_OPACITY;
+    } else if (isHighlighted) {
+      // This period is highlighted
+      barColor = type === 'fasting' ? COLOR_FASTING_HIGHLIGHT : COLOR_EATING_HIGHLIGHT;
     } else {
-      // Fasting/eating bar coloring
-      const isHighlighted = highlightedPeriod === periodIndex;
-      const hasHighlight = highlightedPeriod !== -1;
-
-      if (hasHighlight && !isHighlighted) {
-        // Another period is highlighted - dim this one
-        barColor = type === 'fasting' ? COLOR_FASTING : COLOR_EATING;
-        textOpacity = UNHOVERED_OPACITY;
-        barOpacity = UNHOVERED_OPACITY;
-      } else if (isHighlighted) {
-        // This period is highlighted
-        barColor = type === 'fasting' ? COLOR_FASTING_HIGHLIGHT : COLOR_EATING_HIGHLIGHT;
-      } else {
-        // No highlight - normal colors
-        barColor = type === 'fasting' ? COLOR_FASTING : COLOR_EATING;
-      }
+      // No highlight - normal colors
+      barColor = type === 'fasting' ? COLOR_FASTING : COLOR_EATING;
     }
 
     // Border radius: [top-left, top-right, bottom-right, bottom-left]
@@ -643,33 +618,6 @@ export function usePlanTimelineChart(chartContainer: Ref<HTMLElement | null>, op
     `;
   }
 
-  // Format tooltip content for gap bars
-  function formatGapTooltipContent(barData: TimelineBar): string {
-    if (!barData.gapInfo) return '';
-
-    // Calculate total gap duration from all gap bars with the same gapInfo
-    const gapKey = `${barData.gapInfo.afterPeriodIndex}-${barData.gapInfo.beforePeriodIndex}`;
-    let totalHours = 0;
-    options.timelineBars.value.forEach((bar) => {
-      if (bar.type === 'gap' && bar.gapInfo) {
-        const barGapKey = `${bar.gapInfo.afterPeriodIndex}-${bar.gapInfo.beforePeriodIndex}`;
-        if (barGapKey === gapKey) {
-          totalHours += bar.endHour - bar.startHour;
-        }
-      }
-    });
-
-    return `
-      <div style="line-height: 1.6; min-width: 120px;">
-        <div style="font-weight: 600; margin-bottom: 4px; color: ${COLOR_TEXT};">Rest period</div>
-        <div><span style="font-weight: 500;">Total Duration:</span> ${Math.round(totalHours)}h</div>
-        <div style="font-size: 11px; color: #888; margin-top: 4px;">
-          Click to add a period
-        </div>
-      </div>
-    `;
-  }
-
   // Build chart options
   function buildChartOptions(): ECOption {
     // Disable tooltip during drag to prevent interference
@@ -696,10 +644,6 @@ export function usePlanTimelineChart(chartContainer: Ref<HTMLElement | null>, op
               if (barIndex === undefined) return '';
               const bar = options.timelineBars.value[barIndex];
               if (!bar) return '';
-              // Use different formatter for gaps
-              if (bar.type === 'gap') {
-                return formatGapTooltipContent(bar);
-              }
               return formatTooltipContent(bar);
             },
           },
@@ -747,9 +691,6 @@ export function usePlanTimelineChart(chartContainer: Ref<HTMLElement | null>, op
     };
   }
 
-  // Track if drag occurred (to prevent click after drag)
-  let dragOccurred = false;
-
   // Handle hover for cursor changes
   function handleHoverForCursor(offsetX: number, offsetY: number) {
     if (localDragging || options.isDragging.value) return;
@@ -758,9 +699,12 @@ export function usePlanTimelineChart(chartContainer: Ref<HTMLElement | null>, op
     if (zone) {
       // Show resize cursor when hovering resize zone edges
       updateCursor(CURSOR_RESIZE_EW);
-    } else {
-      // Reset to pointer (default for clickable bars)
+    } else if (options.hoveredPeriodIndex.value !== -1) {
+      // Show pointer when hovering over a period bar
       updateCursor('pointer');
+    } else {
+      // Reset to default cursor
+      updateCursor('default');
     }
   }
 
@@ -774,7 +718,6 @@ export function usePlanTimelineChart(chartContainer: Ref<HTMLElement | null>, op
 
     if (localDragging || options.isDragging.value) {
       options.onDragMove(offsetX);
-      dragOccurred = true;
 
       // Show drag tooltip with current time
       const state = options.dragState.value;
@@ -802,7 +745,6 @@ export function usePlanTimelineChart(chartContainer: Ref<HTMLElement | null>, op
       localDragPeriodIndex = zone.periodIndex;
       options.onDragStart(zone.edge, zone.barType, zone.periodIndex, offsetX);
       document.body.style.userSelect = 'none';
-      dragOccurred = false;
 
       // Force immediate re-render with local drag state
       if (chartInstance.value) {
@@ -817,7 +759,7 @@ export function usePlanTimelineChart(chartContainer: Ref<HTMLElement | null>, op
       localDragPeriodIndex = null;
       options.onDragEnd();
       document.body.style.userSelect = '';
-      updateCursor('pointer');
+      updateCursor('default');
       hideDragTooltip();
 
       // Force full chart refresh to re-enable tooltip after drag
@@ -834,7 +776,7 @@ export function usePlanTimelineChart(chartContainer: Ref<HTMLElement | null>, op
       localDragPeriodIndex = null;
       options.onDragEnd();
       document.body.style.userSelect = '';
-      updateCursor('pointer');
+      updateCursor('default');
       hideDragTooltip();
 
       // Force full chart refresh to re-enable tooltip after drag
@@ -882,24 +824,9 @@ export function usePlanTimelineChart(chartContainer: Ref<HTMLElement | null>, op
       if (localDragging || options.isDragging.value) return;
 
       const p = params as { data: { value: number[] } };
-      const barIndex = p.data?.value?.[3];
-      if (barIndex === undefined) return;
-
-      const bar = options.timelineBars.value[barIndex];
-      if (!bar) return;
-
-      if (bar.type === 'gap' && bar.gapInfo) {
-        // Hovering a gap
-        const gapKey = `${bar.gapInfo.afterPeriodIndex}-${bar.gapInfo.beforePeriodIndex}`;
-        if (options.hoveredGapKey.value !== gapKey) {
-          options.onHoverGap(gapKey);
-        }
-      } else {
-        // Hovering a regular period bar
-        const periodIndex = p.data?.value?.[4];
-        if (periodIndex !== undefined && periodIndex !== options.hoveredPeriodIndex.value) {
-          options.onHoverPeriod(periodIndex);
-        }
+      const periodIndex = p.data?.value?.[4];
+      if (periodIndex !== undefined && periodIndex !== options.hoveredPeriodIndex.value) {
+        options.onHoverPeriod(periodIndex);
       }
     });
 
@@ -908,31 +835,6 @@ export function usePlanTimelineChart(chartContainer: Ref<HTMLElement | null>, op
       if (localDragging || options.isDragging.value) return;
 
       options.onHoverExit();
-    });
-
-    // Set up click handler for period selection (only if not dragging)
-    chartInstance.value.on('click', { seriesIndex: 2 }, (params: unknown) => {
-      // Skip click if drag just occurred
-      if (dragOccurred) {
-        dragOccurred = false;
-        return;
-      }
-
-      const p = params as { data: { value: number[] } };
-      const barIndex = p.data?.value?.[3];
-      if (barIndex === undefined) return;
-
-      const bar = options.timelineBars.value[barIndex];
-      if (!bar) return;
-
-      if (bar.type === 'gap' && bar.gapInfo) {
-        options.onClickGap(bar.gapInfo);
-      } else if (bar.type !== 'gap') {
-        const periodIndex = p.data?.value?.[4];
-        if (periodIndex !== undefined) {
-          options.onClickPeriod(periodIndex);
-        }
-      }
     });
   }
 
@@ -985,7 +887,7 @@ export function usePlanTimelineChart(chartContainer: Ref<HTMLElement | null>, op
 
   // Watch for hover/drag state changes to update bar highlighting
   // Skip during drag - the data watch already handles updates and we don't want extra re-renders
-  watch([options.hoveredPeriodIndex, options.hoveredGapKey, options.isDragging], () => {
+  watch([options.hoveredPeriodIndex, options.isDragging], () => {
     if (localDragging || options.isDragging.value) return;
     if (chartInstance.value) {
       chartInstance.value.setOption(buildChartOptions());

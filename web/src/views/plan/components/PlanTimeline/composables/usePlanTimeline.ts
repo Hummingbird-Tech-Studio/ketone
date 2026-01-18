@@ -1,22 +1,10 @@
 import { useActor, useSelector } from '@xstate/vue';
-import { Match } from 'effect';
 import { computed, onUnmounted, watch, type Ref } from 'vue';
-import {
-  DialogState,
-  Emit,
-  Event,
-  planTimelineMachine,
-  State,
-  type ChartDimensions,
-  type EmitType,
-} from '../actors/planTimeline.actor';
-import type { DragBarType, DragEdge, GapInfo, PeriodConfig, PeriodUpdate } from '../types';
+import { Emit, Event, planTimelineMachine, State, type ChartDimensions } from '../actors/planTimeline.actor';
+import type { DragBarType, DragEdge, PeriodConfig, PeriodUpdate } from '../types';
 
 interface UsePlanTimelineOptions {
   periodConfigs: Ref<PeriodConfig[]>;
-  onPeriodUpdated?: (periodIndex: number, changes: Partial<PeriodConfig>) => void;
-  onPeriodDeleted?: (periodIndex: number) => void;
-  onPeriodAdded?: (afterPeriodIndex: number, newPeriod: PeriodConfig) => void;
   onPeriodsDragUpdated?: (updates: PeriodUpdate[]) => void;
 }
 
@@ -31,26 +19,20 @@ export function usePlanTimeline(options: UsePlanTimelineOptions) {
 
   const isIdle = useSelector(actorRef, (state) => state.matches(State.Idle));
   const isHoveringPeriod = useSelector(actorRef, (state) => state.matches(State.HoveringPeriod));
-  const isHoveringGap = useSelector(actorRef, (state) => state.matches(State.HoveringGap));
   const isDragging = useSelector(actorRef, (state) => state.matches(State.Dragging));
-  const isDialogOpen = useSelector(actorRef, (state) => state.matches(State.DialogOpen));
-  const isEditMode = useSelector(actorRef, (state) => state.matches({ [State.DialogOpen]: DialogState.Edit }));
-  const isAddMode = useSelector(actorRef, (state) => state.matches({ [State.DialogOpen]: DialogState.Add }));
 
   // ============================================================
   // CONTEXT DATA SELECTORS
   // ============================================================
 
   const hoveredPeriodIndex = useSelector(actorRef, (state) => state.context.hoveredPeriodIndex);
-  const hoveredGapKey = useSelector(actorRef, (state) => state.context.hoveredGapKey);
   const dragState = useSelector(actorRef, (state) => state.context.dragState);
-  const dialogContext = useSelector(actorRef, (state) => state.context.dialogContext);
 
   // ============================================================
   // COMPUTED PROPERTIES
   // ============================================================
 
-  const hasActiveHover = computed(() => hoveredPeriodIndex.value !== -1 || hoveredGapKey.value !== null);
+  const hasActiveHover = computed(() => hoveredPeriodIndex.value !== -1);
 
   const highlightedPeriodIndex = computed(() => {
     if (dragState.value?.isDragging) {
@@ -58,14 +40,6 @@ export function usePlanTimeline(options: UsePlanTimelineOptions) {
     }
     return hoveredPeriodIndex.value;
   });
-
-  const isDialogVisible = computed(() => isDialogOpen.value);
-
-  const dialogMode = computed<'edit' | 'add'>(() => dialogContext.value?.mode ?? 'edit');
-
-  const selectedPeriodIndex = computed(() => dialogContext.value?.selectedPeriodIndex ?? 0);
-
-  const selectedGapInfo = computed(() => dialogContext.value?.selectedGapInfo ?? null);
 
   // ============================================================
   // ACTIONS
@@ -76,21 +50,8 @@ export function usePlanTimeline(options: UsePlanTimelineOptions) {
     send({ type: Event.HOVER_PERIOD, periodIndex });
   };
 
-  const hoverGap = (gapKey: string) => {
-    send({ type: Event.HOVER_GAP, gapKey });
-  };
-
   const hoverExit = () => {
     send({ type: Event.HOVER_EXIT });
-  };
-
-  // Click actions
-  const clickPeriod = (periodIndex: number) => {
-    send({ type: Event.CLICK_PERIOD, periodIndex });
-  };
-
-  const clickGap = (gapInfo: GapInfo) => {
-    send({ type: Event.CLICK_GAP, gapInfo });
   };
 
   // Drag actions
@@ -104,19 +65,6 @@ export function usePlanTimeline(options: UsePlanTimelineOptions) {
 
   const endDrag = () => {
     send({ type: Event.DRAG_END });
-  };
-
-  // Dialog actions
-  const saveDialog = (fastingDuration: number, eatingWindow: number, startTime: Date) => {
-    send({ type: Event.DIALOG_SAVE, fastingDuration, eatingWindow, startTime });
-  };
-
-  const deleteFromDialog = () => {
-    send({ type: Event.DIALOG_DELETE });
-  };
-
-  const cancelDialog = () => {
-    send({ type: Event.DIALOG_CANCEL });
   };
 
   // Data actions
@@ -140,28 +88,12 @@ export function usePlanTimeline(options: UsePlanTimelineOptions) {
   // EVENT SUBSCRIPTIONS (for parent callbacks)
   // ============================================================
 
-  const handleEmit = (emittedEvent: EmitType) => {
-    Match.value(emittedEvent).pipe(
-      Match.when({ type: Emit.PERIOD_UPDATED }, (event) => {
-        options.onPeriodUpdated?.(event.periodIndex, event.changes);
-      }),
-      Match.when({ type: Emit.PERIOD_DELETED }, (event) => {
-        options.onPeriodDeleted?.(event.periodIndex);
-      }),
-      Match.when({ type: Emit.PERIOD_ADDED }, (event) => {
-        options.onPeriodAdded?.(event.afterPeriodIndex, event.newPeriod);
-      }),
-      Match.when({ type: Emit.PERIODS_DRAG_UPDATED }, (event) => {
-        options.onPeriodsDragUpdated?.(event.updates);
-      }),
-      Match.exhaustive,
-    );
-  };
-
-  const subscriptions = Object.values(Emit).map((emitType) => actorRef.on(emitType, handleEmit));
+  const subscription = actorRef.on(Emit.PERIODS_DRAG_UPDATED, (event) => {
+    options.onPeriodsDragUpdated?.(event.updates);
+  });
 
   onUnmounted(() => {
-    subscriptions.forEach((sub) => sub.unsubscribe());
+    subscription.unsubscribe();
   });
 
   // ============================================================
@@ -172,44 +104,22 @@ export function usePlanTimeline(options: UsePlanTimelineOptions) {
     // State checks
     isIdle,
     isHoveringPeriod,
-    isHoveringGap,
     isDragging,
-    isDialogOpen,
-    isEditMode,
-    isAddMode,
 
     // Context data for rendering
     hoveredPeriodIndex,
-    hoveredGapKey,
     dragState,
-    dialogContext,
     hasActiveHover,
     highlightedPeriodIndex,
 
-    // Dialog bindings
-    isDialogVisible,
-    dialogMode,
-    selectedPeriodIndex,
-    selectedGapInfo,
-
     // Hover actions
     hoverPeriod,
-    hoverGap,
     hoverExit,
-
-    // Click actions
-    clickPeriod,
-    clickGap,
 
     // Drag actions
     startDrag,
     moveDrag,
     endDrag,
-
-    // Dialog actions
-    saveDialog,
-    deleteFromDialog,
-    cancelDialog,
 
     // Chart dimension updates
     updateChartDimensions,

@@ -1,11 +1,4 @@
-export type BarType = 'fasting' | 'eating' | 'gap';
-
-export interface GapInfo {
-  /** Index of the non-deleted period that ends before this gap */
-  afterPeriodIndex: number;
-  /** Index of the non-deleted period that starts after this gap */
-  beforePeriodIndex: number;
-}
+export type BarType = 'fasting' | 'eating';
 
 export interface TimelineBar {
   periodIndex: number;
@@ -14,8 +7,6 @@ export interface TimelineBar {
   endHour: number;
   duration: string;
   type: BarType;
-  /** Present only for gap bars */
-  gapInfo?: GapInfo;
 }
 
 /**

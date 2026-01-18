@@ -4,9 +4,8 @@ import {
   MAX_FASTING_DURATION_HOURS,
   MIN_EATING_WINDOW_HOURS,
   MIN_FASTING_DURATION_HOURS,
-  MIN_PERIODS,
 } from '../../../constants';
-import type { DragBarType, DragEdge, DragState, GapInfo, PeriodConfig, PeriodUpdate } from '../types';
+import type { DragBarType, DragEdge, DragState, PeriodConfig, PeriodUpdate } from '../types';
 
 // ============================================================
 // ENUMS
@@ -15,35 +14,18 @@ import type { DragBarType, DragEdge, DragState, GapInfo, PeriodConfig, PeriodUpd
 export enum State {
   Idle = 'Idle',
   HoveringPeriod = 'HoveringPeriod',
-  HoveringGap = 'HoveringGap',
   Dragging = 'Dragging',
-  DialogOpen = 'DialogOpen',
-}
-
-export enum DialogState {
-  Edit = 'Edit',
-  Add = 'Add',
 }
 
 export enum Event {
   // Hover events
   HOVER_PERIOD = 'HOVER_PERIOD',
-  HOVER_GAP = 'HOVER_GAP',
   HOVER_EXIT = 'HOVER_EXIT',
-
-  // Click events
-  CLICK_PERIOD = 'CLICK_PERIOD',
-  CLICK_GAP = 'CLICK_GAP',
 
   // Drag events
   DRAG_START = 'DRAG_START',
   DRAG_MOVE = 'DRAG_MOVE',
   DRAG_END = 'DRAG_END',
-
-  // Dialog events
-  DIALOG_SAVE = 'DIALOG_SAVE',
-  DIALOG_DELETE = 'DIALOG_DELETE',
-  DIALOG_CANCEL = 'DIALOG_CANCEL',
 
   // Data events (from parent)
   UPDATE_PERIOD_CONFIGS = 'UPDATE_PERIOD_CONFIGS',
@@ -51,21 +33,12 @@ export enum Event {
 }
 
 export enum Emit {
-  PERIOD_UPDATED = 'PERIOD_UPDATED',
-  PERIOD_DELETED = 'PERIOD_DELETED',
-  PERIOD_ADDED = 'PERIOD_ADDED',
   PERIODS_DRAG_UPDATED = 'PERIODS_DRAG_UPDATED',
 }
 
 // ============================================================
 // TYPE DEFINITIONS
 // ============================================================
-
-export interface DialogContext {
-  mode: 'edit' | 'add';
-  selectedPeriodIndex: number | null;
-  selectedGapInfo: GapInfo | null;
-}
 
 export interface ChartDimensions {
   width: number;
@@ -76,21 +49,14 @@ export interface ChartDimensions {
 export interface Context {
   periodConfigs: PeriodConfig[];
   hoveredPeriodIndex: number; // -1 = none
-  hoveredGapKey: string | null;
   dragState: DragState | null;
-  dialogContext: DialogContext | null;
   chartDimensions: ChartDimensions;
 }
 
 export type EventType =
   // Hover events
   | { type: Event.HOVER_PERIOD; periodIndex: number }
-  | { type: Event.HOVER_GAP; gapKey: string }
   | { type: Event.HOVER_EXIT }
-
-  // Click events
-  | { type: Event.CLICK_PERIOD; periodIndex: number }
-  | { type: Event.CLICK_GAP; gapInfo: GapInfo }
 
   // Drag events
   | {
@@ -103,33 +69,11 @@ export type EventType =
   | { type: Event.DRAG_MOVE; currentX: number }
   | { type: Event.DRAG_END }
 
-  // Dialog events
-  | {
-      type: Event.DIALOG_SAVE;
-      fastingDuration: number;
-      eatingWindow: number;
-      startTime: Date;
-    }
-  | { type: Event.DIALOG_DELETE }
-  | { type: Event.DIALOG_CANCEL }
-
   // Data events
   | { type: Event.UPDATE_PERIOD_CONFIGS; periodConfigs: PeriodConfig[] }
   | { type: Event.UPDATE_CHART_DIMENSIONS; dimensions: ChartDimensions };
 
-export type EmitType =
-  | {
-      type: Emit.PERIOD_UPDATED;
-      periodIndex: number;
-      changes: Partial<PeriodConfig>;
-    }
-  | { type: Emit.PERIOD_DELETED; periodIndex: number }
-  | {
-      type: Emit.PERIOD_ADDED;
-      afterPeriodIndex: number;
-      newPeriod: PeriodConfig;
-    }
-  | { type: Emit.PERIODS_DRAG_UPDATED; updates: PeriodUpdate[] };
+export type EmitType = { type: Emit.PERIODS_DRAG_UPDATED; updates: PeriodUpdate[] };
 
 // ============================================================
 // HELPER FUNCTIONS
@@ -139,9 +83,7 @@ function getInitialContext(periodConfigs: PeriodConfig[]): Context {
   return {
     periodConfigs,
     hoveredPeriodIndex: -1,
-    hoveredGapKey: null,
     dragState: null,
-    dialogContext: null,
     chartDimensions: {
       width: 0,
       dayLabelWidth: 0,
@@ -291,11 +233,6 @@ export const planTimelineMachine = setup({
       const updates = calculateDragUpdates(context, hourDelta);
       return updates !== null;
     },
-
-    canDeletePeriod: ({ context }) => {
-      const nonDeletedCount = context.periodConfigs.filter((c) => !c.deleted).length;
-      return nonDeletedCount > MIN_PERIODS;
-    },
   },
   actions: {
     // Hover actions
@@ -303,21 +240,11 @@ export const planTimelineMachine = setup({
       assertEvent(event, Event.HOVER_PERIOD);
       return {
         hoveredPeriodIndex: event.periodIndex,
-        hoveredGapKey: null,
-      };
-    }),
-
-    setHoveredGap: assign(({ event }) => {
-      assertEvent(event, Event.HOVER_GAP);
-      return {
-        hoveredPeriodIndex: -1,
-        hoveredGapKey: event.gapKey,
       };
     }),
 
     clearHover: assign(() => ({
       hoveredPeriodIndex: -1,
-      hoveredGapKey: null,
     })),
 
     // Drag actions
@@ -373,33 +300,6 @@ export const planTimelineMachine = setup({
       dragState: null,
     })),
 
-    // Dialog actions
-    openEditDialog: assign(({ event }) => {
-      assertEvent(event, Event.CLICK_PERIOD);
-      return {
-        dialogContext: {
-          mode: 'edit' as const,
-          selectedPeriodIndex: event.periodIndex,
-          selectedGapInfo: null,
-        },
-      };
-    }),
-
-    openAddDialog: assign(({ event }) => {
-      assertEvent(event, Event.CLICK_GAP);
-      return {
-        dialogContext: {
-          mode: 'add' as const,
-          selectedPeriodIndex: null,
-          selectedGapInfo: event.gapInfo,
-        },
-      };
-    }),
-
-    closeDialog: assign(() => ({
-      dialogContext: null,
-    })),
-
     // Data actions
     updatePeriodConfigs: assign(({ event }) => {
       assertEvent(event, Event.UPDATE_PERIOD_CONFIGS);
@@ -412,55 +312,6 @@ export const planTimelineMachine = setup({
     }),
 
     // Emit actions
-    emitPeriodUpdated: emit(({ context, event }) => {
-      assertEvent(event, Event.DIALOG_SAVE);
-      const dialogCtx = context.dialogContext;
-      if (!dialogCtx || dialogCtx.mode !== 'edit' || dialogCtx.selectedPeriodIndex === null) {
-        throw new Error('Invalid dialog state for period update');
-      }
-
-      return {
-        type: Emit.PERIOD_UPDATED,
-        periodIndex: dialogCtx.selectedPeriodIndex,
-        changes: {
-          fastingDuration: event.fastingDuration,
-          eatingWindow: event.eatingWindow,
-          startTime: event.startTime,
-        },
-      };
-    }),
-
-    emitPeriodDeleted: emit(({ context }) => {
-      const dialogCtx = context.dialogContext;
-      if (!dialogCtx || dialogCtx.selectedPeriodIndex === null) {
-        throw new Error('Invalid dialog state for period delete');
-      }
-
-      return {
-        type: Emit.PERIOD_DELETED,
-        periodIndex: dialogCtx.selectedPeriodIndex,
-      };
-    }),
-
-    emitPeriodAdded: emit(({ context, event }) => {
-      assertEvent(event, Event.DIALOG_SAVE);
-      const dialogCtx = context.dialogContext;
-      if (!dialogCtx || dialogCtx.mode !== 'add' || !dialogCtx.selectedGapInfo) {
-        throw new Error('Invalid dialog state for period add');
-      }
-
-      return {
-        type: Emit.PERIOD_ADDED,
-        afterPeriodIndex: dialogCtx.selectedGapInfo.afterPeriodIndex,
-        newPeriod: {
-          startTime: event.startTime,
-          fastingDuration: event.fastingDuration,
-          eatingWindow: event.eatingWindow,
-          deleted: false,
-        },
-      };
-    }),
-
     emitDragUpdates: emit(({ context, event }) => {
       assertEvent(event, Event.DRAG_MOVE);
       if (!context.dragState) {
@@ -499,18 +350,6 @@ export const planTimelineMachine = setup({
           target: State.HoveringPeriod,
           actions: 'setHoveredPeriod',
         },
-        [Event.HOVER_GAP]: {
-          target: State.HoveringGap,
-          actions: 'setHoveredGap',
-        },
-        [Event.CLICK_PERIOD]: {
-          target: `${State.DialogOpen}.${DialogState.Edit}`,
-          actions: 'openEditDialog',
-        },
-        [Event.CLICK_GAP]: {
-          target: `${State.DialogOpen}.${DialogState.Add}`,
-          actions: 'openAddDialog',
-        },
         [Event.DRAG_START]: {
           target: State.Dragging,
           actions: 'initializeDrag',
@@ -523,39 +362,12 @@ export const planTimelineMachine = setup({
         [Event.HOVER_PERIOD]: {
           actions: 'setHoveredPeriod',
         },
-        [Event.HOVER_GAP]: {
-          target: State.HoveringGap,
-          actions: 'setHoveredGap',
-        },
         [Event.HOVER_EXIT]: {
           target: State.Idle,
-        },
-        [Event.CLICK_PERIOD]: {
-          target: `${State.DialogOpen}.${DialogState.Edit}`,
-          actions: 'openEditDialog',
         },
         [Event.DRAG_START]: {
           target: State.Dragging,
           actions: 'initializeDrag',
-        },
-      },
-    },
-
-    [State.HoveringGap]: {
-      on: {
-        [Event.HOVER_PERIOD]: {
-          target: State.HoveringPeriod,
-          actions: 'setHoveredPeriod',
-        },
-        [Event.HOVER_GAP]: {
-          actions: 'setHoveredGap',
-        },
-        [Event.HOVER_EXIT]: {
-          target: State.Idle,
-        },
-        [Event.CLICK_GAP]: {
-          target: `${State.DialogOpen}.${DialogState.Add}`,
-          actions: 'openAddDialog',
         },
       },
     },
@@ -569,41 +381,6 @@ export const planTimelineMachine = setup({
         [Event.DRAG_END]: {
           target: State.Idle,
           actions: 'clearDrag',
-        },
-      },
-    },
-
-    [State.DialogOpen]: {
-      initial: DialogState.Edit,
-      states: {
-        [DialogState.Edit]: {
-          on: {
-            [Event.DIALOG_SAVE]: {
-              target: `#planTimeline.${State.Idle}`,
-              actions: ['emitPeriodUpdated', 'closeDialog'],
-            },
-            [Event.DIALOG_DELETE]: {
-              guard: 'canDeletePeriod',
-              target: `#planTimeline.${State.Idle}`,
-              actions: ['emitPeriodDeleted', 'closeDialog'],
-            },
-            [Event.DIALOG_CANCEL]: {
-              target: `#planTimeline.${State.Idle}`,
-              actions: 'closeDialog',
-            },
-          },
-        },
-        [DialogState.Add]: {
-          on: {
-            [Event.DIALOG_SAVE]: {
-              target: `#planTimeline.${State.Idle}`,
-              actions: ['emitPeriodAdded', 'closeDialog'],
-            },
-            [Event.DIALOG_CANCEL]: {
-              target: `#planTimeline.${State.Idle}`,
-              actions: 'closeDialog',
-            },
-          },
         },
       },
     },

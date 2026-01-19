@@ -25,6 +25,9 @@ import {
   DAY_LABEL_WIDTH_MOBILE,
   GRID_BORDER_RADIUS,
   HANDLE_COLOR,
+  HANDLE_INSET,
+  HANDLE_PILL_HEIGHT,
+  HANDLE_PILL_WIDTH,
   HEADER_HEIGHT,
   MOBILE_BREAKPOINT,
   MOBILE_RESIZE_HANDLE_WIDTH,
@@ -76,6 +79,40 @@ export function usePlanTimelineChart(chartContainer: Ref<HTMLElement | null>, op
   let localDragging = false;
   let localDragPeriodIndex: number | null = null;
   let activeTouchId: number | null = null; // Track initiating touch to handle multi-touch correctly
+
+  // Cached segment positions - computed once per data change instead of per-bar per-render
+  const segmentPositionCache = computed(() => {
+    const cache = new Map<number, { isFirstSegment: boolean; isLastSegment: boolean }>();
+    const allBars = options.timelineBars.value;
+
+    // Group bars by periodIndex-type key
+    const barGroups = new Map<string, TimelineBar[]>();
+    for (const bar of allBars) {
+      const key = `${bar.periodIndex}-${bar.type}`;
+      const group = barGroups.get(key) ?? [];
+      group.push(bar);
+      barGroups.set(key, group);
+    }
+
+    // Sort each group and determine first/last positions
+    for (const group of barGroups.values()) {
+      const sortedBars = [...group].sort((a, b) => {
+        if (a.dayIndex !== b.dayIndex) return a.dayIndex - b.dayIndex;
+        return a.startHour - b.startHour;
+      });
+
+      for (let i = 0; i < sortedBars.length; i++) {
+        const bar = sortedBars[i]!;
+        const barIndex = allBars.indexOf(bar);
+        cache.set(barIndex, {
+          isFirstSegment: i === 0,
+          isLastSegment: i === sortedBars.length - 1,
+        });
+      }
+    }
+
+    return cache;
+  });
 
   // Drag tooltip element
   let dragTooltip: HTMLDivElement | null = null;
@@ -169,23 +206,13 @@ export function usePlanTimelineChart(chartContainer: Ref<HTMLElement | null>, op
 
   /**
    * Determines if a bar is the first or last segment in its period+type group.
-   * Used for both resize zone calculation and handle rendering.
+   * Uses pre-computed cache for O(1) lookup instead of O(N) filter + sort per call.
    */
-  function getSegmentPosition(
-    bar: TimelineBar,
-    allBars: TimelineBar[],
-  ): { isFirstSegment: boolean; isLastSegment: boolean } {
-    const key = `${bar.periodIndex}-${bar.type}`;
-    const typeBars = allBars.filter((b) => `${b.periodIndex}-${b.type}` === key);
-    const sortedBars = [...typeBars].sort((a, b) => {
-      if (a.dayIndex !== b.dayIndex) return a.dayIndex - b.dayIndex;
-      return a.startHour - b.startHour;
-    });
-
-    return {
-      isFirstSegment: sortedBars[0] === bar,
-      isLastSegment: sortedBars[sortedBars.length - 1] === bar,
-    };
+  function getSegmentPosition(barIndex: number): { isFirstSegment: boolean; isLastSegment: boolean } {
+    const cached = segmentPositionCache.value.get(barIndex);
+    if (cached) return cached;
+    // Fallback for safety (shouldn't happen if cache is properly maintained)
+    return { isFirstSegment: false, isLastSegment: false };
   }
 
   // Calculate resize zones from timeline bars
@@ -198,8 +225,9 @@ export function usePlanTimelineChart(chartContainer: Ref<HTMLElement | null>, op
 
     const allBars = options.timelineBars.value;
 
-    for (const bar of allBars) {
-      const { isFirstSegment, isLastSegment } = getSegmentPosition(bar, allBars);
+    for (let i = 0; i < allBars.length; i++) {
+      const bar = allBars[i]!;
+      const { isFirstSegment, isLastSegment } = getSegmentPosition(i);
 
       // Calculate bar position (same logic as renderTimelineBar)
       const barX = dayLabelWidth + (bar.startHour / 24) * gridWidth;
@@ -448,22 +476,19 @@ export function usePlanTimelineChart(chartContainer: Ref<HTMLElement | null>, op
    * @param position - 'left' for start, 'right' for end, 'center-left' for centered on left edge (intersection)
    */
   function renderDragHandle(position: 'left' | 'right' | 'center-left', barWidth: number): RenderItemReturn[] {
-    const pillWidth = 4;
-    const pillHeight = 16;
-
     // Position X of handle based on position type
     let handleX: number;
     if (position === 'left') {
-      handleX = 6; // Inside left edge
+      handleX = HANDLE_INSET; // Inside left edge
     } else if (position === 'right') {
-      handleX = barWidth - pillWidth - 6; // Inside right edge
+      handleX = barWidth - HANDLE_PILL_WIDTH - HANDLE_INSET; // Inside right edge
     } else {
       // 'center-left': centered exactly on the left edge (intersection point)
-      handleX = -pillWidth / 2;
+      handleX = -HANDLE_PILL_WIDTH / 2;
     }
 
     // Center vertically in bar
-    const handleY = (BAR_HEIGHT - pillHeight) / 2;
+    const handleY = (BAR_HEIGHT - HANDLE_PILL_HEIGHT) / 2;
 
     return [
       {
@@ -471,9 +496,9 @@ export function usePlanTimelineChart(chartContainer: Ref<HTMLElement | null>, op
         shape: {
           x: handleX,
           y: handleY,
-          width: pillWidth,
-          height: pillHeight,
-          r: pillWidth / 2, // Full border radius for pill shape
+          width: HANDLE_PILL_WIDTH,
+          height: HANDLE_PILL_HEIGHT,
+          r: HANDLE_PILL_WIDTH / 2, // Full border radius for pill shape
         },
         style: {
           fill: HANDLE_COLOR,
@@ -546,7 +571,7 @@ export function usePlanTimelineChart(chartContainer: Ref<HTMLElement | null>, op
     const hasHighlight = highlightedPeriod !== -1;
 
     // Determine if drag handles should be shown (on first/last segments, when hovered)
-    const { isFirstSegment, isLastSegment } = getSegmentPosition(barData, allBars);
+    const { isFirstSegment, isLastSegment } = getSegmentPosition(barIndex);
 
     // Left handle: start of period (on fasting bar)
     const showLeftHandle = isFirstSegment && !hasConnectingBarBefore && type === 'fasting' && isHighlighted;

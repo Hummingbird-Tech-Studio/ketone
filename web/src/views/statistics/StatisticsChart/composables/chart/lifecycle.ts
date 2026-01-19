@@ -8,6 +8,7 @@ interface UseChartLifecycleOptions {
   buildChartOptions: () => ECOption;
   initChart: () => void;
   isLoading?: Ref<boolean>;
+  onResize?: () => void;
 }
 
 /**
@@ -18,7 +19,7 @@ interface UseChartLifecycleOptions {
  * - Cleanup on unmount
  */
 export function useChartLifecycle(options: UseChartLifecycleOptions) {
-  const { chartContainer, chartInstance, buildChartOptions, initChart, isLoading } = options;
+  const { chartContainer, chartInstance, buildChartOptions, initChart, isLoading, onResize } = options;
 
   function refresh() {
     if (!chartInstance.value) return;
@@ -30,6 +31,8 @@ export function useChartLifecycle(options: UseChartLifecycleOptions) {
     chartInstance.value.resize();
     // Re-render with new dimensions so renderItem functions use updated chartWidth
     chartInstance.value.setOption(buildChartOptions(), { notMerge: true });
+    // Notify caller to recalculate any dimension-dependent state
+    onResize?.();
   }
 
   let resizeObserver: ResizeObserver | null = null;

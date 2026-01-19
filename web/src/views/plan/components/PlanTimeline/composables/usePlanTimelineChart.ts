@@ -24,9 +24,13 @@ import {
   DAY_LABEL_WIDTH_DESKTOP,
   DAY_LABEL_WIDTH_MOBILE,
   GRID_BORDER_RADIUS,
+  HANDLE_COLOR,
+  HANDLE_INSET,
+  HANDLE_PILL_HEIGHT,
+  HANDLE_PILL_WIDTH,
   HEADER_HEIGHT,
   MOBILE_BREAKPOINT,
-  RESIZE_HANDLE_WIDTH,
+  MOBILE_RESIZE_HANDLE_WIDTH,
   ROW_HEIGHT,
   TOUCH_TOOLTIP_OFFSET_Y,
 } from './chart/constants';
@@ -75,6 +79,40 @@ export function usePlanTimelineChart(chartContainer: Ref<HTMLElement | null>, op
   let localDragging = false;
   let localDragPeriodIndex: number | null = null;
   let activeTouchId: number | null = null; // Track initiating touch to handle multi-touch correctly
+
+  // Cached segment positions - computed once per data change instead of per-bar per-render
+  const segmentPositionCache = computed(() => {
+    const cache = new Map<number, { isFirstSegment: boolean; isLastSegment: boolean }>();
+    const allBars = options.timelineBars.value;
+
+    // Group bars by periodIndex-type key
+    const barGroups = new Map<string, TimelineBar[]>();
+    for (const bar of allBars) {
+      const key = `${bar.periodIndex}-${bar.type}`;
+      const group = barGroups.get(key) ?? [];
+      group.push(bar);
+      barGroups.set(key, group);
+    }
+
+    // Sort each group and determine first/last positions
+    for (const group of barGroups.values()) {
+      const sortedBars = [...group].sort((a, b) => {
+        if (a.dayIndex !== b.dayIndex) return a.dayIndex - b.dayIndex;
+        return a.startHour - b.startHour;
+      });
+
+      for (let i = 0; i < sortedBars.length; i++) {
+        const bar = sortedBars[i]!;
+        const barIndex = allBars.indexOf(bar);
+        cache.set(barIndex, {
+          isFirstSegment: i === 0,
+          isLastSegment: i === sortedBars.length - 1,
+        });
+      }
+    }
+
+    return cache;
+  });
 
   // Drag tooltip element
   let dragTooltip: HTMLDivElement | null = null;
@@ -166,31 +204,30 @@ export function usePlanTimelineChart(chartContainer: Ref<HTMLElement | null>, op
     }).format(date);
   }
 
+  /**
+   * Determines if a bar is the first or last segment in its period+type group.
+   * Uses pre-computed cache for O(1) lookup instead of O(N) filter + sort per call.
+   */
+  function getSegmentPosition(barIndex: number): { isFirstSegment: boolean; isLastSegment: boolean } {
+    const cached = segmentPositionCache.value.get(barIndex);
+    if (cached) return cached;
+    // Fallback for safety (shouldn't happen if cache is properly maintained)
+    return { isFirstSegment: false, isLastSegment: false };
+  }
+
   // Calculate resize zones from timeline bars
   function calculateResizeZones(chartWidth: number): ResizeZone[] {
     const zones: ResizeZone[] = [];
     const dayLabelWidth = getDayLabelWidth(chartWidth);
     const gridWidth = chartWidth - dayLabelWidth;
+    // Use consistent handle width across all viewports for better UX
+    const handleWidth = MOBILE_RESIZE_HANDLE_WIDTH;
 
-    // Group bars by period AND type to find first/last segments for multi-day periods
-    const barsByPeriodAndType = new Map<string, TimelineBar[]>();
-    for (const bar of options.timelineBars.value) {
-      const key = `${bar.periodIndex}-${bar.type}`;
-      const existing = barsByPeriodAndType.get(key) || [];
-      existing.push(bar);
-      barsByPeriodAndType.set(key, existing);
-    }
+    const allBars = options.timelineBars.value;
 
-    for (const bar of options.timelineBars.value) {
-      const key = `${bar.periodIndex}-${bar.type}`;
-      const typeBars = barsByPeriodAndType.get(key) || [];
-      const sortedBars = [...typeBars].sort((a, b) => {
-        if (a.dayIndex !== b.dayIndex) return a.dayIndex - b.dayIndex;
-        return a.startHour - b.startHour;
-      });
-
-      const isFirstSegment = sortedBars[0] === bar;
-      const isLastSegment = sortedBars[sortedBars.length - 1] === bar;
+    for (let i = 0; i < allBars.length; i++) {
+      const bar = allBars[i]!;
+      const { isFirstSegment, isLastSegment } = getSegmentPosition(i);
 
       // Calculate bar position (same logic as renderTimelineBar)
       const barX = dayLabelWidth + (bar.startHour / 24) * gridWidth;
@@ -200,9 +237,9 @@ export function usePlanTimelineChart(chartContainer: Ref<HTMLElement | null>, op
       // Left edge zone (only for first segment of this bar type in the period)
       if (isFirstSegment) {
         zones.push({
-          x: barX - RESIZE_HANDLE_WIDTH / 2,
+          x: barX - handleWidth / 2,
           y: barY,
-          width: RESIZE_HANDLE_WIDTH,
+          width: handleWidth,
           height: BAR_HEIGHT,
           edge: 'left',
           barType: bar.type,
@@ -214,9 +251,9 @@ export function usePlanTimelineChart(chartContainer: Ref<HTMLElement | null>, op
       // Right edge zone (only for last segment of this bar type in the period)
       if (isLastSegment) {
         zones.push({
-          x: barX + barWidth - RESIZE_HANDLE_WIDTH / 2,
+          x: barX + barWidth - handleWidth / 2,
           y: barY,
-          width: RESIZE_HANDLE_WIDTH,
+          width: handleWidth,
           height: BAR_HEIGHT,
           edge: 'right',
           barType: bar.type,
@@ -283,7 +320,9 @@ export function usePlanTimelineChart(chartContainer: Ref<HTMLElement | null>, op
   });
 
   // Transform timeline bars to chart data format
+  // Include hoveredPeriodIndex to force ECharts to re-render all bars when hover changes
   const timelineBarsData = computed(() => {
+    const hoveredPeriod = options.hoveredPeriodIndex.value;
     return options.timelineBars.value.map((bar, i) => ({
       value: [
         bar.dayIndex,
@@ -291,6 +330,7 @@ export function usePlanTimelineChart(chartContainer: Ref<HTMLElement | null>, op
         bar.endHour,
         i, // index to look up bar data
         bar.periodIndex, // period index for grouping
+        hoveredPeriod, // included to trigger re-render on hover change
       ],
     }));
   });
@@ -428,6 +468,45 @@ export function usePlanTimelineChart(chartContainer: Ref<HTMLElement | null>, op
     };
   }
 
+  /**
+   * Render drag handle (pill/capsule shape) for mobile devices.
+   * Creates a visual indicator showing where users can drag to resize periods.
+   * Similar to iOS sheet drag handles.
+   *
+   * @param position - 'left' for start, 'right' for end, 'center-left' for centered on left edge (intersection)
+   */
+  function renderDragHandle(position: 'left' | 'right' | 'center-left', barWidth: number): RenderItemReturn[] {
+    // Position X of handle based on position type
+    let handleX: number;
+    if (position === 'left') {
+      handleX = HANDLE_INSET; // Inside left edge
+    } else if (position === 'right') {
+      handleX = barWidth - HANDLE_PILL_WIDTH - HANDLE_INSET; // Inside right edge
+    } else {
+      // 'center-left': centered exactly on the left edge (intersection point)
+      handleX = -HANDLE_PILL_WIDTH / 2;
+    }
+
+    // Center vertically in bar
+    const handleY = (BAR_HEIGHT - HANDLE_PILL_HEIGHT) / 2;
+
+    return [
+      {
+        type: 'rect',
+        shape: {
+          x: handleX,
+          y: handleY,
+          width: HANDLE_PILL_WIDTH,
+          height: HANDLE_PILL_HEIGHT,
+          r: HANDLE_PILL_WIDTH / 2, // Full border radius for pill shape
+        },
+        style: {
+          fill: HANDLE_COLOR,
+        },
+      },
+    ];
+  }
+
   // Render function for timeline bars
   function renderTimelineBar(params: RenderItemParams, api: RenderItemAPI): RenderItemReturn {
     const dayIndex = api.value(0);
@@ -480,6 +559,29 @@ export function usePlanTimelineChart(chartContainer: Ref<HTMLElement | null>, op
     const hasConnectingBarBefore = hasConnectingBarBeforeSameDay || shouldExtendToLeftEdge;
     const hasConnectingBarAfter = hasConnectingBarAfterSameDay || shouldExtendToRightEdge;
 
+    // Get highlighted period (either from drag or hover)
+    // Use local drag state first (synchronous) to prevent hover flashing during drag,
+    // then fall back to reactive XState state
+    const isDraggingNow = localDragging || options.isDragging.value;
+    const highlightedPeriod = isDraggingNow
+      ? (localDragPeriodIndex ?? options.dragPeriodIndex.value ?? -1)
+      : options.hoveredPeriodIndex.value;
+
+    const isHighlighted = highlightedPeriod === periodIndex;
+    const hasHighlight = highlightedPeriod !== -1;
+
+    // Determine if drag handles should be shown (on first/last segments, when hovered)
+    const { isFirstSegment, isLastSegment } = getSegmentPosition(barIndex);
+
+    // Left handle: start of period (on fasting bar)
+    const showLeftHandle = isFirstSegment && !hasConnectingBarBefore && type === 'fasting' && isHighlighted;
+
+    // Right handle: end of period (on eating bar)
+    const showRightHandle = isLastSegment && !hasConnectingBarAfter && type === 'eating' && isHighlighted;
+
+    // Middle handle: fasting/eating boundary (shown on eating bar's left edge where it connects to fasting)
+    const showMiddleHandle = isFirstSegment && hasConnectingBarBeforeSameDay && type === 'eating' && isHighlighted;
+
     // Calculate padding - no padding on sides that connect to another bar or extend to grid edges
     const leftPadding = hasConnectingBarBefore ? 0 : BAR_PADDING_HORIZONTAL;
     const rightPadding = hasConnectingBarAfter ? 0 : BAR_PADDING_HORIZONTAL;
@@ -503,18 +605,6 @@ export function usePlanTimelineChart(chartContainer: Ref<HTMLElement | null>, op
     let barColor: string;
     let textOpacity = 1;
     let barOpacity = 1;
-
-    // Get highlighted period (either from drag or hover)
-    // Use local drag state first (synchronous) to prevent hover flashing during drag,
-    // then fall back to reactive XState state
-    const isDraggingNow = localDragging || options.isDragging.value;
-    const highlightedPeriod = isDraggingNow
-      ? (localDragPeriodIndex ?? options.dragPeriodIndex.value ?? -1)
-      : options.hoveredPeriodIndex.value;
-
-    // Fasting/eating bar coloring
-    const isHighlighted = highlightedPeriod === periodIndex;
-    const hasHighlight = highlightedPeriod !== -1;
 
     if (hasHighlight && !isHighlighted) {
       // Another period is highlighted - dim this one
@@ -548,6 +638,17 @@ export function usePlanTimelineChart(chartContainer: Ref<HTMLElement | null>, op
         },
       },
     ];
+
+    // Add drag handles on mobile for draggable edges
+    if (showLeftHandle) {
+      children.push(...renderDragHandle('left', finalWidth));
+    }
+    if (showMiddleHandle) {
+      children.push(...renderDragHandle('center-left', finalWidth)); // Centered on fasting/eating boundary
+    }
+    if (showRightHandle) {
+      children.push(...renderDragHandle('right', finalWidth));
+    }
 
     // Duration label (only show if bar is wide enough)
     if (finalWidth > 25) {
@@ -963,6 +1064,19 @@ export function usePlanTimelineChart(chartContainer: Ref<HTMLElement | null>, op
     chartInstance,
     buildChartOptions,
     initChart,
+    onResize: () => {
+      // Recalculate resize zones and update dimensions when chart resizes
+      if (!chartInstance.value) return;
+      const chartWidth = chartInstance.value.getWidth();
+      resizeZones.value = calculateResizeZones(chartWidth);
+
+      const dayLabelWidth = getDayLabelWidth(chartWidth);
+      options.onChartDimensionsChange({
+        width: chartWidth,
+        dayLabelWidth,
+        gridWidth: chartWidth - dayLabelWidth,
+      });
+    },
   });
 
   // Watch for data changes
@@ -998,6 +1112,8 @@ export function usePlanTimelineChart(chartContainer: Ref<HTMLElement | null>, op
   watch([options.hoveredPeriodIndex, options.isDragging], () => {
     if (localDragging || options.isDragging.value) return;
     if (chartInstance.value) {
+      // Force complete re-render by clearing and rebuilding
+      chartInstance.value.clear();
       chartInstance.value.setOption(buildChartOptions());
     }
   });

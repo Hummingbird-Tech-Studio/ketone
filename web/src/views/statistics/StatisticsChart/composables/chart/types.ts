@@ -34,6 +34,7 @@ export interface RenderItemStyle {
   fill?: string;
   stroke?: string;
   lineWidth?: number;
+  opacity?: number;
   text?: string;
   x?: number;
   y?: number;

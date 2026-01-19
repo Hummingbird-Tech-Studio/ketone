@@ -28,7 +28,6 @@ import {
   HEADER_HEIGHT,
   MOBILE_BREAKPOINT,
   MOBILE_RESIZE_HANDLE_WIDTH,
-  RESIZE_HANDLE_WIDTH,
   ROW_HEIGHT,
   TOUCH_TOOLTIP_OFFSET_Y,
 } from './chart/constants';
@@ -194,8 +193,8 @@ export function usePlanTimelineChart(chartContainer: Ref<HTMLElement | null>, op
     const zones: ResizeZone[] = [];
     const dayLabelWidth = getDayLabelWidth(chartWidth);
     const gridWidth = chartWidth - dayLabelWidth;
-    const isMobile = chartWidth < MOBILE_BREAKPOINT;
-    const handleWidth = isMobile ? MOBILE_RESIZE_HANDLE_WIDTH : RESIZE_HANDLE_WIDTH;
+    // Use consistent handle width across all viewports for better UX
+    const handleWidth = MOBILE_RESIZE_HANDLE_WIDTH;
 
     const allBars = options.timelineBars.value;
 
@@ -546,19 +545,17 @@ export function usePlanTimelineChart(chartContainer: Ref<HTMLElement | null>, op
     const isHighlighted = highlightedPeriod === periodIndex;
     const hasHighlight = highlightedPeriod !== -1;
 
-    // Determine if drag handles should be shown (mobile only, on first/last segments, when hovered)
-    const isMobile = chartWidth < MOBILE_BREAKPOINT;
+    // Determine if drag handles should be shown (on first/last segments, when hovered)
     const { isFirstSegment, isLastSegment } = getSegmentPosition(barData, allBars);
 
     // Left handle: start of period (on fasting bar)
-    const showLeftHandle = isMobile && isFirstSegment && !hasConnectingBarBefore && type === 'fasting' && isHighlighted;
+    const showLeftHandle = isFirstSegment && !hasConnectingBarBefore && type === 'fasting' && isHighlighted;
 
     // Right handle: end of period (on eating bar)
-    const showRightHandle = isMobile && isLastSegment && !hasConnectingBarAfter && type === 'eating' && isHighlighted;
+    const showRightHandle = isLastSegment && !hasConnectingBarAfter && type === 'eating' && isHighlighted;
 
     // Middle handle: fasting/eating boundary (shown on eating bar's left edge where it connects to fasting)
-    const showMiddleHandle =
-      isMobile && isFirstSegment && hasConnectingBarBeforeSameDay && type === 'eating' && isHighlighted;
+    const showMiddleHandle = isFirstSegment && hasConnectingBarBeforeSameDay && type === 'eating' && isHighlighted;
 
     // Calculate padding - no padding on sides that connect to another bar or extend to grid edges
     const leftPadding = hasConnectingBarBefore ? 0 : BAR_PADDING_HORIZONTAL;
@@ -1042,6 +1039,19 @@ export function usePlanTimelineChart(chartContainer: Ref<HTMLElement | null>, op
     chartInstance,
     buildChartOptions,
     initChart,
+    onResize: () => {
+      // Recalculate resize zones and update dimensions when chart resizes
+      if (!chartInstance.value) return;
+      const chartWidth = chartInstance.value.getWidth();
+      resizeZones.value = calculateResizeZones(chartWidth);
+
+      const dayLabelWidth = getDayLabelWidth(chartWidth);
+      options.onChartDimensionsChange({
+        width: chartWidth,
+        dayLabelWidth,
+        gridWidth: chartWidth - dayLabelWidth,
+      });
+    },
   });
 
   // Watch for data changes

@@ -10,6 +10,7 @@ import {
   PeriodNotFoundError,
   ActiveCycleExistsError,
   InvalidPeriodCountError,
+  PlanOverlapError,
 } from '../domain';
 import { type PeriodData, type PlanStatus, type PeriodStatus, PlanRecordSchema, PeriodRecordSchema } from './schemas';
 import { and, asc, desc, eq } from 'drizzle-orm';
@@ -60,6 +61,50 @@ export class PlanRepositoryPostgres extends Effect.Service<PlanRepositoryPostgre
                   new ActiveCycleExistsError({
                     message: 'Cannot create plan while user has an active standalone cycle',
                     userId,
+                  }),
+                );
+              }
+
+              // Check for overlap with completed cycles (OV-02)
+              const firstPeriod = periods[0];
+              const lastPeriod = periods[periods.length - 1];
+
+              // Should never happen as validation occurs in service layer, but satisfies TypeScript
+              if (!firstPeriod || !lastPeriod) {
+                return yield* Effect.fail(
+                  new PlanRepositoryError({
+                    message: 'Invalid periods: array is empty',
+                  }),
+                );
+              }
+
+              const planStartDate = firstPeriod.startDate;
+              const planEndDate = lastPeriod.endDate;
+
+              const overlappingCyclesResult = yield* sql<{ count: string }>`
+                SELECT COUNT(*) as count FROM cycles
+                WHERE user_id = ${userId}
+                  AND status = 'Completed'
+                  AND start_date < ${planEndDate}
+                  AND end_date > ${planStartDate}
+              `.pipe(
+                Effect.mapError(
+                  (error) =>
+                    new PlanRepositoryError({
+                      message: 'Failed to check for overlapping cycles',
+                      cause: error,
+                    }),
+                ),
+              );
+
+              const overlappingCount = parseInt(overlappingCyclesResult[0]?.count ?? '0', 10);
+              if (overlappingCount > 0) {
+                return yield* Effect.fail(
+                  new PlanOverlapError({
+                    message: 'Plan periods overlap with existing completed fasting cycles',
+                    userId,
+                    overlapStartDate: planStartDate,
+                    overlapEndDate: planEndDate,
                   }),
                 );
               }
@@ -166,7 +211,8 @@ export class PlanRepositoryPostgres extends Effect.Service<PlanRepositoryPostgre
               error instanceof PlanRepositoryError ||
               error instanceof PlanAlreadyActiveError ||
               error instanceof ActiveCycleExistsError ||
-              error instanceof InvalidPeriodCountError
+              error instanceof InvalidPeriodCountError ||
+              error instanceof PlanOverlapError
             ) {
               return error;
             }
@@ -514,6 +560,30 @@ export class PlanRepositoryPostgres extends Effect.Service<PlanRepositoryPostgre
               ),
             ),
           );
+        }).pipe(Effect.annotateLogs({ repository: 'PlanRepository' })),
+
+      hasOverlappingCycles: (userId: string, startDate: Date, endDate: Date) =>
+        Effect.gen(function* () {
+          // Two date ranges overlap if: rangeA.start < rangeB.end AND rangeA.end > rangeB.start
+          const results = yield* sql<{ count: string }>`
+            SELECT COUNT(*) as count FROM cycles
+            WHERE user_id = ${userId}
+              AND status = 'Completed'
+              AND start_date < ${endDate}
+              AND end_date > ${startDate}
+          `.pipe(
+            Effect.tapError((error) => Effect.logError('Database error in hasOverlappingCycles', error)),
+            Effect.mapError(
+              (error) =>
+                new PlanRepositoryError({
+                  message: 'Failed to check for overlapping cycles',
+                  cause: error,
+                }),
+            ),
+          );
+
+          const count = parseInt(results[0]?.count ?? '0', 10);
+          return count > 0;
         }).pipe(Effect.annotateLogs({ repository: 'PlanRepository' })),
     };
 

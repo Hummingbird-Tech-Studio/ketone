@@ -46,3 +46,10 @@ export class InvalidPeriodCountErrorSchema extends S.TaggedError<InvalidPeriodCo
     maxPeriods: S.Number,
   },
 ) {}
+
+export class PlanOverlapErrorSchema extends S.TaggedError<PlanOverlapErrorSchema>()('PlanOverlapError', {
+  message: S.String,
+  userId: S.UUID,
+  overlapStartDate: S.Date,
+  overlapEndDate: S.Date,
+}) {}

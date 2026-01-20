@@ -15,6 +15,7 @@ import {
   PeriodNotFoundError,
   ActiveCycleExistsError,
   InvalidPeriodCountError,
+  PlanOverlapError,
 } from '../domain';
 
 export interface IPlanRepository {
@@ -25,6 +26,7 @@ export interface IPlanRepository {
    * - User can only have ONE active plan at a time (partial unique index)
    * - User cannot create a plan if they have an active standalone cycle
    * - Plans must have 1-31 periods
+   * - Plan periods cannot overlap with completed fasting cycles (OV-02)
    *
    * @param userId - The ID of the user creating the plan
    * @param startDate - The start date of the plan
@@ -33,6 +35,7 @@ export interface IPlanRepository {
    * @throws InvalidPeriodCountError if periods array length is not between 1 and 31
    * @throws PlanAlreadyActiveError if user already has an active plan
    * @throws ActiveCycleExistsError if user has an active standalone cycle
+   * @throws PlanOverlapError if plan periods overlap with completed fasting cycles
    * @throws PlanRepositoryError for other database errors
    */
   createPlan(
@@ -41,7 +44,7 @@ export interface IPlanRepository {
     periods: PeriodData[],
   ): Effect.Effect<
     PlanWithPeriodsRecord,
-    PlanRepositoryError | PlanAlreadyActiveError | ActiveCycleExistsError | InvalidPeriodCountError
+    PlanRepositoryError | PlanAlreadyActiveError | ActiveCycleExistsError | InvalidPeriodCountError | PlanOverlapError
   >;
 
   /**
@@ -158,4 +161,17 @@ export interface IPlanRepository {
    * @returns Effect that resolves to an array of PlanRecord
    */
   getAllPlans(userId: string): Effect.Effect<PlanRecord[], PlanRepositoryError>;
+
+  /**
+   * Check if there are any completed cycles that overlap with a given date range.
+   *
+   * Used for OV-02 validation: periods cannot overlap with completed fasting cycles.
+   * Two date ranges overlap if: rangeA.start < rangeB.end AND rangeA.end > rangeB.start
+   *
+   * @param userId - The ID of the user
+   * @param startDate - Start of the range to check
+   * @param endDate - End of the range to check
+   * @returns Effect that resolves to true if there's an overlap, false otherwise
+   */
+  hasOverlappingCycles(userId: string, startDate: Date, endDate: Date): Effect.Effect<boolean, PlanRepositoryError>;
 }

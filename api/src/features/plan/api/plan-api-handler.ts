@@ -10,6 +10,7 @@ import {
   PlanInvalidStateErrorSchema,
   ActiveCycleExistsErrorSchema,
   InvalidPeriodCountErrorSchema,
+  PlanOverlapErrorSchema,
 } from './schemas';
 import { CurrentUser } from '../../auth/api/middleware';
 import {
@@ -19,8 +20,10 @@ import {
   PlanInvalidStateError,
   ActiveCycleExistsError,
   InvalidPeriodCountError,
+  PlanOverlapError,
 } from '../domain';
 import { PlanRepositoryError } from '../repositories';
+import { CycleRepositoryError } from '../../cycle';
 
 // Helper to handle PlanRepositoryError: log cause server-side, return safe error to client
 const handleRepositoryError = (error: PlanRepositoryError) =>
@@ -35,14 +38,28 @@ const handleRepositoryError = (error: PlanRepositoryError) =>
     );
   });
 
+// Helper to handle CycleRepositoryError: log cause server-side, return safe error to client
+const handleCycleRepositoryError = (error: CycleRepositoryError) =>
+  Effect.gen(function* () {
+    if (error.cause) {
+      yield* Effect.logError('Cycle repository error cause', { cause: error.cause });
+    }
+    return yield* Effect.fail(
+      new PlanRepositoryErrorSchema({
+        message: 'A database error occurred',
+      }),
+    );
+  });
+
 // Error handler for PlanRepositoryError only
 const repositoryErrorHandler = {
   PlanRepositoryError: (error: PlanRepositoryError) => handleRepositoryError(error),
 };
 
-// Error handler for getActivePlan (returns PlanRepositoryError | NoActivePlanError)
+// Error handler for getActivePlan (returns PlanRepositoryError | NoActivePlanError | CycleRepositoryError)
 const noActivePlanErrorHandlers = (userId: string) => ({
   PlanRepositoryError: (error: PlanRepositoryError) => handleRepositoryError(error),
+  CycleRepositoryError: (error: CycleRepositoryError) => handleCycleRepositoryError(error),
   NoActivePlanError: (error: NoActivePlanError) =>
     Effect.fail(
       new NoActivePlanErrorSchema({
@@ -65,8 +82,8 @@ const notFoundErrorHandlers = (userId: string) => ({
     ),
 });
 
-// Error handlers for methods that return PlanRepositoryError | PlanNotFoundError | PlanInvalidStateError
-const stateErrorHandlers = (userId: string) => ({
+// Error handlers for deletePlan (PlanRepositoryError | PlanNotFoundError | PlanInvalidStateError)
+const deleteErrorHandlers = (userId: string) => ({
   ...notFoundErrorHandlers(userId),
   PlanInvalidStateError: (error: PlanInvalidStateError) =>
     Effect.fail(
@@ -76,6 +93,12 @@ const stateErrorHandlers = (userId: string) => ({
         expectedState: error.expectedState,
       }),
     ),
+});
+
+// Error handlers for cancelPlan (PlanRepositoryError | PlanNotFoundError | PlanInvalidStateError | CycleRepositoryError)
+const cancelErrorHandlers = (userId: string) => ({
+  ...deleteErrorHandlers(userId),
+  CycleRepositoryError: (error: CycleRepositoryError) => handleCycleRepositoryError(error),
 });
 
 export const PlanApiLive = HttpApiBuilder.group(Api, 'plan', (handlers) =>
@@ -115,6 +138,15 @@ export const PlanApiLive = HttpApiBuilder.group(Api, 'plan', (handlers) =>
                     periodCount: error.periodCount,
                     minPeriods: error.minPeriods,
                     maxPeriods: error.maxPeriods,
+                  }),
+                ),
+              PlanOverlapError: (error: PlanOverlapError) =>
+                Effect.fail(
+                  new PlanOverlapErrorSchema({
+                    message: error.message,
+                    userId,
+                    overlapStartDate: error.overlapStartDate,
+                    overlapEndDate: error.overlapEndDate,
                   }),
                 ),
             }),
@@ -187,7 +219,7 @@ export const PlanApiLive = HttpApiBuilder.group(Api, 'plan', (handlers) =>
 
           const plan = yield* planService.cancelPlan(userId, planId).pipe(
             Effect.tapError((error) => Effect.logError(`Error cancelling plan: ${error.message}`)),
-            Effect.catchTags(stateErrorHandlers(userId)),
+            Effect.catchTags(cancelErrorHandlers(userId)),
           );
 
           yield* Effect.logInfo(`Plan cancelled: ${plan.id}`);
@@ -205,7 +237,7 @@ export const PlanApiLive = HttpApiBuilder.group(Api, 'plan', (handlers) =>
 
           yield* planService.deletePlan(userId, planId).pipe(
             Effect.tapError((error) => Effect.logError(`Error deleting plan: ${error.message}`)),
-            Effect.catchTags(stateErrorHandlers(userId)),
+            Effect.catchTags(deleteErrorHandlers(userId)),
           );
 
           yield* Effect.logInfo(`Plan deleted: ${planId}`);

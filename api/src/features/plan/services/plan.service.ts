@@ -3,6 +3,7 @@ import {
   PlanRepository,
   PlanRepositoryError,
   type PeriodData,
+  type PeriodRecord,
   type PlanRecord,
   type PlanWithPeriodsRecord,
 } from '../repositories';
@@ -13,8 +14,10 @@ import {
   PlanInvalidStateError,
   ActiveCycleExistsError,
   InvalidPeriodCountError,
+  PlanOverlapError,
 } from '../domain';
 import { type PeriodInput } from '../api/schemas';
+import { CycleRepository, CycleRepositoryError } from '../../cycle/repositories';
 
 const ONE_HOUR_MS = 3600000;
 
@@ -45,7 +48,70 @@ const calculatePeriodDates = (startDate: Date, periods: PeriodInput[]): PeriodDa
 
 export class PlanService extends Effect.Service<PlanService>()('PlanService', {
   effect: Effect.gen(function* () {
-    const repository = yield* PlanRepository;
+    const planRepository = yield* PlanRepository;
+    const cycleRepository = yield* CycleRepository;
+
+    /**
+     * Materialize fasting cycles from plan periods.
+     * Creates a Completed cycle record for each period's fasting phase.
+     */
+    const materializeCyclesFromPeriods = (
+      userId: string,
+      periods: readonly PeriodRecord[],
+      truncateTime?: Date,
+    ): Effect.Effect<void, CycleRepositoryError> =>
+      Effect.gen(function* () {
+        const now = truncateTime ?? new Date();
+
+        for (const period of periods) {
+          const fastingEndTime = new Date(period.startDate.getTime() + period.fastingDuration * ONE_HOUR_MS);
+
+          // Period hasn't started yet - skip
+          if (period.startDate > now) {
+            continue;
+          }
+
+          // Period is in fasting phase - truncate at cancellation time
+          if (now < fastingEndTime) {
+            yield* cycleRepository
+              .createCycle({
+                userId,
+                status: 'Completed',
+                startDate: period.startDate,
+                endDate: now,
+              })
+              .pipe(
+                // CycleAlreadyInProgressError only applies to InProgress cycles, not Completed
+                Effect.catchTag('CycleAlreadyInProgressError', () =>
+                  Effect.fail(
+                    new CycleRepositoryError({
+                      message: 'Unexpected error: CycleAlreadyInProgressError when creating Completed cycle',
+                    }),
+                  ),
+                ),
+              );
+          } else {
+            // Fasting phase completed - create full cycle
+            yield* cycleRepository
+              .createCycle({
+                userId,
+                status: 'Completed',
+                startDate: period.startDate,
+                endDate: fastingEndTime,
+              })
+              .pipe(
+                // CycleAlreadyInProgressError only applies to InProgress cycles, not Completed
+                Effect.catchTag('CycleAlreadyInProgressError', () =>
+                  Effect.fail(
+                    new CycleRepositoryError({
+                      message: 'Unexpected error: CycleAlreadyInProgressError when creating Completed cycle',
+                    }),
+                  ),
+                ),
+              );
+          }
+        }
+      }).pipe(Effect.annotateLogs({ service: 'PlanService' }));
 
     return {
       /**
@@ -58,14 +124,14 @@ export class PlanService extends Effect.Service<PlanService>()('PlanService', {
         periods: PeriodInput[],
       ): Effect.Effect<
         PlanWithPeriodsRecord,
-        PlanRepositoryError | PlanAlreadyActiveError | ActiveCycleExistsError | InvalidPeriodCountError
+        PlanRepositoryError | PlanAlreadyActiveError | ActiveCycleExistsError | InvalidPeriodCountError | PlanOverlapError
       > =>
         Effect.gen(function* () {
           yield* Effect.logInfo('Creating new plan');
 
           const periodData = calculatePeriodDates(startDate, periods);
 
-          const plan = yield* repository.createPlan(userId, startDate, periodData);
+          const plan = yield* planRepository.createPlan(userId, startDate, periodData);
 
           yield* Effect.logInfo(`Plan created successfully with ID: ${plan.id}`);
 
@@ -74,14 +140,15 @@ export class PlanService extends Effect.Service<PlanService>()('PlanService', {
 
       /**
        * Get the active plan for a user with all periods.
+       * On-demand completion: if all periods have ended, materializes cycles and marks plan as completed.
        */
       getActivePlanWithPeriods: (
         userId: string,
-      ): Effect.Effect<PlanWithPeriodsRecord, PlanRepositoryError | NoActivePlanError> =>
+      ): Effect.Effect<PlanWithPeriodsRecord, PlanRepositoryError | NoActivePlanError | CycleRepositoryError> =>
         Effect.gen(function* () {
           yield* Effect.logInfo('Getting active plan with periods');
 
-          const planOption = yield* repository.getActivePlanWithPeriods(userId);
+          const planOption = yield* planRepository.getActivePlanWithPeriods(userId);
 
           if (Option.isNone(planOption)) {
             return yield* Effect.fail(
@@ -92,9 +159,48 @@ export class PlanService extends Effect.Service<PlanService>()('PlanService', {
             );
           }
 
-          yield* Effect.logInfo(`Active plan retrieved: ${planOption.value.id}`);
+          const plan = planOption.value;
+          const now = new Date();
 
-          return planOption.value;
+          // Check if all periods have ended (on-demand completion)
+          const allPeriodsEnded = plan.periods.every((p) => p.endDate <= now);
+
+          if (allPeriodsEnded && plan.status === 'active') {
+            yield* Effect.logInfo(`All periods ended for plan ${plan.id}, materializing cycles and marking as completed`);
+
+            // Materialize cycles for all periods
+            yield* materializeCyclesFromPeriods(userId, plan.periods);
+
+            // Update plan to completed
+            // These errors shouldn't happen since we verified the plan exists and is active
+            yield* planRepository.updatePlanStatus(userId, plan.id, 'completed').pipe(
+              Effect.catchTags({
+                PlanNotFoundError: () =>
+                  Effect.fail(
+                    new PlanRepositoryError({
+                      message: 'Unexpected error: plan not found during on-demand completion',
+                    }),
+                  ),
+                PlanInvalidStateError: () =>
+                  Effect.fail(
+                    new PlanRepositoryError({
+                      message: 'Unexpected error: invalid plan state during on-demand completion',
+                    }),
+                  ),
+              }),
+            );
+
+            yield* Effect.logInfo(`Plan ${plan.id} marked as completed`);
+
+            return {
+              ...plan,
+              status: 'completed' as const,
+            };
+          }
+
+          yield* Effect.logInfo(`Active plan retrieved: ${plan.id}`);
+
+          return plan;
         }).pipe(Effect.annotateLogs({ service: 'PlanService' })),
 
       /**
@@ -107,7 +213,7 @@ export class PlanService extends Effect.Service<PlanService>()('PlanService', {
         Effect.gen(function* () {
           yield* Effect.logInfo(`Getting plan ${planId} with periods`);
 
-          const planOption = yield* repository.getPlanWithPeriods(userId, planId);
+          const planOption = yield* planRepository.getPlanWithPeriods(userId, planId);
 
           if (Option.isNone(planOption)) {
             return yield* Effect.fail(
@@ -131,7 +237,7 @@ export class PlanService extends Effect.Service<PlanService>()('PlanService', {
         Effect.gen(function* () {
           yield* Effect.logInfo('Getting all plans');
 
-          const plans = yield* repository.getAllPlans(userId);
+          const plans = yield* planRepository.getAllPlans(userId);
 
           yield* Effect.logInfo(`Retrieved ${plans.length} plans`);
 
@@ -140,15 +246,55 @@ export class PlanService extends Effect.Service<PlanService>()('PlanService', {
 
       /**
        * Cancel an active plan.
+       * Materializes fasting cycles for completed and in-progress periods.
+       * - Completed periods: create full fasting cycles
+       * - In-progress periods: create truncated cycles (endDate = cancellation time) if still fasting
+       * - Scheduled periods: discarded
        */
       cancelPlan: (
         userId: string,
         planId: string,
-      ): Effect.Effect<PlanRecord, PlanRepositoryError | PlanNotFoundError | PlanInvalidStateError> =>
+      ): Effect.Effect<PlanRecord, PlanRepositoryError | PlanNotFoundError | PlanInvalidStateError | CycleRepositoryError> =>
         Effect.gen(function* () {
           yield* Effect.logInfo(`Cancelling plan ${planId}`);
 
-          const plan = yield* repository.updatePlanStatus(userId, planId, 'cancelled');
+          // Get plan with periods first to materialize cycles
+          const planOption = yield* planRepository.getPlanWithPeriods(userId, planId);
+
+          if (Option.isNone(planOption)) {
+            return yield* Effect.fail(
+              new PlanNotFoundError({
+                message: 'Plan not found',
+                userId,
+                planId,
+              }),
+            );
+          }
+
+          const planWithPeriods = planOption.value;
+
+          if (planWithPeriods.status !== 'active') {
+            return yield* Effect.fail(
+              new PlanInvalidStateError({
+                message: 'Cannot cancel a plan that is not active',
+                currentState: planWithPeriods.status,
+                expectedState: 'active',
+              }),
+            );
+          }
+
+          const now = new Date();
+
+          // Filter periods that have started (completed or in-progress)
+          const periodsToMaterialize = planWithPeriods.periods.filter((p) => p.startDate <= now);
+
+          if (periodsToMaterialize.length > 0) {
+            yield* Effect.logInfo(`Materializing ${periodsToMaterialize.length} cycles for cancelled plan ${planId}`);
+            yield* materializeCyclesFromPeriods(userId, periodsToMaterialize, now);
+          }
+
+          // Update plan status to cancelled
+          const plan = yield* planRepository.updatePlanStatus(userId, planId, 'cancelled');
 
           yield* Effect.logInfo(`Plan cancelled: ${plan.id}`);
 
@@ -165,7 +311,7 @@ export class PlanService extends Effect.Service<PlanService>()('PlanService', {
         Effect.gen(function* () {
           yield* Effect.logInfo(`Deleting plan ${planId}`);
 
-          const planOption = yield* repository.getPlanById(userId, planId);
+          const planOption = yield* planRepository.getPlanById(userId, planId);
 
           if (Option.isNone(planOption)) {
             return yield* Effect.fail(
@@ -189,12 +335,12 @@ export class PlanService extends Effect.Service<PlanService>()('PlanService', {
             );
           }
 
-          yield* repository.deletePlan(userId, planId);
+          yield* planRepository.deletePlan(userId, planId);
 
           yield* Effect.logInfo(`Plan deleted: ${planId}`);
         }).pipe(Effect.annotateLogs({ service: 'PlanService' })),
     };
   }),
-  dependencies: [PlanRepository.Default],
+  dependencies: [PlanRepository.Default, CycleRepository.Default],
   accessors: true,
 }) {}

@@ -974,3 +974,210 @@ describe('DELETE /v1/plans/:id - Delete Plan', () => {
     );
   });
 });
+
+// ==================== Overlap Validation Tests (OV-02) ====================
+
+describe('Plan API - Overlap Validation (OV-02)', () => {
+  describe('Plan Creation with Overlap', () => {
+    test(
+      'should return 409 when plan overlaps with completed cycle',
+      async () => {
+        const program = Effect.gen(function* () {
+          const { token } = yield* createTestUserWithTracking();
+
+          // Create and complete a cycle in the past
+          const now = new Date();
+          const cycleStart = new Date(now.getTime() - 10 * 60 * 60 * 1000); // 10 hours ago
+          const cycleEnd = new Date(now.getTime() - 2 * 60 * 60 * 1000); // 2 hours ago
+
+          // Create the cycle (will be InProgress)
+          const createResult = yield* makeAuthenticatedRequest(CYCLES_ENDPOINT, 'POST', token, {
+            startDate: cycleStart.toISOString(),
+            endDate: cycleEnd.toISOString(),
+          });
+          expect(createResult.status).toBe(201);
+
+          const cycleId = (createResult.json as { id: string }).id;
+
+          // Complete the cycle (requires same dates in payload)
+          const completeResult = yield* makeAuthenticatedRequest(`${CYCLES_ENDPOINT}/${cycleId}/complete`, 'POST', token, {
+            startDate: cycleStart.toISOString(),
+            endDate: cycleEnd.toISOString(),
+          });
+          expect(completeResult.status).toBe(200);
+
+          // Now try to create a plan that overlaps with the completed cycle
+          // Plan starts 8 hours ago (overlaps with the completed cycle that ran from -10h to -2h)
+          const planStart = new Date(now.getTime() - 8 * 60 * 60 * 1000);
+
+          const { status, json } = yield* makeAuthenticatedRequest(ENDPOINT, 'POST', token, {
+            startDate: planStart.toISOString(),
+            periods: [{ fastingDuration: 16, eatingWindow: 8 }],
+          });
+
+          expect(status).toBe(409);
+          expect((json as ErrorResponse)._tag).toBe('PlanOverlapError');
+        }).pipe(Effect.provide(DatabaseLive));
+
+        await Effect.runPromise(program);
+      },
+      { timeout: 20000 },
+    );
+
+    test(
+      'should allow plan creation when no overlap with completed cycles',
+      async () => {
+        const program = Effect.gen(function* () {
+          const { token } = yield* createTestUserWithTracking();
+
+          // Create and complete a cycle in the distant past
+          const now = new Date();
+          const cycleStart = new Date(now.getTime() - 72 * 60 * 60 * 1000); // 72 hours ago
+          const cycleEnd = new Date(now.getTime() - 48 * 60 * 60 * 1000); // 48 hours ago
+
+          // Create the cycle (will be InProgress)
+          const createResult = yield* makeAuthenticatedRequest(CYCLES_ENDPOINT, 'POST', token, {
+            startDate: cycleStart.toISOString(),
+            endDate: cycleEnd.toISOString(),
+          });
+          expect(createResult.status).toBe(201);
+
+          const cycleId = (createResult.json as { id: string }).id;
+
+          // Complete the cycle
+          const completeResult = yield* makeAuthenticatedRequest(`${CYCLES_ENDPOINT}/${cycleId}/complete`, 'POST', token, {
+            startDate: cycleStart.toISOString(),
+            endDate: cycleEnd.toISOString(),
+          });
+          expect(completeResult.status).toBe(200);
+
+          // Now create a plan that starts in the future (no overlap)
+          const planStart = new Date(now.getTime() + 1 * 60 * 60 * 1000); // 1 hour from now
+
+          const { status, json } = yield* makeAuthenticatedRequest(ENDPOINT, 'POST', token, {
+            startDate: planStart.toISOString(),
+            periods: [{ fastingDuration: 16, eatingWindow: 8 }],
+          });
+
+          expect(status).toBe(201);
+          expect((json as { id: string }).id).toBeDefined();
+        }).pipe(Effect.provide(DatabaseLive));
+
+        await Effect.runPromise(program);
+      },
+      { timeout: 20000 },
+    );
+  });
+});
+
+// ==================== On-Demand Completion Tests ====================
+
+describe('Plan API - On-Demand Completion', () => {
+  test(
+    'should mark plan as completed when all periods have ended',
+    async () => {
+      const program = Effect.gen(function* () {
+        const { token } = yield* createTestUserWithTracking();
+
+        // Create a plan that started in the past and has already ended
+        // Plan with 1 period of 1 hour fasting + 1 hour eating = 2 hours total
+        const now = new Date();
+        const planStart = new Date(now.getTime() - 3 * 60 * 60 * 1000); // 3 hours ago
+
+        const { status, json } = yield* makeAuthenticatedRequest(ENDPOINT, 'POST', token, {
+          startDate: planStart.toISOString(),
+          periods: [{ fastingDuration: 1, eatingWindow: 1 }], // 2 hour total period that ended 1 hour ago
+        });
+
+        expect(status).toBe(201);
+        const plan = json as { id: string; status: string };
+        expect(plan.status).toBe('active');
+
+        // When fetching the active plan, it should auto-complete
+        const activeResult = yield* makeAuthenticatedRequest(`${ENDPOINT}/active`, 'GET', token);
+
+        // The plan should now be completed
+        expect(activeResult.status).toBe(200);
+        const activePlan = activeResult.json as { id: string; status: string };
+        expect(activePlan.status).toBe('completed');
+      }).pipe(Effect.provide(DatabaseLive));
+
+      await Effect.runPromise(program);
+    },
+    { timeout: 20000 },
+  );
+});
+
+// ==================== Cycle Materialization on Cancel Tests ====================
+
+describe('Plan API - Cycle Materialization on Cancel', () => {
+  test(
+    'should successfully cancel a plan that has started',
+    async () => {
+      const program = Effect.gen(function* () {
+        const { token } = yield* createTestUserWithTracking();
+
+        // Create a plan that started 5 hours ago
+        const now = new Date();
+        const planStart = new Date(now.getTime() - 5 * 60 * 60 * 1000); // 5 hours ago
+
+        // Create plan with 2 periods
+        const { status, json } = yield* makeAuthenticatedRequest(ENDPOINT, 'POST', token, {
+          startDate: planStart.toISOString(),
+          periods: [
+            { fastingDuration: 2, eatingWindow: 1 },
+            { fastingDuration: 2, eatingWindow: 1 },
+          ],
+        });
+
+        expect(status).toBe(201);
+        const plan = json as { id: string };
+
+        // Cancel the plan - this should materialize cycles for started periods
+        const cancelResult = yield* makeAuthenticatedRequest(`${ENDPOINT}/${plan.id}/cancel`, 'POST', token);
+        expect(cancelResult.status).toBe(200);
+        expect((cancelResult.json as { status: string }).status).toBe('cancelled');
+
+        // After cancellation, there should be no active plan
+        const activeResult = yield* makeAuthenticatedRequest(`${ENDPOINT}/active`, 'GET', token);
+        expect(activeResult.status).toBe(404);
+      }).pipe(Effect.provide(DatabaseLive));
+
+      await Effect.runPromise(program);
+    },
+    { timeout: 20000 },
+  );
+
+  test(
+    'should successfully cancel a plan before it starts',
+    async () => {
+      const program = Effect.gen(function* () {
+        const { token } = yield* createTestUserWithTracking();
+
+        // Create a plan that starts in the future
+        const now = new Date();
+        const planStart = new Date(now.getTime() + 2 * 60 * 60 * 1000); // 2 hours from now
+
+        const { status, json } = yield* makeAuthenticatedRequest(ENDPOINT, 'POST', token, {
+          startDate: planStart.toISOString(),
+          periods: [{ fastingDuration: 16, eatingWindow: 8 }],
+        });
+
+        expect(status).toBe(201);
+        const plan = json as { id: string };
+
+        // Cancel the plan - no cycles should be created since plan hasn't started
+        const cancelResult = yield* makeAuthenticatedRequest(`${ENDPOINT}/${plan.id}/cancel`, 'POST', token);
+        expect(cancelResult.status).toBe(200);
+        expect((cancelResult.json as { status: string }).status).toBe('cancelled');
+
+        // After cancellation, there should be no active plan
+        const activeResult = yield* makeAuthenticatedRequest(`${ENDPOINT}/active`, 'GET', token);
+        expect(activeResult.status).toBe(404);
+      }).pipe(Effect.provide(DatabaseLive));
+
+      await Effect.runPromise(program);
+    },
+    { timeout: 20000 },
+  );
+});

@@ -1319,6 +1319,75 @@ describe('PUT /v1/plans/:planId/periods - Update Periods', () => {
       },
       { timeout: 15000 },
     );
+
+    test(
+      'should allow updating periods with past dates',
+      async () => {
+        const program = Effect.gen(function* () {
+          const { token } = yield* createTestUserWithTracking();
+
+          // Create a plan with periods that started in the past
+          // This tests that periods can be updated regardless of their temporal state
+          const now = new Date();
+          const planStart = new Date(now.getTime() - 5 * ONE_HOUR_MS); // 5 hours ago
+
+          const { status: createStatus } = yield* makeAuthenticatedRequest(ENDPOINT, 'POST', token, {
+            startDate: planStart.toISOString(),
+            periods: [
+              { fastingDuration: 2, eatingWindow: 1 },
+              { fastingDuration: 16, eatingWindow: 8 },
+            ],
+          });
+
+          expect(createStatus).toBe(201);
+
+          // Get the active plan
+          const { status: getStatus, json: getJson } = yield* makeAuthenticatedRequest(`${ENDPOINT}/active`, 'GET', token);
+          expect(getStatus).toBe(200);
+
+          const plan = yield* S.decodeUnknown(PlanWithPeriodsResponseSchema)(getJson);
+          expect(plan.status).toBe('active');
+          expect(plan.periods).toHaveLength(2);
+
+          // Update the periods with new durations (including the one that started in the past)
+          const updatedPeriods = generateUpdatedPeriods(
+            plan.periods.map((p) => ({
+              id: p.id,
+              startDate: p.startDate.toISOString(),
+              fastingDuration: p.fastingDuration,
+              eatingWindow: p.eatingWindow,
+            })),
+            [
+              { fastingDuration: 3, eatingWindow: 2 }, // Change first period (past)
+              { fastingDuration: 18, eatingWindow: 6 }, // Change second period
+            ],
+          );
+
+          const { status: updateStatus, json: updateJson } = yield* makeAuthenticatedRequest(
+            `${ENDPOINT}/${plan.id}/periods`,
+            'PUT',
+            token,
+            { periods: updatedPeriods },
+          );
+
+          // Should succeed - all periods can be edited
+          expect(updateStatus).toBe(200);
+          const updatedPlan = yield* S.decodeUnknown(PlanWithPeriodsResponseSchema)(updateJson);
+
+          // Verify the changes were applied
+          const updatedFirstPeriod = updatedPlan.periods.find((p) => p.order === 1);
+          expect(updatedFirstPeriod?.fastingDuration).toBe(3);
+          expect(updatedFirstPeriod?.eatingWindow).toBe(2);
+
+          const updatedSecondPeriod = updatedPlan.periods.find((p) => p.order === 2);
+          expect(updatedSecondPeriod?.fastingDuration).toBe(18);
+          expect(updatedSecondPeriod?.eatingWindow).toBe(6);
+        }).pipe(Effect.provide(DatabaseLive));
+
+        await Effect.runPromise(program);
+      },
+      { timeout: 20000 },
+    );
   });
 
   describe('Error Scenarios - Not Found (404)', () => {

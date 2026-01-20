@@ -443,32 +443,7 @@ export class PlanService extends Effect.Service<PlanService>()('PlanService', {
             }
           }
 
-          // 7. Verify completed periods are not modified
-          const existingPeriodsMap = new Map(plan.periods.map((p) => [p.id, p]));
-          for (const period of periods) {
-            const existingPeriod = existingPeriodsMap.get(period.id)!;
-
-            if (existingPeriod.status === 'completed') {
-              // Check if any field changed
-              const hasChanges =
-                period.fastingDuration !== existingPeriod.fastingDuration ||
-                period.eatingWindow !== existingPeriod.eatingWindow ||
-                period.startDate.getTime() !== existingPeriod.startDate.getTime() ||
-                period.endDate.getTime() !== existingPeriod.endDate.getTime();
-
-              if (hasChanges) {
-                return yield* Effect.fail(
-                  new PeriodCompletedError({
-                    message: 'Cannot modify a completed period',
-                    planId,
-                    periodId: period.id,
-                  }),
-                );
-              }
-            }
-          }
-
-          // 8. Convert to repository format and update
+          // 7. Convert to repository format and update
           const periodUpdates = periods.map((p) => ({
             id: p.id,
             fastingDuration: p.fastingDuration,

@@ -1062,7 +1062,6 @@ describe('POST /v1/plans/:id/cancel - Cancel Plan', () => {
           expectPlanNotFoundError(status, json);
         }).pipe(Effect.provide(DatabaseLive));
 
-
         await Effect.runPromise(program);
       },
       { timeout: 15000 },
@@ -1587,11 +1586,14 @@ describe('PUT /v1/plans/:id/periods - Update Plan Periods', () => {
         const updatePayload = {
           periods: [{ id: NON_EXISTENT_UUID, fastingDuration: 18, eatingWindow: 6 }],
         };
-        const program = expectUnauthorizedExpiredToken(`${ENDPOINT}/${NON_EXISTENT_UUID}/periods`, 'PUT', updatePayload);
+        const program = expectUnauthorizedExpiredToken(
+          `${ENDPOINT}/${NON_EXISTENT_UUID}/periods`,
+          'PUT',
+          updatePayload,
+        );
         await Effect.runPromise(program.pipe(Effect.provide(DatabaseLive)));
       },
       { timeout: 15000 },
     );
   });
 });
-

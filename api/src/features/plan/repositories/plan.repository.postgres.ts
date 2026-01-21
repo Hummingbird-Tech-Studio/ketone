@@ -754,10 +754,32 @@ export class PlanRepositoryPostgres extends Effect.Service<PlanRepositoryPostgre
                 );
               }
 
-              // 4. Create a map of existing period IDs
+              // 4. Validate no duplicate period IDs in input
+              const inputPeriodIds = new Set(periods.map((p) => p.id));
+              if (inputPeriodIds.size !== periods.length) {
+                // Find the first duplicate ID for the error message
+                const seenIds = new Set<string>();
+                let duplicateId = '';
+                for (const period of periods) {
+                  if (seenIds.has(period.id)) {
+                    duplicateId = period.id;
+                    break;
+                  }
+                  seenIds.add(period.id);
+                }
+                return yield* Effect.fail(
+                  new PeriodNotInPlanError({
+                    message: `Duplicate period ID ${duplicateId} in request`,
+                    planId,
+                    periodId: duplicateId,
+                  }),
+                );
+              }
+
+              // 5. Create a map of existing period IDs
               const existingPeriodIds = new Set(existingPeriods.map((p) => p.id));
 
-              // 5. Validate all period IDs belong to the plan
+              // 6. Validate all input period IDs belong to the plan
               for (const period of periods) {
                 if (!existingPeriodIds.has(period.id)) {
                   return yield* Effect.fail(
@@ -770,10 +792,25 @@ export class PlanRepositoryPostgres extends Effect.Service<PlanRepositoryPostgre
                 }
               }
 
-              // 6. Create a map of input periods by ID for easy lookup
+              // 7. Create a map of input periods by ID for easy lookup
               const inputPeriodMap = new Map(periods.map((p) => [p.id, p]));
 
-              // 7. Calculate new dates maintaining contiguity (ED-03)
+              // 8. Validate all existing period IDs are in the input
+              // (With count match + no duplicates + all input IDs valid, this is guaranteed,
+              // but we add this as a defensive check)
+              for (const existingPeriod of existingPeriods) {
+                if (!inputPeriodMap.has(existingPeriod.id)) {
+                  return yield* Effect.fail(
+                    new PeriodNotInPlanError({
+                      message: `Missing period ${existingPeriod.id} in request`,
+                      planId,
+                      periodId: existingPeriod.id,
+                    }),
+                  );
+                }
+              }
+
+              // 9. Calculate new dates maintaining contiguity (ED-03)
               // Sort existing periods by order to maintain sequence
               const sortedExistingPeriods = [...existingPeriods].sort((a, b) => a.order - b.order);
               const ONE_HOUR_MS = 3600000;
@@ -788,7 +825,18 @@ export class PlanRepositoryPostgres extends Effect.Service<PlanRepositoryPostgre
               }> = [];
 
               for (const existingPeriod of sortedExistingPeriods) {
-                const inputPeriod = inputPeriodMap.get(existingPeriod.id)!;
+                // Defensive check: should never be undefined due to validation above
+                const inputPeriod = inputPeriodMap.get(existingPeriod.id);
+                if (!inputPeriod) {
+                  return yield* Effect.fail(
+                    new PeriodNotInPlanError({
+                      message: `Period ${existingPeriod.id} not found in input (unexpected)`,
+                      planId,
+                      periodId: existingPeriod.id,
+                    }),
+                  );
+                }
+
                 const periodStart = new Date(currentDate);
                 const totalDurationMs = (inputPeriod.fastingDuration + inputPeriod.eatingWindow) * ONE_HOUR_MS;
                 const periodEnd = new Date(periodStart.getTime() + totalDurationMs);
@@ -804,14 +852,14 @@ export class PlanRepositoryPostgres extends Effect.Service<PlanRepositoryPostgre
                 currentDate = periodEnd;
               }
 
-              // 8. Check for overlaps with existing cycles (ED-04, OV-02)
+              // 10. Check for overlaps with existing cycles (ED-04, OV-02)
               yield* checkPeriodsOverlapWithCycles(
                 userId,
                 updatedPeriodData,
                 'Updated periods cannot overlap with existing fasting cycles.',
               );
 
-              // 9. Update all periods in the transaction
+              // 11. Update all periods in the transaction
               const updatedPeriods: Array<typeof periodsTable.$inferSelect> = [];
 
               for (const periodData of updatedPeriodData) {
@@ -839,7 +887,7 @@ export class PlanRepositoryPostgres extends Effect.Service<PlanRepositoryPostgre
                 updatedPeriods.push(updatedPeriod!);
               }
 
-              // 10. Validate and return the result
+              // 12. Validate and return the result
               const validatedPeriods = yield* Effect.all(
                 updatedPeriods.map((result) =>
                   S.decodeUnknown(PeriodRecordSchema)(result).pipe(

@@ -224,7 +224,9 @@ const handleCreatePlanResponse = (
           S.decodeUnknown(PlanApiErrorResponseSchema)(body).pipe(
             Effect.orElseSucceed(() => ({ _tag: undefined, message: undefined })),
             Effect.flatMap(
-              (errorData): Effect.Effect<
+              (
+                errorData,
+              ): Effect.Effect<
                 never,
                 PlanAlreadyActiveError | ActiveCycleExistsError | PeriodOverlapWithCycleError | ServerError
               > => {
@@ -673,9 +675,7 @@ export const programCancelPlan = (planId: string) =>
  */
 export const programUpdatePlanPeriods = (planId: string, payload: UpdatePeriodsPayload) =>
   PlanService.updatePlanPeriods(planId, payload).pipe(
-    Effect.tapError((error) =>
-      Effect.logError('Failed to update plan periods', { cause: extractErrorMessage(error) }),
-    ),
+    Effect.tapError((error) => Effect.logError('Failed to update plan periods', { cause: extractErrorMessage(error) })),
     Effect.annotateLogs({ service: 'PlanService' }),
     Effect.provide(PlanServiceLive),
   );

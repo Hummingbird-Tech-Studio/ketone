@@ -225,7 +225,6 @@ export class PlanService extends Effect.Service<PlanService>()('PlanService', {
 
           return updatedPlan;
         }).pipe(Effect.annotateLogs({ service: 'PlanService' })),
-
     };
   }),
   dependencies: [PlanRepository.Default],

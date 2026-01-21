@@ -264,6 +264,6 @@ export const PlanApiLive = HttpApiBuilder.group(Api, 'plan', (handlers) =>
 
           return plan;
         }).pipe(Effect.annotateLogs({ handler: 'plan.updatePlanPeriods' })),
-      )
+      );
   }),
 );

@@ -15,7 +15,7 @@ import {
   InvalidPeriodCountError,
   PeriodOverlapWithCycleError,
 } from '../domain';
-import { type PeriodInput } from '../api/schemas';
+import { type PeriodInput } from '../api';
 
 const ONE_HOUR_MS = 3600000;
 
@@ -145,6 +145,13 @@ export class PlanService extends Effect.Service<PlanService>()('PlanService', {
 
       /**
        * Cancel an active plan.
+       *
+       * This operation is atomic - both plan cancellation and cycle preservation (if applicable)
+       * happen in a single transaction. If cycle creation fails, the entire operation is rolled back.
+       *
+       * - Completed periods remain saved (unchanged)
+       * - In-progress period: fasting cycle is saved with end_date = cancellation time
+       * - Scheduled periods are discarded (plan is cancelled, they won't execute)
        */
       cancelPlan: (
         userId: string,
@@ -153,11 +160,42 @@ export class PlanService extends Effect.Service<PlanService>()('PlanService', {
         Effect.gen(function* () {
           yield* Effect.logInfo(`Cancelling plan ${planId}`);
 
-          const plan = yield* repository.updatePlanStatus(userId, planId, 'Cancelled');
+          // Get the plan with periods to check for in-progress period
+          const planOption = yield* repository.getPlanWithPeriods(userId, planId);
 
-          yield* Effect.logInfo(`Plan cancelled: ${plan.id}`);
+          if (Option.isNone(planOption)) {
+            return yield* Effect.fail(
+              new PlanNotFoundError({
+                message: 'Plan not found',
+                userId,
+                planId,
+              }),
+            );
+          }
 
-          return plan;
+          const planWithPeriods = planOption.value;
+
+          // Find in-progress period (if any)
+          const inProgressPeriod = planWithPeriods.periods.find((p) => p.status === 'in_progress');
+          const inProgressPeriodStartDate = inProgressPeriod?.startDate ?? null;
+
+          if (inProgressPeriod) {
+            yield* Effect.logInfo(
+              `In-progress period found (ID: ${inProgressPeriod.id}). Will preserve fasting record.`,
+            );
+          }
+
+          // Cancel the plan atomically with cycle preservation
+          // If there's an in-progress period, both operations happen in one transaction
+          const cancelledPlan = yield* repository.cancelPlanWithCyclePreservation(
+            userId,
+            planId,
+            inProgressPeriodStartDate,
+          );
+
+          yield* Effect.logInfo(`Plan cancelled: ${cancelledPlan.id}`);
+
+          return cancelledPlan;
         }).pipe(Effect.annotateLogs({ service: 'PlanService' })),
 
       /**

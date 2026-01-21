@@ -255,14 +255,21 @@ const handleCreatePlanResponse = (
                       }),
                     ),
                   ),
-                  Match.when('PeriodOverlapWithCycleError', () =>
-                    Effect.fail(
+                  Match.when('PeriodOverlapWithCycleError', () => {
+                    if (!errorData.overlappingCycleId) {
+                      return Effect.fail(
+                        new ServerError({
+                          message: 'Missing overlappingCycleId in PeriodOverlapWithCycleError',
+                        }),
+                      );
+                    }
+                    return Effect.fail(
                       new PeriodOverlapWithCycleError({
                         message: errorData.message ?? 'Plan periods overlap with existing cycles',
-                        overlappingCycleId: errorData.overlappingCycleId ?? '',
+                        overlappingCycleId: errorData.overlappingCycleId,
                       }),
-                    ),
-                  ),
+                    );
+                  }),
                   Match.orElse(() =>
                     Effect.fail(
                       new ServerError({
@@ -463,10 +470,17 @@ const handleUpdatePeriodsResponse = (
             Effect.orElseSucceed(() => ({ _tag: undefined, message: undefined, overlappingCycleId: undefined })),
             Effect.flatMap((errorData): Effect.Effect<never, PeriodOverlapWithCycleError | ServerError> => {
               if (errorData._tag === 'PeriodOverlapWithCycleError') {
+                if (!errorData.overlappingCycleId) {
+                  return Effect.fail(
+                    new ServerError({
+                      message: 'Missing overlappingCycleId in PeriodOverlapWithCycleError',
+                    }),
+                  );
+                }
                 return Effect.fail(
                   new PeriodOverlapWithCycleError({
                     message: errorData.message ?? 'Plan periods overlap with existing cycles',
-                    overlappingCycleId: errorData.overlappingCycleId ?? '',
+                    overlappingCycleId: errorData.overlappingCycleId,
                   }),
                 );
               }

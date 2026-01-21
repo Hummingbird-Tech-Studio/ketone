@@ -613,12 +613,19 @@ export class PlanRepositoryPostgres extends Effect.Service<PlanRepositoryPostgre
               }
 
               // 2. Update the plan status to Cancelled
+              // Guard: filter by userId + status to prevent concurrent double-cancel race condition
               const cancellationTime = new Date();
 
-              const [updatedPlan] = yield* drizzle
+              const updatedPlans = yield* drizzle
                 .update(plansTable)
                 .set({ status: 'Cancelled', updatedAt: cancellationTime })
-                .where(eq(plansTable.id, planId))
+                .where(
+                  and(
+                    eq(plansTable.id, planId),
+                    eq(plansTable.userId, userId),
+                    eq(plansTable.status, 'InProgress'),
+                  ),
+                )
                 .returning()
                 .pipe(
                   Effect.mapError(
@@ -629,6 +636,19 @@ export class PlanRepositoryPostgres extends Effect.Service<PlanRepositoryPostgre
                       }),
                   ),
                 );
+
+              // If no rows updated, the plan was cancelled by a concurrent request
+              if (updatedPlans.length === 0) {
+                return yield* Effect.fail(
+                  new PlanInvalidStateError({
+                    message: 'Plan was already cancelled by another request',
+                    currentState: 'Cancelled',
+                    expectedState: 'InProgress',
+                  }),
+                );
+              }
+
+              const updatedPlan = updatedPlans[0]!;
 
               // 3. If there was an in-progress period, create a completed cycle
               if (inProgressPeriodStartDate !== null) {

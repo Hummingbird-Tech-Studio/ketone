@@ -620,11 +620,7 @@ export class PlanRepositoryPostgres extends Effect.Service<PlanRepositoryPostgre
                 .update(plansTable)
                 .set({ status: 'Cancelled', updatedAt: cancellationTime })
                 .where(
-                  and(
-                    eq(plansTable.id, planId),
-                    eq(plansTable.userId, userId),
-                    eq(plansTable.status, 'InProgress'),
-                  ),
+                  and(eq(plansTable.id, planId), eq(plansTable.userId, userId), eq(plansTable.status, 'InProgress')),
                 )
                 .returning()
                 .pipe(

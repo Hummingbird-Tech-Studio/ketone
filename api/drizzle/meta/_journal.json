@@ -92,6 +92,13 @@
       "when": 1737496800000,
       "tag": "0012_fix_trigger_enum_comparison",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1737500400000,
+      "tag": "0013_rename_plan_status_values",
+      "breakpoints": true
     }
   ]
 }

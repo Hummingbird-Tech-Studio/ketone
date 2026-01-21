@@ -1,6 +1,18 @@
--- Add advisory lock to plan-cycle mutual exclusion trigger
--- This prevents race conditions when creating plans and cycles concurrently
--- Also uses ::text cast for status comparison to avoid enum validation at parse time
+-- Rename plan_status enum values to match cycle_status pattern
+-- Changes: 'active' -> 'InProgress', 'completed' -> 'Completed', 'cancelled' -> 'Cancelled'
+
+-- Update the partial unique index first (it references 'active')
+DROP INDEX IF EXISTS idx_plans_user_active;
+
+-- Rename enum values
+ALTER TYPE plan_status RENAME VALUE 'active' TO 'InProgress';
+ALTER TYPE plan_status RENAME VALUE 'completed' TO 'Completed';
+ALTER TYPE plan_status RENAME VALUE 'cancelled' TO 'Cancelled';
+
+-- Recreate the partial unique index with new value
+CREATE UNIQUE INDEX idx_plans_user_active ON plans (user_id) WHERE status = 'InProgress';
+
+-- Update the trigger function to use the new status values
 CREATE OR REPLACE FUNCTION check_plan_cycle_mutual_exclusion()
 RETURNS TRIGGER AS $$
 BEGIN

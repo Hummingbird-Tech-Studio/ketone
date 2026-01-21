@@ -287,7 +287,7 @@ describe('POST /v1/plans - Create Plan', () => {
           expect(status).toBe(201);
           const plan = yield* S.decodeUnknown(PlanWithPeriodsResponseSchema)(json);
           expect(plan.userId).toBe(userId);
-          expect(plan.status).toBe('active');
+          expect(plan.status).toBe('InProgress');
           expect(plan.periods).toHaveLength(3);
           const firstPeriod = plan.periods[0]!;
           expect(firstPeriod.order).toBe(1);
@@ -643,7 +643,7 @@ describe('GET /v1/plans/active - Get Active Plan', () => {
           const plan = yield* S.decodeUnknown(PlanWithPeriodsResponseSchema)(json);
           expect(plan.id).toBe(createdPlan.id);
           expect(plan.userId).toBe(userId);
-          expect(plan.status).toBe('active');
+          expect(plan.status).toBe('InProgress');
           expect(plan.periods).toHaveLength(3);
         }).pipe(Effect.provide(DatabaseLive));
 
@@ -803,7 +803,7 @@ describe('GET /v1/plans - List Plans', () => {
           const plans = yield* S.decodeUnknown(PlansListResponseSchema)(json);
           expect(plans).toHaveLength(1);
           const firstPlan = plans[0]!;
-          expect(firstPlan.status).toBe('active');
+          expect(firstPlan.status).toBe('InProgress');
           // List should not include periods
           expect((firstPlan as any).periods).toBeUndefined();
         }).pipe(Effect.provide(DatabaseLive));
@@ -848,7 +848,7 @@ describe('POST /v1/plans/:id/cancel - Cancel Plan', () => {
           expect(status).toBe(200);
           const plan = yield* S.decodeUnknown(PlanResponseSchema)(json);
           expect(plan.id).toBe(createdPlan.id);
-          expect(plan.status).toBe('cancelled');
+          expect(plan.status).toBe('Cancelled');
         }).pipe(Effect.provide(DatabaseLive));
 
         await Effect.runPromise(program);
@@ -872,7 +872,7 @@ describe('POST /v1/plans/:id/cancel - Cancel Plan', () => {
 
           expect(status).toBe(201);
           const plan = yield* S.decodeUnknown(PlanWithPeriodsResponseSchema)(json);
-          expect(plan.status).toBe('active');
+          expect(plan.status).toBe('InProgress');
         }).pipe(Effect.provide(DatabaseLive));
 
         await Effect.runPromise(program);

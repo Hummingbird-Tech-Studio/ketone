@@ -224,7 +224,7 @@ export class CycleRepositoryPostgres extends Effect.Service<CycleRepositoryPostg
             const activePlans = yield* drizzle
             .select({ id: plansTable.id })
             .from(plansTable)
-            .where(and(eq(plansTable.userId, data.userId), eq(plansTable.status, 'active')))
+            .where(and(eq(plansTable.userId, data.userId), eq(plansTable.status, 'InProgress')))
             .pipe(
               Effect.mapError(
                 (error) =>

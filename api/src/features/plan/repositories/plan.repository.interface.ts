@@ -95,7 +95,7 @@ export interface IPlanRepository {
    *
    * @param userId - The ID of the user who owns the plan
    * @param planId - The ID of the plan to update
-   * @param status - The new status ('completed' or 'cancelled')
+   * @param status - The new status ('Completed' or 'Cancelled')
    * @returns Effect that resolves to the updated PlanRecord
    * @throws PlanNotFoundError if plan doesn't exist or doesn't belong to user
    * @throws PlanInvalidStateError if plan is not in a valid state for the transition

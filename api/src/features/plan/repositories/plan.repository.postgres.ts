@@ -127,7 +127,7 @@ export class PlanRepositoryPostgres extends Effect.Service<PlanRepositoryPostgre
                 .values({
                   userId,
                   startDate,
-                  status: 'active',
+                  status: 'InProgress',
                 })
                 .returning()
                 .pipe(
@@ -286,7 +286,7 @@ export class PlanRepositoryPostgres extends Effect.Service<PlanRepositoryPostgre
           const results = yield* drizzle
             .select()
             .from(plansTable)
-            .where(and(eq(plansTable.userId, userId), eq(plansTable.status, 'active')))
+            .where(and(eq(plansTable.userId, userId), eq(plansTable.status, 'InProgress')))
             .pipe(
               Effect.tapError((error) => Effect.logError('Database error in getActivePlan', error)),
               Effect.mapError(
@@ -338,7 +338,7 @@ export class PlanRepositoryPostgres extends Effect.Service<PlanRepositoryPostgre
           const results = yield* drizzle
             .update(plansTable)
             .set({ status, updatedAt: new Date() })
-            .where(and(eq(plansTable.id, planId), eq(plansTable.userId, userId), eq(plansTable.status, 'active')))
+            .where(and(eq(plansTable.id, planId), eq(plansTable.userId, userId), eq(plansTable.status, 'InProgress')))
             .returning()
             .pipe(
               Effect.tapError((error) => Effect.logError('Database error in updatePlanStatus', error)),
@@ -369,7 +369,7 @@ export class PlanRepositoryPostgres extends Effect.Service<PlanRepositoryPostgre
               new PlanInvalidStateError({
                 message: 'Cannot update status of a plan that is not active',
                 currentState: existingPlan.value.status,
-                expectedState: 'active',
+                expectedState: 'InProgress',
               }),
             );
           }
@@ -463,7 +463,7 @@ export class PlanRepositoryPostgres extends Effect.Service<PlanRepositoryPostgre
           const activePlans = yield* drizzle
             .select()
             .from(plansTable)
-            .where(and(eq(plansTable.userId, userId), eq(plansTable.status, 'active')))
+            .where(and(eq(plansTable.userId, userId), eq(plansTable.status, 'InProgress')))
             .pipe(
               Effect.mapError(
                 (error) =>

@@ -198,44 +198,6 @@ export class PlanService extends Effect.Service<PlanService>()('PlanService', {
           return cancelledPlan;
         }).pipe(Effect.annotateLogs({ service: 'PlanService' })),
 
-      /**
-       * Delete a plan. Only non-active plans can be deleted.
-       */
-      deletePlan: (
-        userId: string,
-        planId: string,
-      ): Effect.Effect<void, PlanRepositoryError | PlanNotFoundError | PlanInvalidStateError> =>
-        Effect.gen(function* () {
-          yield* Effect.logInfo(`Deleting plan ${planId}`);
-
-          const planOption = yield* repository.getPlanById(userId, planId);
-
-          if (Option.isNone(planOption)) {
-            return yield* Effect.fail(
-              new PlanNotFoundError({
-                message: 'Plan not found',
-                userId,
-                planId,
-              }),
-            );
-          }
-
-          const plan = planOption.value;
-
-          if (plan.status === 'InProgress') {
-            return yield* Effect.fail(
-              new PlanInvalidStateError({
-                message: 'Cannot delete an active plan. Cancel it first.',
-                currentState: plan.status,
-                expectedState: 'Completed or Cancelled',
-              }),
-            );
-          }
-
-          yield* repository.deletePlan(userId, planId);
-
-          yield* Effect.logInfo(`Plan deleted: ${planId}`);
-        }).pipe(Effect.annotateLogs({ service: 'PlanService' })),
     };
   }),
   dependencies: [PlanRepository.Default],

@@ -207,21 +207,5 @@ export const PlanApiLive = HttpApiBuilder.group(Api, 'plan', (handlers) =>
           return plan;
         }).pipe(Effect.annotateLogs({ handler: 'plan.cancelPlan' })),
       )
-      .handle('deletePlan', ({ path }) =>
-        Effect.gen(function* () {
-          const currentUser = yield* CurrentUser;
-          const userId = currentUser.userId;
-          const planId = path.id;
-
-          yield* Effect.logInfo(`DELETE /v1/plans/${planId} - Request received for user ${userId}`);
-
-          yield* planService.deletePlan(userId, planId).pipe(
-            Effect.tapError((error) => Effect.logError(`Error deleting plan: ${error.message}`)),
-            Effect.catchTags(stateErrorHandlers(userId)),
-          );
-
-          yield* Effect.logInfo(`Plan deleted: ${planId}`);
-        }).pipe(Effect.annotateLogs({ handler: 'plan.deletePlan' })),
-      );
   }),
 );

@@ -142,15 +142,6 @@ export interface IPlanRepository {
   ): Effect.Effect<{ hasActivePlan: boolean; hasActiveCycle: boolean }, PlanRepositoryError>;
 
   /**
-   * Delete a plan and all its periods (via cascade).
-   *
-   * @param userId - The ID of the user who owns the plan
-   * @param planId - The ID of the plan to delete
-   * @returns Effect that resolves to void on successful deletion
-   */
-  deletePlan(userId: string, planId: string): Effect.Effect<void, PlanRepositoryError>;
-
-  /**
    * Delete all plans for a user (for account deletion).
    *
    * @param userId - The ID of the user whose plans to delete

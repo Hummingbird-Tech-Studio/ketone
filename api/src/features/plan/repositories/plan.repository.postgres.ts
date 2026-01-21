@@ -501,23 +501,6 @@ export class PlanRepositoryPostgres extends Effect.Service<PlanRepositoryPostgre
           Effect.annotateLogs({ repository: 'PlanRepository' }),
         ),
 
-      deletePlan: (userId: string, planId: string) =>
-        Effect.gen(function* () {
-          yield* drizzle
-            .delete(plansTable)
-            .where(and(eq(plansTable.id, planId), eq(plansTable.userId, userId)))
-            .pipe(
-              Effect.tapError((error) => Effect.logError('Database error in deletePlan', error)),
-              Effect.mapError(
-                (error) =>
-                  new PlanRepositoryError({
-                    message: 'Failed to delete plan from database',
-                    cause: error,
-                  }),
-              ),
-            );
-        }).pipe(Effect.annotateLogs({ repository: 'PlanRepository' })),
-
       deleteAllByUserId: (userId: string) =>
         Effect.gen(function* () {
           yield* Effect.logInfo(`Deleting all plans for user ${userId}`);

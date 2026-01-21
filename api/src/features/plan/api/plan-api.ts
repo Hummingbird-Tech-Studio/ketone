@@ -62,14 +62,4 @@ export class PlanApiGroup extends HttpApiGroup.make('plan')
       .addError(PlanInvalidStateErrorSchema, { status: 409 })
       .addError(PlanRepositoryErrorSchema, { status: 500 })
       .middleware(Authentication),
-  )
-  .add(
-    HttpApiEndpoint.del('deletePlan', '/v1/plans/:id')
-      .setPath(S.Struct({ id: S.UUID }))
-      .addSuccess(S.Void, { status: 204 })
-      .addError(UnauthorizedErrorSchema, { status: 401 })
-      .addError(PlanNotFoundErrorSchema, { status: 404 })
-      .addError(PlanInvalidStateErrorSchema, { status: 409 })
-      .addError(PlanRepositoryErrorSchema, { status: 500 })
-      .middleware(Authentication),
   ) {}

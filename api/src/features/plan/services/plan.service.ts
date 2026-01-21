@@ -14,6 +14,8 @@ import {
   ActiveCycleExistsError,
   InvalidPeriodCountError,
   PeriodOverlapWithCycleError,
+  PeriodsMismatchError,
+  PeriodNotInPlanError,
 } from '../domain';
 import { type PeriodInput } from '../api';
 
@@ -196,6 +198,32 @@ export class PlanService extends Effect.Service<PlanService>()('PlanService', {
           yield* Effect.logInfo(`Plan cancelled: ${cancelledPlan.id}`);
 
           return cancelledPlan;
+        }).pipe(Effect.annotateLogs({ service: 'PlanService' })),
+
+      /**
+       * Update plan periods with new durations.
+       * Recalculates period dates to maintain contiguity.
+       */
+      updatePlanPeriods: (
+        userId: string,
+        planId: string,
+        periods: Array<{ id: string; fastingDuration: number; eatingWindow: number }>,
+      ): Effect.Effect<
+        PlanWithPeriodsRecord,
+        | PlanRepositoryError
+        | PlanNotFoundError
+        | PeriodsMismatchError
+        | PeriodNotInPlanError
+        | PeriodOverlapWithCycleError
+      > =>
+        Effect.gen(function* () {
+          yield* Effect.logInfo(`Updating periods for plan ${planId}`);
+
+          const updatedPlan = yield* repository.updatePlanPeriods(userId, planId, periods);
+
+          yield* Effect.logInfo(`Plan periods updated successfully for plan ${planId}`);
+
+          return updatedPlan;
         }).pipe(Effect.annotateLogs({ service: 'PlanService' })),
 
     };

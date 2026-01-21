@@ -2,6 +2,7 @@ import { HttpApiEndpoint, HttpApiGroup } from '@effect/platform';
 import { Schema as S } from 'effect';
 import {
   CreatePlanRequestSchema,
+  UpdatePeriodsRequestSchema,
   PlanWithPeriodsResponseSchema,
   PlansListResponseSchema,
   PlanResponseSchema,
@@ -13,6 +14,8 @@ import {
   ActiveCycleExistsErrorSchema,
   InvalidPeriodCountErrorSchema,
   PeriodOverlapWithCycleErrorSchema,
+  PeriodsMismatchErrorSchema,
+  PeriodNotInPlanErrorSchema,
 } from './schemas';
 import { Authentication, UnauthorizedErrorSchema } from '../../auth/api/middleware';
 
@@ -60,6 +63,19 @@ export class PlanApiGroup extends HttpApiGroup.make('plan')
       .addError(UnauthorizedErrorSchema, { status: 401 })
       .addError(PlanNotFoundErrorSchema, { status: 404 })
       .addError(PlanInvalidStateErrorSchema, { status: 409 })
+      .addError(PlanRepositoryErrorSchema, { status: 500 })
+      .middleware(Authentication),
+  )
+  .add(
+    HttpApiEndpoint.put('updatePlanPeriods', '/v1/plans/:id/periods')
+      .setPath(S.Struct({ id: S.UUID }))
+      .setPayload(UpdatePeriodsRequestSchema)
+      .addSuccess(PlanWithPeriodsResponseSchema)
+      .addError(UnauthorizedErrorSchema, { status: 401 })
+      .addError(PlanNotFoundErrorSchema, { status: 404 })
+      .addError(PeriodOverlapWithCycleErrorSchema, { status: 409 })
+      .addError(PeriodsMismatchErrorSchema, { status: 422 })
+      .addError(PeriodNotInPlanErrorSchema, { status: 422 })
       .addError(PlanRepositoryErrorSchema, { status: 500 })
       .middleware(Authentication),
   ) {}

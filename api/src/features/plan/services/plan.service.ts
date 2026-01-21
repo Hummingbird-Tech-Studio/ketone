@@ -13,6 +13,7 @@ import {
   PlanInvalidStateError,
   ActiveCycleExistsError,
   InvalidPeriodCountError,
+  PeriodOverlapWithCycleError,
 } from '../domain';
 import { type PeriodInput } from '../api/schemas';
 
@@ -58,7 +59,11 @@ export class PlanService extends Effect.Service<PlanService>()('PlanService', {
         periods: PeriodInput[],
       ): Effect.Effect<
         PlanWithPeriodsRecord,
-        PlanRepositoryError | PlanAlreadyActiveError | ActiveCycleExistsError | InvalidPeriodCountError
+        | PlanRepositoryError
+        | PlanAlreadyActiveError
+        | ActiveCycleExistsError
+        | InvalidPeriodCountError
+        | PeriodOverlapWithCycleError
       > =>
         Effect.gen(function* () {
           yield* Effect.logInfo('Creating new plan');
@@ -148,7 +153,7 @@ export class PlanService extends Effect.Service<PlanService>()('PlanService', {
         Effect.gen(function* () {
           yield* Effect.logInfo(`Cancelling plan ${planId}`);
 
-          const plan = yield* repository.updatePlanStatus(userId, planId, 'cancelled');
+          const plan = yield* repository.updatePlanStatus(userId, planId, 'Cancelled');
 
           yield* Effect.logInfo(`Plan cancelled: ${plan.id}`);
 
@@ -179,12 +184,12 @@ export class PlanService extends Effect.Service<PlanService>()('PlanService', {
 
           const plan = planOption.value;
 
-          if (plan.status === 'active') {
+          if (plan.status === 'InProgress') {
             return yield* Effect.fail(
               new PlanInvalidStateError({
                 message: 'Cannot delete an active plan. Cancel it first.',
                 currentState: plan.status,
-                expectedState: 'completed or cancelled',
+                expectedState: 'Completed or Cancelled',
               }),
             );
           }

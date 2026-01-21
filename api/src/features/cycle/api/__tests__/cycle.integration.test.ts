@@ -16,6 +16,7 @@ import { CycleRepository, CycleRepositoryLive } from '../../repositories';
 validateJwtSecret();
 
 const ENDPOINT = `${API_BASE_URL}/v1/cycles`;
+const PLANS_ENDPOINT = `${API_BASE_URL}/v1/plans`;
 const NON_EXISTENT_UUID = '00000000-0000-0000-0000-000000000000';
 
 const TestLayers = Layer.mergeAll(CycleRepositoryLive, DatabaseLive);
@@ -98,6 +99,35 @@ const createCycleForUser = (token: string, dates?: { startDate: string; endDate:
     }
 
     return yield* S.decodeUnknown(CycleResponseSchema)(json);
+  });
+
+const createPlanForUser = (token: string) =>
+  Effect.gen(function* () {
+    const now = new Date();
+    // Plan that starts tomorrow (future) so it doesn't conflict with cycle creation times
+    const planData = {
+      startDate: new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString(),
+      periods: [
+        { fastingDuration: 16, eatingWindow: 8 },
+        { fastingDuration: 16, eatingWindow: 8 },
+        { fastingDuration: 16, eatingWindow: 8 },
+      ],
+    };
+
+    const { status, json } = yield* makeRequest(PLANS_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(planData),
+    });
+
+    if (status !== 201) {
+      throw new Error(`Failed to create plan: ${status} - ${JSON.stringify(json)}`);
+    }
+
+    return json;
   });
 
 const generateInvalidDatesEndBeforeStart = () =>
@@ -653,6 +683,36 @@ describe('POST /v1/cycles - Create Cycle', () => {
           });
 
           expectCycleOverlapError(status, json);
+        }).pipe(Effect.provide(DatabaseLive));
+
+        await Effect.runPromise(program);
+      },
+      { timeout: 15000 },
+    );
+
+    test(
+      'should return 409 when user has an active plan',
+      async () => {
+        const program = Effect.gen(function* () {
+          const { token } = yield* createTestUserWithTracking();
+
+          // Create an active plan first
+          yield* createPlanForUser(token);
+
+          // Try to create a cycle
+          const dates = yield* generateValidCycleDates();
+          const { status, json } = yield* makeRequest(ENDPOINT, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify(dates),
+          });
+
+          expect(status).toBe(409);
+          const error = json as ErrorResponse;
+          expect(error._tag).toBe('ActivePlanExistsError');
         }).pipe(Effect.provide(DatabaseLive));
 
         await Effect.runPromise(program);
@@ -2742,6 +2802,97 @@ describe('Race Conditions & Concurrency', () => {
           expect(secondStatus).toBe(404);
           const error = secondJson as ErrorResponse;
           expect(error._tag).toBe('CycleNotFoundError');
+        }).pipe(Effect.provide(DatabaseLive));
+
+        await Effect.runPromise(program);
+      },
+      { timeout: 15000 },
+    );
+  });
+
+  describe('Concurrent Plan and Cycle Creation', () => {
+    test(
+      'should prevent having both active plan and active cycle after concurrent creation attempts',
+      async () => {
+        const program = Effect.gen(function* () {
+          const { token } = yield* createTestUserWithTracking();
+
+          // Prepare plan data (future dates to avoid overlap with cycle)
+          const now = new Date();
+          const planStartDate = new Date(now.getTime() + 24 * 60 * 60 * 1000); // tomorrow
+          const planData = {
+            startDate: planStartDate.toISOString(),
+            periods: [
+              { fastingDuration: 16, eatingWindow: 8 },
+              { fastingDuration: 16, eatingWindow: 8 },
+            ],
+          };
+
+          // Prepare cycle data (past dates)
+          const cycleDates = yield* generateValidCycleDates();
+
+          // Fire concurrent requests to create both plan and cycle
+          const [planResult, cycleResult] = yield* Effect.all(
+            [
+              makeRequest(PLANS_ENDPOINT, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify(planData),
+              }),
+              makeRequest(ENDPOINT, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify(cycleDates),
+              }),
+            ],
+            { concurrency: 'unbounded' },
+          );
+
+          const results = [
+            { type: 'plan', ...planResult },
+            { type: 'cycle', ...cycleResult },
+          ];
+          const successResults = results.filter((r) => r.status === 201);
+
+          // At least one should succeed
+          expect(successResults.length).toBeGreaterThanOrEqual(1);
+
+          // Now verify the final state - user should NOT have both active
+          const [activePlanResponse, activeCycleResponse] = yield* Effect.all(
+            [
+              makeRequest(`${PLANS_ENDPOINT}/active`, {
+                method: 'GET',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${token}`,
+                },
+              }),
+              makeRequest(`${ENDPOINT}/in-progress`, {
+                method: 'GET',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${token}`,
+                },
+              }),
+            ],
+            { concurrency: 'unbounded' },
+          );
+
+          const hasActivePlan = activePlanResponse.status === 200;
+          const hasActiveCycle = activeCycleResponse.status === 200;
+
+          // Critical assertion: user should NOT have both active plan AND active cycle
+          // This verifies the mutual exclusion constraint is enforced
+          expect(hasActivePlan && hasActiveCycle).toBe(false);
+
+          // At least one should exist (since at least one creation succeeded)
+          expect(hasActivePlan || hasActiveCycle).toBe(true);
         }).pipe(Effect.provide(DatabaseLive));
 
         await Effect.runPromise(program);

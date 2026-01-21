@@ -1,10 +1,5 @@
 import { Data } from 'effect';
 
-export class CycleServiceError extends Data.TaggedError('CycleServiceError')<{
-  message: string;
-  cause?: unknown;
-}> {}
-
 export class CycleAlreadyInProgressError extends Data.TaggedError('CycleAlreadyInProgressError')<{
   message: string;
   userId: string;
@@ -43,4 +38,9 @@ export class FeelingsLimitExceededError extends Data.TaggedError('FeelingsLimitE
   readonly message: string;
   readonly cycleId: string;
   readonly currentCount: number;
+}> {}
+
+export class ActivePlanExistsError extends Data.TaggedError('ActivePlanExistsError')<{
+  message: string;
+  userId: string;
 }> {}

@@ -112,7 +112,7 @@ describe('PlanRepository', () => {
         const result = yield* planRepository.createPlan(userId, startDate, periods);
 
         expect(result.userId).toBe(userId);
-        expect(result.status).toBe('active');
+        expect(result.status).toBe('InProgress');
         expect(result.periods).toHaveLength(3);
         expect(result.periods[0]!.order).toBe(1);
         expect(result.periods[1]!.order).toBe(2);
@@ -323,7 +323,7 @@ describe('PlanRepository', () => {
         expect(Option.isSome(result)).toBe(true);
         if (Option.isSome(result)) {
           expect(result.value.id).toBe(created.id);
-          expect(result.value.status).toBe('active');
+          expect(result.value.status).toBe('InProgress');
         }
       });
 
@@ -353,7 +353,7 @@ describe('PlanRepository', () => {
         const created = yield* planRepository.createPlan(userId, startDate, periods);
 
         // Complete the plan
-        yield* planRepository.updatePlanStatus(userId, created.id, 'completed');
+        yield* planRepository.updatePlanStatus(userId, created.id, 'Completed');
 
         const result = yield* planRepository.getActivePlan(userId);
 
@@ -374,9 +374,9 @@ describe('PlanRepository', () => {
         const periods = generatePeriodData(2, startDate);
         const created = yield* planRepository.createPlan(userId, startDate, periods);
 
-        const updated = yield* planRepository.updatePlanStatus(userId, created.id, 'completed');
+        const updated = yield* planRepository.updatePlanStatus(userId, created.id, 'Completed');
 
-        expect(updated.status).toBe('completed');
+        expect(updated.status).toBe('Completed');
       });
 
       await Effect.runPromise(program.pipe(Effect.provide(TestLayers), Effect.scoped));
@@ -391,9 +391,9 @@ describe('PlanRepository', () => {
         const periods = generatePeriodData(2, startDate);
         const created = yield* planRepository.createPlan(userId, startDate, periods);
 
-        const updated = yield* planRepository.updatePlanStatus(userId, created.id, 'cancelled');
+        const updated = yield* planRepository.updatePlanStatus(userId, created.id, 'Cancelled');
 
-        expect(updated.status).toBe('cancelled');
+        expect(updated.status).toBe('Cancelled');
       });
 
       await Effect.runPromise(program.pipe(Effect.provide(TestLayers), Effect.scoped));
@@ -405,7 +405,7 @@ describe('PlanRepository', () => {
         const planRepository = yield* PlanRepository;
 
         const result = yield* planRepository
-          .updatePlanStatus(userId, '00000000-0000-0000-0000-000000000000', 'completed')
+          .updatePlanStatus(userId, '00000000-0000-0000-0000-000000000000', 'Completed')
           .pipe(Effect.either);
 
         expect(result._tag).toBe('Left');
@@ -427,10 +427,10 @@ describe('PlanRepository', () => {
         const created = yield* planRepository.createPlan(userId, startDate, periods);
 
         // Complete the plan first
-        yield* planRepository.updatePlanStatus(userId, created.id, 'completed');
+        yield* planRepository.updatePlanStatus(userId, created.id, 'Completed');
 
         // Try to update again - should fail
-        const result = yield* planRepository.updatePlanStatus(userId, created.id, 'cancelled').pipe(Effect.either);
+        const result = yield* planRepository.updatePlanStatus(userId, created.id, 'Cancelled').pipe(Effect.either);
 
         expect(result._tag).toBe('Left');
         if (result._tag === 'Left') {
@@ -614,7 +614,7 @@ describe('PlanRepository', () => {
         const plan1 = yield* planRepository.createPlan(userId, startDate1, periods1);
 
         // Complete first plan so we can create another
-        yield* planRepository.updatePlanStatus(userId, plan1.id, 'completed');
+        yield* planRepository.updatePlanStatus(userId, plan1.id, 'Completed');
 
         // Create second plan with later start date
         const startDate2 = new Date(startDate1);
@@ -661,7 +661,7 @@ describe('PlanRepository', () => {
         expect(Option.isSome(result)).toBe(true);
         if (Option.isSome(result)) {
           expect(result.value.id).toBe(created.id);
-          expect(result.value.status).toBe('active');
+          expect(result.value.status).toBe('InProgress');
           expect(result.value.periods).toHaveLength(4);
         }
       });
@@ -695,7 +695,7 @@ describe('PlanRepository', () => {
         const plan1 = yield* planRepository.createPlan(userId, startDate1, periods1);
 
         // Complete first plan
-        yield* planRepository.updatePlanStatus(userId, plan1.id, 'completed');
+        yield* planRepository.updatePlanStatus(userId, plan1.id, 'Completed');
 
         // Create second plan
         const startDate2 = new Date(startDate1);

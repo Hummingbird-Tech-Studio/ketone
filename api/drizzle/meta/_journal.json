@@ -71,6 +71,34 @@
       "when": 1768671991537,
       "tag": "0009_nervous_proteus",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1768675591537,
+      "tag": "0010_add_plan_cycle_mutual_exclusion",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1768679191537,
+      "tag": "0011_add_advisory_lock_to_exclusion_trigger",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1768682791537,
+      "tag": "0012_fix_trigger_enum_comparison",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1768686391537,
+      "tag": "0013_rename_plan_status_values",
+      "breakpoints": true
     }
   ]
 }

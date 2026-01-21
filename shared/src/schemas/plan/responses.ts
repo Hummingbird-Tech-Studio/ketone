@@ -1,6 +1,6 @@
 import { Schema as S } from 'effect';
 
-export const PlanStatusSchema = S.Literal('active', 'completed', 'cancelled');
+export const PlanStatusSchema = S.Literal('InProgress', 'Completed', 'Cancelled');
 export type PlanStatus = S.Schema.Type<typeof PlanStatusSchema>;
 
 export const PeriodStatusSchema = S.Literal('scheduled', 'in_progress', 'completed');

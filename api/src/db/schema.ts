@@ -32,7 +32,7 @@ export const fastingFeelingEnum = pgEnum('fasting_feeling', [
   'irritable',
 ]);
 
-export const planStatusEnum = pgEnum('plan_status', ['active', 'completed', 'cancelled']);
+export const planStatusEnum = pgEnum('plan_status', ['InProgress', 'Completed', 'Cancelled']);
 export const periodStatusEnum = pgEnum('period_status', ['scheduled', 'in_progress', 'completed']);
 
 /**
@@ -182,7 +182,7 @@ export const plansTable = pgTable(
     // Partial unique index to prevent multiple active plans per user
     uniqueIndex('idx_plans_user_active')
       .on(table.userId)
-      .where(sql`${table.status} = 'active'`),
+      .where(sql`${table.status} = 'InProgress'`),
   ],
 );
 

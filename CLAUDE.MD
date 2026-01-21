@@ -203,6 +203,8 @@ Tests in `api/__tests__/` run against a real database.
 
 ### Workflow
 
+#### Standard Schema Changes
+
 1. Modify the schema in `api/src/db/schema.ts`
 2. Generate migration: `bun run db:generate`
 3. Apply migration: `bun run db:migrate`

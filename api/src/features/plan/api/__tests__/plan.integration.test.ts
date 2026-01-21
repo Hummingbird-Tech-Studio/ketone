@@ -140,6 +140,42 @@ const createCycleForUser = (token: string) =>
     return json;
   });
 
+const createCompletedCycleForUser = (token: string, daysAgoStart: number, daysAgoEnd: number) =>
+  Effect.gen(function* () {
+    const now = new Date();
+    const startDate = new Date(now.getTime() - daysAgoStart * 24 * 60 * 60 * 1000);
+    const endDate = new Date(now.getTime() - daysAgoEnd * 24 * 60 * 60 * 1000);
+
+    // Create the cycle
+    const { status: createStatus, json: createJson } = yield* makeAuthenticatedRequest(CYCLES_ENDPOINT, 'POST', token, {
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
+    });
+
+    if (createStatus !== 201) {
+      throw new Error(`Failed to create cycle: ${createStatus} - ${JSON.stringify(createJson)}`);
+    }
+
+    const cycleId = (createJson as { id: string }).id;
+
+    // Complete the cycle
+    const { status: completeStatus, json: completeJson } = yield* makeAuthenticatedRequest(
+      `${CYCLES_ENDPOINT}/${cycleId}/complete`,
+      'POST',
+      token,
+      {
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+      },
+    );
+
+    if (completeStatus !== 200) {
+      throw new Error(`Failed to complete cycle: ${completeStatus} - ${JSON.stringify(completeJson)}`);
+    }
+
+    return { id: cycleId, startDate, endDate };
+  });
+
 const expectPlanNotFoundError = (status: number, json: unknown) => {
   expect(status).toBe(404);
   const error = json as ErrorResponse;
@@ -168,6 +204,13 @@ const expectPlanInvalidStateError = (status: number, json: unknown) => {
   expect(status).toBe(409);
   const error = json as ErrorResponse;
   expect(error._tag).toBe('PlanInvalidStateError');
+};
+
+const expectPeriodOverlapWithCycleError = (status: number, json: unknown) => {
+  expect(status).toBe(409);
+  const error = json as ErrorResponse & { overlappingCycleId?: string };
+  expect(error._tag).toBe('PeriodOverlapWithCycleError');
+  expect(error.overlappingCycleId).toBeDefined();
 };
 
 const expectUnauthorizedNoToken = (endpoint: string, method: string, body?: unknown) =>
@@ -244,7 +287,7 @@ describe('POST /v1/plans - Create Plan', () => {
           expect(status).toBe(201);
           const plan = yield* S.decodeUnknown(PlanWithPeriodsResponseSchema)(json);
           expect(plan.userId).toBe(userId);
-          expect(plan.status).toBe('active');
+          expect(plan.status).toBe('InProgress');
           expect(plan.periods).toHaveLength(3);
           const firstPeriod = plan.periods[0]!;
           expect(firstPeriod.order).toBe(1);
@@ -518,6 +561,37 @@ describe('POST /v1/plans - Create Plan', () => {
       },
       { timeout: 15000 },
     );
+
+    test(
+      'should return 409 when plan periods overlap with existing completed cycle',
+      async () => {
+        const program = Effect.gen(function* () {
+          const { token } = yield* createTestUserWithTracking();
+
+          // Create and complete a cycle (5-3 days ago)
+          yield* createCompletedCycleForUser(token, 5, 3);
+
+          // Try to create a plan with periods that overlap with the completed cycle
+          // Start the plan 4 days ago (overlapping with the 5-3 days ago cycle)
+          const now = new Date();
+          const overlappingStartDate = new Date(now.getTime() - 4 * 24 * 60 * 60 * 1000);
+          const planData = {
+            startDate: overlappingStartDate.toISOString(),
+            periods: [
+              { fastingDuration: 16, eatingWindow: 8 }, // This period will overlap
+              { fastingDuration: 16, eatingWindow: 8 },
+            ],
+          };
+
+          const { status, json } = yield* makeAuthenticatedRequest(ENDPOINT, 'POST', token, planData);
+
+          expectPeriodOverlapWithCycleError(status, json);
+        }).pipe(Effect.provide(DatabaseLive));
+
+        await Effect.runPromise(program);
+      },
+      { timeout: 15000 },
+    );
   });
 
   describe('Error Scenarios - Authentication (401)', () => {
@@ -569,7 +643,7 @@ describe('GET /v1/plans/active - Get Active Plan', () => {
           const plan = yield* S.decodeUnknown(PlanWithPeriodsResponseSchema)(json);
           expect(plan.id).toBe(createdPlan.id);
           expect(plan.userId).toBe(userId);
-          expect(plan.status).toBe('active');
+          expect(plan.status).toBe('InProgress');
           expect(plan.periods).toHaveLength(3);
         }).pipe(Effect.provide(DatabaseLive));
 
@@ -729,7 +803,7 @@ describe('GET /v1/plans - List Plans', () => {
           const plans = yield* S.decodeUnknown(PlansListResponseSchema)(json);
           expect(plans).toHaveLength(1);
           const firstPlan = plans[0]!;
-          expect(firstPlan.status).toBe('active');
+          expect(firstPlan.status).toBe('InProgress');
           // List should not include periods
           expect((firstPlan as any).periods).toBeUndefined();
         }).pipe(Effect.provide(DatabaseLive));
@@ -774,7 +848,7 @@ describe('POST /v1/plans/:id/cancel - Cancel Plan', () => {
           expect(status).toBe(200);
           const plan = yield* S.decodeUnknown(PlanResponseSchema)(json);
           expect(plan.id).toBe(createdPlan.id);
-          expect(plan.status).toBe('cancelled');
+          expect(plan.status).toBe('Cancelled');
         }).pipe(Effect.provide(DatabaseLive));
 
         await Effect.runPromise(program);
@@ -798,7 +872,7 @@ describe('POST /v1/plans/:id/cancel - Cancel Plan', () => {
 
           expect(status).toBe(201);
           const plan = yield* S.decodeUnknown(PlanWithPeriodsResponseSchema)(json);
-          expect(plan.status).toBe('active');
+          expect(plan.status).toBe('InProgress');
         }).pipe(Effect.provide(DatabaseLive));
 
         await Effect.runPromise(program);

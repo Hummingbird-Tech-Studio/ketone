@@ -1439,6 +1439,58 @@ describe('PUT /v1/plans/:id/periods - Update Plan Periods', () => {
       },
       { timeout: 20000 },
     );
+
+    test(
+      'should return 409 when updated periods overlap with existing cycle',
+      async () => {
+        const program = Effect.gen(function* () {
+          const { token } = yield* createTestUserWithTracking();
+
+          // Step 1: Create and complete a cycle from 1.5 days ago to 1 day ago
+          // This is the "obstacle" that the extended plan will overlap with
+          yield* createCompletedCycleForUser(token, 1.5, 1);
+
+          // Step 2: Create a plan starting 5 days ago with short periods
+          // 2 periods × 24h (16+8) = 48h total = 2 days
+          // Plan runs from 5 days ago to 3 days ago - NO overlap with cycle (1.5-1 days ago)
+          const now = new Date();
+          const pastStart = new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000); // 5 days ago
+          const planData = {
+            startDate: pastStart.toISOString(),
+            periods: [
+              { fastingDuration: 16, eatingWindow: 8 }, // 24h
+              { fastingDuration: 16, eatingWindow: 8 }, // 24h
+            ],
+          };
+
+          const createdPlan = yield* createPlanForUser(token, planData);
+
+          // Step 3: Update periods with LONGER durations
+          // 2 periods × 60h (36+24) = 120h total = 5 days
+          // Extended plan runs from 5 days ago to TODAY
+          // This now OVERLAPS with the cycle (1.5-1 days ago)
+          const updatePayload = {
+            periods: createdPlan.periods.map((p) => ({
+              id: p.id,
+              fastingDuration: 36,
+              eatingWindow: 24,
+            })),
+          };
+
+          const { status, json } = yield* makeAuthenticatedRequest(
+            `${ENDPOINT}/${createdPlan.id}/periods`,
+            'PUT',
+            token,
+            updatePayload,
+          );
+
+          expectPeriodOverlapWithCycleError(status, json);
+        }).pipe(Effect.provide(DatabaseLive));
+
+        await Effect.runPromise(program);
+      },
+      { timeout: 20000 },
+    );
   });
 
   describe('Error Scenarios - Not Found (404)', () => {

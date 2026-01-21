@@ -2810,6 +2810,97 @@ describe('Race Conditions & Concurrency', () => {
     );
   });
 
+  describe('Concurrent Plan and Cycle Creation', () => {
+    test(
+      'should prevent having both active plan and active cycle after concurrent creation attempts',
+      async () => {
+        const program = Effect.gen(function* () {
+          const { token } = yield* createTestUserWithTracking();
+
+          // Prepare plan data (future dates to avoid overlap with cycle)
+          const now = new Date();
+          const planStartDate = new Date(now.getTime() + 24 * 60 * 60 * 1000); // tomorrow
+          const planData = {
+            startDate: planStartDate.toISOString(),
+            periods: [
+              { fastingDuration: 16, eatingWindow: 8 },
+              { fastingDuration: 16, eatingWindow: 8 },
+            ],
+          };
+
+          // Prepare cycle data (past dates)
+          const cycleDates = yield* generateValidCycleDates();
+
+          // Fire concurrent requests to create both plan and cycle
+          const [planResult, cycleResult] = yield* Effect.all(
+            [
+              makeRequest(PLANS_ENDPOINT, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify(planData),
+              }),
+              makeRequest(ENDPOINT, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify(cycleDates),
+              }),
+            ],
+            { concurrency: 'unbounded' },
+          );
+
+          const results = [
+            { type: 'plan', ...planResult },
+            { type: 'cycle', ...cycleResult },
+          ];
+          const successResults = results.filter((r) => r.status === 201);
+
+          // At least one should succeed
+          expect(successResults.length).toBeGreaterThanOrEqual(1);
+
+          // Now verify the final state - user should NOT have both active
+          const [activePlanResponse, activeCycleResponse] = yield* Effect.all(
+            [
+              makeRequest(`${PLANS_ENDPOINT}/active`, {
+                method: 'GET',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${token}`,
+                },
+              }),
+              makeRequest(`${ENDPOINT}/in-progress`, {
+                method: 'GET',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${token}`,
+                },
+              }),
+            ],
+            { concurrency: 'unbounded' },
+          );
+
+          const hasActivePlan = activePlanResponse.status === 200;
+          const hasActiveCycle = activeCycleResponse.status === 200;
+
+          // Critical assertion: user should NOT have both active plan AND active cycle
+          // This verifies the mutual exclusion constraint is enforced
+          expect(hasActivePlan && hasActiveCycle).toBe(false);
+
+          // At least one should exist (since at least one creation succeeded)
+          expect(hasActivePlan || hasActiveCycle).toBe(true);
+        }).pipe(Effect.provide(DatabaseLive));
+
+        await Effect.runPromise(program);
+      },
+      { timeout: 15000 },
+    );
+  });
+
   describe('Multi-User Concurrent Operations', () => {
     test(
       'should handle concurrent operations across multiple users correctly',

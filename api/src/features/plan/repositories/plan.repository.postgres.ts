@@ -1,7 +1,7 @@
 import * as PgDrizzle from '@effect/sql-drizzle/Pg';
 import { SqlClient } from '@effect/sql';
-import { Array, Effect, Option, Schema as S } from 'effect';
-import { plansTable, periodsTable, cyclesTable } from '../../../db';
+import { Effect, Option, Schema as S } from 'effect';
+import { plansTable, periodsTable, cyclesTable, isUniqueViolation, isExclusionViolation } from '../../../db';
 import { PlanRepositoryError } from './errors';
 import {
   PlanAlreadyActiveError,
@@ -13,7 +13,7 @@ import {
   PeriodOverlapWithCycleError,
 } from '../domain';
 import { type PeriodData, type PlanStatus, type PeriodStatus, PlanRecordSchema, PeriodRecordSchema } from './schemas';
-import { and, asc, desc, eq, gt, lt, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, lt } from 'drizzle-orm';
 import type { IPlanRepository } from './plan.repository.interface';
 
 export class PlanRepositoryPostgres extends Effect.Service<PlanRepositoryPostgres>()('PlanRepository', {
@@ -41,6 +41,19 @@ export class PlanRepositoryPostgres extends Effect.Service<PlanRepositoryPostgre
 
           return yield* sql.withTransaction(
             Effect.gen(function* () {
+              // Acquire advisory lock to prevent race condition with cycle creation
+              // This ensures only one of plan/cycle creation can proceed at a time for a user
+              yield* Effect.logInfo('Acquiring advisory lock for plan-cycle mutual exclusion');
+              yield* sql`SELECT pg_advisory_xact_lock(hashtext(${userId}))`.pipe(
+                Effect.mapError(
+                  (error) =>
+                    new PlanRepositoryError({
+                      message: 'Failed to acquire advisory lock',
+                      cause: error,
+                    }),
+                ),
+              );
+
               // First check for active standalone cycle
               const activeCycles = yield* drizzle
                 .select()
@@ -131,35 +144,14 @@ export class PlanRepositoryPostgres extends Effect.Service<PlanRepositoryPostgre
                 .returning()
                 .pipe(
                   Effect.mapError((error) => {
-                    // Check for constraint violations
-                    const isUniqueViolation = (err: unknown): boolean =>
-                      typeof err === 'object' && err !== null && 'code' in err && err.code === '23505';
-
-                    const isExclusionViolation = (err: unknown): boolean =>
-                      typeof err === 'object' && err !== null && 'code' in err && err.code === '23P01';
-
-                    const causeChain = Array.unfold(error, (currentError) =>
-                      currentError
-                        ? Option.some([
-                            currentError,
-                            typeof currentError === 'object' && 'cause' in currentError
-                              ? (currentError as any).cause
-                              : undefined,
-                          ])
-                        : Option.none(),
-                    );
-
-                    const uniqueViolation = Array.findFirst(causeChain, isUniqueViolation);
-                    const exclusionViolation = Array.findFirst(causeChain, isExclusionViolation);
-
-                    if (Option.isSome(uniqueViolation)) {
+                    if (isUniqueViolation(error)) {
                       return new PlanAlreadyActiveError({
                         message: 'User already has an active plan',
                         userId,
                       });
                     }
 
-                    if (Option.isSome(exclusionViolation)) {
+                    if (isExclusionViolation(error)) {
                       return new ActiveCycleExistsError({
                         message: 'Cannot create a plan while an active fasting cycle exists. Please complete or cancel your active cycle first.',
                         userId,

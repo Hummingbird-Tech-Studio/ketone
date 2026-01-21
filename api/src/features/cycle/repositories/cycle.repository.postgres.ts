@@ -1,8 +1,8 @@
 import * as PgDrizzle from '@effect/sql-drizzle/Pg';
 import { SqlClient } from '@effect/sql';
-import { Array, Effect, Option, Schema as S } from 'effect';
+import { Effect, Option, Schema as S } from 'effect';
 import { type FastingFeeling, FastingFeelingSchema, MAX_FEELINGS_PER_CYCLE } from '@ketone/shared';
-import { cyclesTable, cycleFeelingsTable, plansTable } from '../../../db';
+import { cyclesTable, cycleFeelingsTable, plansTable, findPgError, PgErrorCode, isCheckViolation } from '../../../db';
 import { CycleRepositoryError } from './errors';
 import {
   CycleAlreadyInProgressError,
@@ -216,36 +216,50 @@ export class CycleRepositoryPostgres extends Effect.Service<CycleRepositoryPostg
         }).pipe(Effect.annotateLogs({ repository: 'CycleRepository' })),
 
       createCycle: (data: CycleData) =>
-        Effect.gen(function* () {
-          // Check for active plan before creating cycle
-          yield* Effect.logInfo('Checking for active plan');
-          const activePlans = yield* drizzle
-            .select({ id: plansTable.id })
-            .from(plansTable)
-            .where(and(eq(plansTable.userId, data.userId), eq(plansTable.status, 'active')))
-            .pipe(
+        sql.withTransaction(
+          Effect.gen(function* () {
+            // Acquire advisory lock to prevent race condition with plan creation
+            // This ensures only one of plan/cycle creation can proceed at a time for a user
+            yield* Effect.logInfo('Acquiring advisory lock for plan-cycle mutual exclusion');
+            yield* sql`SELECT pg_advisory_xact_lock(hashtext(${data.userId}))`.pipe(
               Effect.mapError(
                 (error) =>
                   new CycleRepositoryError({
-                    message: 'Failed to check for active plan',
+                    message: 'Failed to acquire advisory lock',
                     cause: error,
                   }),
               ),
             );
 
-          if (activePlans.length > 0) {
-            yield* Effect.logWarning(`Active plan exists for user ${data.userId}, cannot create cycle`);
-            return yield* Effect.fail(
-              new ActivePlanExistsError({
-                message: 'Cannot create a fasting cycle while an active plan exists. Please cancel or complete your active plan first.',
-                userId: data.userId,
-              })
-            );
-          }
+            // Check for active plan before creating cycle
+            yield* Effect.logInfo('Checking for active plan');
+            const activePlans = yield* drizzle
+              .select({ id: plansTable.id })
+              .from(plansTable)
+              .where(and(eq(plansTable.userId, data.userId), eq(plansTable.status, 'active')))
+              .pipe(
+                Effect.mapError(
+                  (error) =>
+                    new CycleRepositoryError({
+                      message: 'Failed to check for active plan',
+                      cause: error,
+                    }),
+                ),
+              );
 
-          yield* Effect.logInfo('No active plan found, proceeding with cycle creation');
+            if (activePlans.length > 0) {
+              yield* Effect.logWarning(`Active plan exists for user ${data.userId}, cannot create cycle`);
+              return yield* Effect.fail(
+                new ActivePlanExistsError({
+                  message: 'Cannot create a fasting cycle while an active plan exists. Please cancel or complete your active plan first.',
+                  userId: data.userId,
+                })
+              );
+            }
 
-          const [result] = yield* drizzle
+            yield* Effect.logInfo('No active plan found, proceeding with cycle creation');
+
+            const [result] = yield* drizzle
             .insert(cyclesTable)
             .values({
               userId: data.userId,
@@ -260,28 +274,9 @@ export class CycleRepositoryPostgres extends Effect.Service<CycleRepositoryPostg
               Effect.mapError((error) => {
                 // Check for PostgreSQL constraint violations:
                 // - 23505: unique_violation (multiple InProgress cycles)
-                // - 23P01: exclusion_violation (overlapping cycles via trigger)
-                const isUniqueViolation = (err: unknown): boolean =>
-                  typeof err === 'object' && err !== null && 'code' in err && err.code === '23505';
-
-                const isExclusionViolation = (err: unknown): boolean =>
-                  typeof err === 'object' && err !== null && 'code' in err && err.code === '23P01';
-
-                // Generate chain of causes using functional approach with Array.unfold
-                // This generates [error, error.cause, error.cause.cause, ...] until no more causes
-                const causeChain = Array.unfold(error, (currentError) =>
-                  currentError
-                    ? Option.some([
-                        currentError,
-                        typeof currentError === 'object' && 'cause' in currentError
-                          ? (currentError as any).cause
-                          : undefined,
-                      ])
-                    : Option.none(),
-                );
-
-                const uniqueViolation = Array.findFirst(causeChain, isUniqueViolation);
-                const exclusionViolation = Array.findFirst(causeChain, isExclusionViolation);
+                // - 23P01: exclusion_violation (overlapping cycles via trigger or plan-cycle exclusion)
+                const uniqueViolation = findPgError(error, PgErrorCode.UNIQUE_VIOLATION);
+                const exclusionViolation = findPgError(error, PgErrorCode.EXCLUSION_VIOLATION);
 
                 // Handle unique constraint violation
                 if (Option.isSome(uniqueViolation)) {
@@ -293,11 +288,7 @@ export class CycleRepositoryPostgres extends Effect.Service<CycleRepositoryPostg
 
                 // Handle exclusion constraint violation - could be cycle overlap or plan-cycle exclusion
                 if (Option.isSome(exclusionViolation)) {
-                  const errorValue = exclusionViolation.value;
-                  const errorMessage =
-                    typeof errorValue === 'object' && errorValue !== null && 'message' in errorValue
-                      ? String(errorValue.message)
-                      : '';
+                  const errorMessage = exclusionViolation.value.message ?? '';
 
                   // Check if it's a plan-cycle mutual exclusion error
                   if (errorMessage.includes('Cannot have both an active')) {
@@ -321,16 +312,27 @@ export class CycleRepositoryPostgres extends Effect.Service<CycleRepositoryPostg
               }),
             );
 
-          return yield* S.decodeUnknown(CycleRecordSchema)(result).pipe(
-            Effect.mapError(
-              (error) =>
-                new CycleRepositoryError({
-                  message: 'Failed to validate cycle record from database',
-                  cause: error,
-                }),
+            return yield* S.decodeUnknown(CycleRecordSchema)(result).pipe(
+              Effect.mapError(
+                (error) =>
+                  new CycleRepositoryError({
+                    message: 'Failed to validate cycle record from database',
+                    cause: error,
+                  }),
+              ),
+            );
+          }),
+        ).pipe(
+          Effect.catchTag('SqlError', (error) =>
+            Effect.fail(
+              new CycleRepositoryError({
+                message: 'Transaction failed',
+                cause: error,
+              }),
             ),
-          );
-        }).pipe(Effect.annotateLogs({ repository: 'CycleRepository' })),
+          ),
+          Effect.annotateLogs({ repository: 'CycleRepository' }),
+        ),
 
       updateCycleDates: (userId: string, cycleId: string, startDate: Date, endDate: Date, notes?: string) =>
         Effect.gen(function* () {
@@ -673,8 +675,7 @@ export class CycleRepositoryPostgres extends Effect.Service<CycleRepositoryPostg
           .pipe(
             Effect.mapError((error) => {
               // Check for the trigger's check constraint violation (max feelings per cycle)
-              const cause = (error as { cause?: { code?: string } }).cause;
-              if (cause?.code === '23514') {
+              if (isCheckViolation(error)) {
                 return new FeelingsLimitExceededError({
                   message: `A cycle cannot have more than ${MAX_FEELINGS_PER_CYCLE} feelings`,
                   cycleId,

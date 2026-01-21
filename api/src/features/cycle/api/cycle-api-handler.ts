@@ -23,7 +23,6 @@ import {
   CycleInvalidStateError,
   CycleOverlapError,
   TimezoneConversionError,
-  FeelingsLimitExceededError,
   ActivePlanExistsError,
 } from '../domain';
 import { CycleRepositoryError } from '../repositories';

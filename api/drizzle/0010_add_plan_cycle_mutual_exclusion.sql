@@ -13,6 +13,7 @@ BEGIN
     ) THEN
       RAISE EXCEPTION 'Cannot have both an active plan and an active cycle'
         USING ERRCODE = '23P01',
+              CONSTRAINT = 'plan_cycle_mutual_exclusion',
               HINT = 'A user cannot have both an active plan and an active cycle at the same time. Complete or cancel your current cycle before creating a plan.';
     END IF;
   END IF;
@@ -27,6 +28,7 @@ BEGIN
     ) THEN
       RAISE EXCEPTION 'Cannot have both an active cycle and an active plan'
         USING ERRCODE = '23P01',
+              CONSTRAINT = 'plan_cycle_mutual_exclusion',
               HINT = 'A user cannot have both an active cycle and an active plan at the same time. Complete or cancel your current plan before creating a cycle.';
     END IF;
   END IF;

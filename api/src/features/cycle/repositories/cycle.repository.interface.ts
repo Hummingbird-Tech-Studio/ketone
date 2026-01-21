@@ -90,7 +90,9 @@ export interface ICycleRepository {
    * @throws ActivePlanExistsError if user has an active plan (mutual exclusion)
    * @throws CycleRepositoryError for other database errors
    */
-  createCycle(data: CycleData): Effect.Effect<CycleRecord, CycleRepositoryError | CycleAlreadyInProgressError | ActivePlanExistsError>;
+  createCycle(
+    data: CycleData,
+  ): Effect.Effect<CycleRecord, CycleRepositoryError | CycleAlreadyInProgressError | ActivePlanExistsError>;
 
   /**
    * Update the dates and optionally notes of an existing cycle.

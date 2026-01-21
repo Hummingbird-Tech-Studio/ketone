@@ -11,7 +11,15 @@ export type PgErrorCode = (typeof PgErrorCode)[keyof typeof PgErrorCode];
 export interface PgError {
   readonly code: string;
   readonly message?: string;
+  readonly constraint?: string;
+  readonly detail?: string;
+  readonly hint?: string;
 }
+
+// Constraint names used in triggers
+export const PgConstraintName = {
+  PLAN_CYCLE_MUTUAL_EXCLUSION: 'plan_cycle_mutual_exclusion',
+} as const;
 
 /**
  * Generates a chain of causes from an error object.
@@ -41,6 +49,12 @@ export const isPgError = (err: unknown): err is PgError =>
  */
 export const findPgError = (error: unknown, code: PgErrorCode): Option.Option<PgError> =>
   Array.findFirst(getErrorCauseChain(error), (err): err is PgError => isPgError(err) && err.code === code);
+
+/**
+ * Checks if a PostgreSQL error has a specific constraint name.
+ */
+export const hasConstraint = (pgError: PgError, constraintName: string): boolean =>
+  pgError.constraint === constraintName;
 
 /**
  * Checks if an error or any of its causes is a PostgreSQL unique constraint violation (23505).

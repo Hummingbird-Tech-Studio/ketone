@@ -332,7 +332,11 @@ export class CycleService extends Effect.Service<CycleService>()('CycleService',
         notes?: string,
       ): Effect.Effect<
         CycleWithFeelings,
-        CycleAlreadyInProgressError | CycleOverlapError | CycleRepositoryError | CycleRefCacheError | ActivePlanExistsError
+        | CycleAlreadyInProgressError
+        | CycleOverlapError
+        | CycleRepositoryError
+        | CycleRefCacheError
+        | ActivePlanExistsError
       > =>
         Effect.gen(function* () {
           yield* validateNoOverlapWithLastCompleted(userId, startDate);

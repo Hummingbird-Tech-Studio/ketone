@@ -69,8 +69,12 @@ export class PlanRepositoryPostgres extends Effect.Service<PlanRepositoryPostgre
               // OV-02: Check that no period overlaps with any existing cycle
               yield* Effect.logInfo('Checking for period overlaps with existing cycles');
 
-              const earliestStart = periods[0]!.startDate;
-              const latestEnd = periods[periods.length - 1]!.endDate;
+              // Compute actual min/max dates from all periods (defensive - doesn't assume sorted input)
+              const earliestStart = periods.reduce(
+                (min, p) => (p.startDate < min ? p.startDate : min),
+                periods[0]!.startDate,
+              );
+              const latestEnd = periods.reduce((max, p) => (p.endDate > max ? p.endDate : max), periods[0]!.endDate);
 
               const overlappingCycles = yield* drizzle
                 .select({
@@ -85,8 +89,8 @@ export class PlanRepositoryPostgres extends Effect.Service<PlanRepositoryPostgre
                     // Cycle ends after earliest period start
                     gt(cyclesTable.endDate, earliestStart),
                     // Cycle starts before latest period end
-                    lt(cyclesTable.startDate, latestEnd)
-                  )
+                    lt(cyclesTable.startDate, latestEnd),
+                  ),
                 )
                 .pipe(
                   Effect.mapError(
@@ -103,9 +107,7 @@ export class PlanRepositoryPostgres extends Effect.Service<PlanRepositoryPostgre
                 for (const cycle of overlappingCycles) {
                   // Overlap: period_end > cycle_start AND period_start < cycle_end
                   if (period.endDate > cycle.startDate && period.startDate < cycle.endDate) {
-                    yield* Effect.logWarning(
-                      `Period overlap detected with cycle ${cycle.id}`
-                    );
+                    yield* Effect.logWarning(`Period overlap detected with cycle ${cycle.id}`);
                     return yield* Effect.fail(
                       new PeriodOverlapWithCycleError({
                         message: `Plan periods cannot overlap with existing fasting cycles. Found overlap with cycle from ${cycle.startDate.toISOString()} to ${cycle.endDate.toISOString()}.`,
@@ -113,7 +115,7 @@ export class PlanRepositoryPostgres extends Effect.Service<PlanRepositoryPostgre
                         overlappingCycleId: cycle.id,
                         cycleStartDate: cycle.startDate,
                         cycleEndDate: cycle.endDate,
-                      })
+                      }),
                     );
                   }
                 }
@@ -141,7 +143,8 @@ export class PlanRepositoryPostgres extends Effect.Service<PlanRepositoryPostgre
 
                     if (isExclusionViolation(error)) {
                       return new ActiveCycleExistsError({
-                        message: 'Cannot create a plan while an active fasting cycle exists. Please complete or cancel your active cycle first.',
+                        message:
+                          'Cannot create a plan while an active fasting cycle exists. Please complete or cancel your active cycle first.',
                         userId,
                       });
                     }

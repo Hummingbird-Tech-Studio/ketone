@@ -1,5 +1,5 @@
 <template>
-  <Plan v-if="hasActivePlan" />
+  <Plan v-if="showActivePlan" @no-active-plan="onNoActivePlan" />
   <Cycle v-else @has-active-plan="onHasActivePlan" />
 </template>
 
@@ -8,9 +8,13 @@ import { ref } from 'vue';
 import Cycle from './components/Cycle/Cycle.vue';
 import Plan from './components/Plan/Plan.vue';
 
-const hasActivePlan = ref(false);
+const showActivePlan = ref(false);
 
 function onHasActivePlan() {
-  hasActivePlan.value = true;
+  showActivePlan.value = true;
+}
+
+function onNoActivePlan() {
+  showActivePlan.value = false;
 }
 </script>

@@ -16,6 +16,7 @@ import {
   type EventObject,
 } from 'xstate';
 import { start } from '../domain/domain';
+import { timerLogic } from './shared/timerLogic';
 import {
   programCompleteCycle,
   programCreateCycle,
@@ -226,22 +227,6 @@ function buildUpdateCycleInput(context: Context, event: EventType): UpdateCycleI
       return base;
   }
 }
-
-const timerLogic = fromCallback(({ sendBack, receive }) => {
-  const intervalId = setInterval(() => {
-    sendBack({ type: Event.TICK });
-  }, 100);
-
-  receive((event) => {
-    if (event.type === 'xstate.stop') {
-      clearInterval(intervalId);
-    }
-  });
-
-  return () => {
-    clearInterval(intervalId);
-  };
-});
 
 /**
  * Handles errors from cycle operations, detecting CycleOverlapError and extracting dates.

@@ -96,8 +96,11 @@ export const PlanApiLive = HttpApiBuilder.group(Api, 'plan', (handlers) =>
 
           yield* Effect.logInfo(`POST /v1/plans - Request received for user ${userId}`);
 
+          const normalizedDescription =
+            payload.description && payload.description.trim() !== '' ? payload.description : undefined;
+
           const plan = yield* planService
-            .createPlan(userId, payload.startDate, [...payload.periods], payload.name, payload.description)
+            .createPlan(userId, payload.startDate, [...payload.periods], payload.name, normalizedDescription)
             .pipe(
               Effect.tapError((error) => Effect.logError(`Error creating plan: ${error.message}`)),
               Effect.catchTags({

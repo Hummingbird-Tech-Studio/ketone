@@ -535,6 +535,54 @@ describe('POST /v1/plans - Create Plan', () => {
       },
       { timeout: 15000 },
     );
+
+    test(
+      'should normalize empty description string to null',
+      async () => {
+        const program = Effect.gen(function* () {
+          const { token } = yield* createTestUserWithTracking();
+          const planData = {
+            name: 'Test Plan',
+            description: '',
+            startDate: new Date().toISOString(),
+            periods: [{ fastingDuration: 16, eatingWindow: 8 }],
+          };
+
+          const { status, json } = yield* makeAuthenticatedRequest(ENDPOINT, 'POST', token, planData);
+
+          expect(status).toBe(201);
+          const plan = yield* S.decodeUnknown(PlanWithPeriodsResponseSchema)(json);
+          expect(plan.description).toBeNull();
+        }).pipe(Effect.provide(DatabaseLive));
+
+        await Effect.runPromise(program);
+      },
+      { timeout: 15000 },
+    );
+
+    test(
+      'should normalize whitespace-only description to null',
+      async () => {
+        const program = Effect.gen(function* () {
+          const { token } = yield* createTestUserWithTracking();
+          const planData = {
+            name: 'Test Plan',
+            description: '   ',
+            startDate: new Date().toISOString(),
+            periods: [{ fastingDuration: 16, eatingWindow: 8 }],
+          };
+
+          const { status, json } = yield* makeAuthenticatedRequest(ENDPOINT, 'POST', token, planData);
+
+          expect(status).toBe(201);
+          const plan = yield* S.decodeUnknown(PlanWithPeriodsResponseSchema)(json);
+          expect(plan.description).toBeNull();
+        }).pipe(Effect.provide(DatabaseLive));
+
+        await Effect.runPromise(program);
+      },
+      { timeout: 15000 },
+    );
   });
 
   describe('Error Scenarios - Validation (400/422)', () => {

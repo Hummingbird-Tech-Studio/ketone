@@ -102,11 +102,12 @@ import { PullToRefresh, usePullToRefresh } from '@/components/PullToRefresh';
 import { useFastingTimeCalculation } from '@/composables/useFastingTimeCalculation';
 import { goal, start } from '@/views/cycle/domain/domain';
 import Dialog from 'primevue/dialog';
-import { computed, onMounted, ref, watch } from 'vue';
+import { useToast } from 'primevue/usetoast';
+import { computed, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { Event as CycleEvent } from '../../actors/cycle.actor';
 import { useCycle } from '../../composables/useCycle';
-import { useCycleNotifications } from '../../composables/useCycleNotifications';
+import { useCycleEmissions } from '../../composables/useCycleEmissions';
 import { useSchedulerDialog } from '../../composables/useSchedulerDialog';
 import ActionButton from '../ActionButton/ActionButton.vue';
 import ConfirmCompletion from '../ConfirmCompletion/ConfirmCompletion.vue';
@@ -119,7 +120,12 @@ import Scheduler from '../Scheduler/Scheduler.vue';
 import Timer from '../Timer/Timer.vue';
 import { useTimer } from '../Timer/useTimer';
 
+const emit = defineEmits<{
+  (e: 'hasActivePlan'): void;
+}>();
+
 const router = useRouter();
+const toast = useToast();
 
 const {
   creating,
@@ -135,14 +141,31 @@ const {
   startDate,
   endDate,
   showSkeleton,
-  loadActiveCycle,
   refreshCycle,
   buttonText,
   handleButtonClick,
   actorRef,
 } = useCycle();
 
-useCycleNotifications(actorRef);
+useCycleEmissions(actorRef, {
+  onCycleError: (error) => {
+    toast.add({
+      severity: 'error',
+      summary: 'Error',
+      detail: error,
+      life: 15000,
+    });
+  },
+  onValidationInfo: (summary, detail) => {
+    toast.add({
+      severity: 'info',
+      summary,
+      detail,
+      life: 15000,
+    });
+  },
+  onHasActivePlan: () => emit('hasActivePlan'),
+});
 
 const { elapsedTime, remainingTime } = useTimer({ cycleActor: actorRef, cycleMetadata, startDate, endDate });
 
@@ -228,10 +251,6 @@ function handleViewStatistics() {
 function handleStartNewFast() {
   actorRef.send({ type: CycleEvent.CREATE });
 }
-
-onMounted(() => {
-  loadActiveCycle();
-});
 </script>
 
 <style scoped lang="scss">

@@ -11,13 +11,6 @@ const SECONDS_PER_HOUR = 60 * 60;
 const MIN_PERCENTAGE = 0;
 const MAX_PERCENTAGE = 100;
 
-/**
- * Ensures a value is a Date object
- */
-function ensureDate(date: Date | string): Date {
-  return date instanceof Date ? date : new Date(date);
-}
-
 interface UseActivePlanTimerParams {
   activePlanActor: Actor<AnyActorLogic>;
   currentPeriod: Ref<PeriodResponse | null>;
@@ -65,13 +58,11 @@ export function useActivePlanTimer({ activePlanActor, currentPeriod, windowPhase
     }
 
     const period = currentPeriod.value;
-    const startDate = ensureDate(period.startDate);
-    const endDate = ensureDate(period.endDate);
-    const fastingEnd = addHours(startDate, period.fastingDuration);
+    const fastingEnd = addHours(period.startDate, period.fastingDuration);
 
     if (windowPhase.value === 'fasting') {
       return {
-        start: startDate,
+        start: period.startDate,
         end: fastingEnd,
       };
     }
@@ -79,7 +70,7 @@ export function useActivePlanTimer({ activePlanActor, currentPeriod, windowPhase
     // Eating window
     return {
       start: fastingEnd,
-      end: endDate,
+      end: period.endDate,
     };
   });
 
@@ -88,7 +79,7 @@ export function useActivePlanTimer({ activePlanActor, currentPeriod, windowPhase
    */
   const fastingStartDate = computed(() => {
     if (!currentPeriod.value) return new Date();
-    return ensureDate(currentPeriod.value.startDate);
+    return currentPeriod.value.startDate;
   });
 
   /**
@@ -96,8 +87,7 @@ export function useActivePlanTimer({ activePlanActor, currentPeriod, windowPhase
    */
   const fastingEndDate = computed(() => {
     if (!currentPeriod.value) return new Date();
-    const startDate = ensureDate(currentPeriod.value.startDate);
-    return addHours(startDate, currentPeriod.value.fastingDuration);
+    return addHours(currentPeriod.value.startDate, currentPeriod.value.fastingDuration);
   });
 
   /**

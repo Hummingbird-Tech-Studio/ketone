@@ -172,11 +172,11 @@ const { pullToRefreshRef, handleRefresh } = usePullToRefresh(loading, refresh);
     margin-bottom: 1rem;
 
     &--fasting &__status {
-      color: #7abdff;
+      color: $color-blue;
     }
 
     &--eating &__status {
-      color: #efad95;
+      color: $color-coral;
     }
 
     &__status {

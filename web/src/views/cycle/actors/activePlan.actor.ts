@@ -7,20 +7,13 @@ import { assign, emit, fromCallback, setup, type EventObject } from 'xstate';
 import { timerLogic } from './shared/timerLogic';
 
 /**
- * Ensures a value is a Date object
- */
-function ensureDate(date: Date | string): Date {
-  return date instanceof Date ? date : new Date(date);
-}
-
-/**
  * Determines which window phase the current period is in based on the current time.
  * Uses explicit phase timestamps from the API response.
  */
 function determineWindowPhase(period: PeriodResponse, now: Date): 'fasting' | 'eating' | null {
-  const fastingStart = ensureDate(period.fastingStartDate);
-  const fastingEnd = ensureDate(period.fastingEndDate);
-  const eatingEnd = ensureDate(period.eatingEndDate);
+  const fastingStart = period.fastingStartDate;
+  const fastingEnd = period.fastingEndDate;
+  const eatingEnd = period.eatingEndDate;
 
   if (now < fastingStart) {
     return null;
@@ -51,9 +44,7 @@ function findCurrentPeriod(plan: GetActivePlanSuccess): PeriodResponse | null {
   // Fall back to finding by current time
   const now = new Date();
   return plan.periods.find((p) => {
-    const startDate = ensureDate(p.startDate);
-    const endDate = ensureDate(p.endDate);
-    return now >= startDate && now < endDate;
+    return now >= p.startDate && now < p.endDate;
   }) ?? null;
 }
 
@@ -206,26 +197,21 @@ export const activePlanMachine = setup({
       const currentPeriod = findCurrentPeriod(event.result);
       if (!currentPeriod) return false;
       const now = new Date();
-      const fastingStart = ensureDate(currentPeriod.fastingStartDate);
-      const fastingEnd = ensureDate(currentPeriod.fastingEndDate);
-      return now >= fastingStart && now < fastingEnd;
+      return now >= currentPeriod.fastingStartDate && now < currentPeriod.fastingEndDate;
     },
     isInEatingWindowFromEvent: ({ event }) => {
       if (event.type !== Event.ON_SUCCESS) return false;
       const currentPeriod = findCurrentPeriod(event.result);
       if (!currentPeriod) return false;
       const now = new Date();
-      const fastingEnd = ensureDate(currentPeriod.fastingEndDate);
-      const eatingEnd = ensureDate(currentPeriod.eatingEndDate);
-      return now >= fastingEnd && now < eatingEnd;
+      return now >= currentPeriod.fastingEndDate && now < currentPeriod.eatingEndDate;
     },
     isPeriodCompletedFromEvent: ({ event }) => {
       if (event.type !== Event.ON_SUCCESS) return false;
       const currentPeriod = findCurrentPeriod(event.result);
       if (!currentPeriod) return false;
       const now = new Date();
-      const eatingEnd = ensureDate(currentPeriod.eatingEndDate);
-      return now >= eatingEnd;
+      return now >= currentPeriod.eatingEndDate;
     },
     allPeriodsCompletedFromEvent: ({ event }) => {
       if (event.type !== Event.ON_SUCCESS) return false;
@@ -240,39 +226,31 @@ export const activePlanMachine = setup({
       const now = new Date();
       const lastPeriod = periods[periods.length - 1];
       if (!lastPeriod) return false;
-      const lastEatingEnd = ensureDate(lastPeriod.eatingEndDate);
-      return now >= lastEatingEnd;
+      return now >= lastPeriod.eatingEndDate;
     },
     isInEatingWindow: ({ context }) => {
       if (!context.currentPeriod) return false;
       const now = new Date();
-      const fastingEnd = ensureDate(context.currentPeriod.fastingEndDate);
-      const eatingEnd = ensureDate(context.currentPeriod.eatingEndDate);
-      return now >= fastingEnd && now < eatingEnd;
+      return now >= context.currentPeriod.fastingEndDate && now < context.currentPeriod.eatingEndDate;
     },
     isPeriodCompleted: ({ context }) => {
       if (!context.currentPeriod) return false;
       const now = new Date();
-      const eatingEnd = ensureDate(context.currentPeriod.eatingEndDate);
-      return now >= eatingEnd;
+      return now >= context.currentPeriod.eatingEndDate;
     },
     hasNextPeriodInFasting: ({ context }) => {
       if (!context.activePlan || !context.currentPeriod) return false;
       const nextPeriod = findNextPeriod(context.activePlan, context.currentPeriod);
       if (!nextPeriod) return false;
       const now = new Date();
-      const fastingStart = ensureDate(nextPeriod.fastingStartDate);
-      const fastingEnd = ensureDate(nextPeriod.fastingEndDate);
-      return now >= fastingStart && now < fastingEnd;
+      return now >= nextPeriod.fastingStartDate && now < nextPeriod.fastingEndDate;
     },
     hasNextPeriodInEating: ({ context }) => {
       if (!context.activePlan || !context.currentPeriod) return false;
       const nextPeriod = findNextPeriod(context.activePlan, context.currentPeriod);
       if (!nextPeriod) return false;
       const now = new Date();
-      const fastingEnd = ensureDate(nextPeriod.fastingEndDate);
-      const eatingEnd = ensureDate(nextPeriod.eatingEndDate);
-      return now >= fastingEnd && now < eatingEnd;
+      return now >= nextPeriod.fastingEndDate && now < nextPeriod.eatingEndDate;
     },
     hasNextPeriodScheduled: ({ context }) => {
       if (!context.activePlan || !context.currentPeriod) return false;

@@ -29,7 +29,7 @@
 
 <script setup lang="ts">
 import type { PeriodResponse, PlanWithPeriodsResponse } from '@ketone/shared';
-import { computed, onMounted, onUnmounted, ref, toRef } from 'vue';
+import { computed, onUnmounted, ref, toRef } from 'vue';
 import type { AnyActorRef } from 'xstate';
 import { Emit } from '../../actors/activePlan.actor';
 import { useActivePlanTimelineChart } from './composables/useActivePlanTimelineChart';
@@ -43,32 +43,15 @@ const props = defineProps<{
 }>();
 
 const chartContainerRef = ref<HTMLElement | null>(null);
-
-// Reactive current time that updates on tick events
 const currentTime = ref(new Date());
 
-// Subscribe to tick events from the actor for real-time updates
-let unsubscribe: (() => void) | undefined;
 
-onMounted(() => {
-  // Subscribe to tick events for marker updates
-  const subscription = props.activePlanActorRef.on(Emit.TICK, () => {
-    currentTime.value = new Date();
-  });
-
-  // Also set up an interval as a fallback in case tick events stop
-  const intervalId = setInterval(() => {
-    currentTime.value = new Date();
-  }, 1000);
-
-  unsubscribe = () => {
-    subscription.unsubscribe();
-    clearInterval(intervalId);
-  };
+const tickSubscription = props.activePlanActorRef.on(Emit.TICK, () => {
+  currentTime.value = new Date();
 });
 
 onUnmounted(() => {
-  unsubscribe?.();
+  tickSubscription.unsubscribe();
 });
 
 // Compute periods from active plan

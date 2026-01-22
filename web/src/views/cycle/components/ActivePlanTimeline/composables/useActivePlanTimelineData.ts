@@ -8,23 +8,6 @@ interface UseActivePlanTimelineDataOptions {
   currentTime: Ref<Date>;
 }
 
-/**
- * Helper to ensure a value is a Date object
- */
-function ensureDate(date: Date | string): Date {
-  return date instanceof Date ? date : new Date(date);
-}
-
-/**
- * Helper to add fractional hours to a date (supports 30-minute increments)
- */
-function addHoursToDate(date: Date, hours: number): Date {
-  const newDate = new Date(date);
-  const millisToAdd = hours * 60 * 60 * 1000;
-  newDate.setTime(newDate.getTime() + millisToAdd);
-  return newDate;
-}
-
 export function useActivePlanTimelineData(options: UseActivePlanTimelineDataOptions) {
   // Get the earliest start time from all periods
   const timelineStartTime = computed(() => {
@@ -32,9 +15,8 @@ export function useActivePlanTimelineData(options: UseActivePlanTimelineDataOpti
     if (periods.length === 0) return new Date();
 
     return periods.reduce((earliest, period) => {
-      const startDate = ensureDate(period.startDate);
-      return startDate < earliest ? startDate : earliest;
-    }, ensureDate(periods[0]!.startDate));
+      return period.startDate < earliest ? period.startDate : earliest;
+    }, periods[0]!.startDate);
   });
 
   // Calculate the end time of the last period (latest end time)
@@ -43,8 +25,7 @@ export function useActivePlanTimelineData(options: UseActivePlanTimelineDataOpti
     if (periods.length === 0) return new Date();
 
     return periods.reduce((latest, period) => {
-      const endDate = ensureDate(period.endDate);
-      return endDate > latest ? endDate : latest;
+      return period.endDate > latest ? period.endDate : latest;
     }, new Date(0));
   });
 
@@ -137,17 +118,12 @@ export function useActivePlanTimelineData(options: UseActivePlanTimelineDataOpti
 
     // Generate bars for each period based on its individual config
     periods.forEach((period, periodIndex) => {
-      const periodStart = ensureDate(period.fastingStartDate);
-      const fastingEnd = ensureDate(period.fastingEndDate);
-      const eatingEnd = ensureDate(period.eatingEndDate);
-
       // Split fasting period across days
-      addBarsForTimeRange(bars, periodIndex, periodStart, fastingEnd, 'fasting', period.status, startTime, endTimeLimit);
+      addBarsForTimeRange(bars, periodIndex, period.fastingStartDate, period.fastingEndDate, 'fasting', period.status, startTime, endTimeLimit);
 
       // Split eating period across days
-      const eatingDuration = period.eatingWindow;
-      if (eatingDuration > 0) {
-        addBarsForTimeRange(bars, periodIndex, fastingEnd, eatingEnd, 'eating', period.status, startTime, endTimeLimit);
+      if (period.eatingWindow > 0) {
+        addBarsForTimeRange(bars, periodIndex, period.fastingEndDate, period.eatingEndDate, 'eating', period.status, startTime, endTimeLimit);
       }
     });
 
@@ -177,9 +153,7 @@ export function useActivePlanTimelineData(options: UseActivePlanTimelineDataOpti
     // If still no period, find one where current time falls within its range
     if (!activePeriod) {
       activePeriod = periods.find((p) => {
-        const fastingStart = ensureDate(p.fastingStartDate);
-        const eatingEnd = ensureDate(p.eatingEndDate);
-        return now >= fastingStart && now <= eatingEnd;
+        return now >= p.fastingStartDate && now <= p.eatingEndDate;
       });
     }
 
@@ -188,11 +162,7 @@ export function useActivePlanTimelineData(options: UseActivePlanTimelineDataOpti
     }
 
     // Check if we're within the fasting or eating window
-    const fastingStart = ensureDate(activePeriod.fastingStartDate);
-    const fastingEnd = ensureDate(activePeriod.fastingEndDate);
-    const eatingEnd = ensureDate(activePeriod.eatingEndDate);
-
-    if (now < fastingStart || now > eatingEnd) {
+    if (now < activePeriod.fastingStartDate || now > activePeriod.eatingEndDate) {
       return null;
     }
 
@@ -207,7 +177,7 @@ export function useActivePlanTimelineData(options: UseActivePlanTimelineDataOpti
     const hourPosition = (now.getTime() - currentDay.getTime()) / (1000 * 60 * 60);
 
     // Determine if we're in fasting or eating window
-    const isInFasting = now >= fastingStart && now < fastingEnd;
+    const isInFasting = now >= activePeriod.fastingStartDate && now < activePeriod.fastingEndDate;
 
     return {
       dayIndex,

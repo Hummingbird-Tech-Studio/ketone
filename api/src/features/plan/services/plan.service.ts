@@ -53,7 +53,6 @@ const calculatePeriodDates = (startDate: Date, periods: PeriodInput[]): PeriodDa
       fastingEndDate,
       eatingStartDate,
       eatingEndDate,
-      status: 'scheduled' as const,
     };
   });
 };
@@ -191,8 +190,11 @@ export class PlanService extends Effect.Service<PlanService>()('PlanService', {
 
           const planWithPeriods = planOption.value;
 
-          // Find in-progress period (if any)
-          const inProgressPeriod = planWithPeriods.periods.find((p) => p.status === 'in_progress');
+          // Find in-progress period (if any) based on current time
+          const now = new Date();
+          const inProgressPeriod = planWithPeriods.periods.find(
+            (p) => now >= p.startDate && now < p.endDate,
+          );
           const inProgressPeriodStartDate = inProgressPeriod?.startDate ?? null;
 
           if (inProgressPeriod) {

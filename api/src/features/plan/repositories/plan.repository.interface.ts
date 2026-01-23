@@ -3,7 +3,6 @@ import { PlanRepositoryError } from './errors';
 import {
   type PeriodData,
   type PeriodRecord,
-  type PeriodStatus,
   type PlanRecord,
   type PlanStatus,
   type PlanWithPeriodsRecord,
@@ -12,7 +11,6 @@ import {
   PlanAlreadyActiveError,
   PlanNotFoundError,
   PlanInvalidStateError,
-  PeriodNotFoundError,
   ActiveCycleExistsError,
   InvalidPeriodCountError,
   PeriodOverlapWithCycleError,
@@ -120,21 +118,6 @@ export interface IPlanRepository {
    * @returns Effect that resolves to an array of PeriodRecord, ordered by order ascending
    */
   getPlanPeriods(planId: string): Effect.Effect<PeriodRecord[], PlanRepositoryError>;
-
-  /**
-   * Update the status of a specific period.
-   *
-   * @param planId - The ID of the plan containing the period
-   * @param periodId - The ID of the period to update
-   * @param status - The new status
-   * @returns Effect that resolves to the updated PeriodRecord
-   * @throws PeriodNotFoundError if period doesn't exist or doesn't belong to the plan
-   */
-  updatePeriodStatus(
-    planId: string,
-    periodId: string,
-    status: PeriodStatus,
-  ): Effect.Effect<PeriodRecord, PlanRepositoryError | PeriodNotFoundError>;
 
   /**
    * Check if user has an active plan OR an active standalone cycle.

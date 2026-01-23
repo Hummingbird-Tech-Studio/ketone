@@ -106,6 +106,7 @@ const createPlanForUser = (token: string) =>
     const now = new Date();
     // Plan that starts tomorrow (future) so it doesn't conflict with cycle creation times
     const planData = {
+      name: 'Test Plan',
       startDate: new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString(),
       periods: [
         { fastingDuration: 16, eatingWindow: 8 },

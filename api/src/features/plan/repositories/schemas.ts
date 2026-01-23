@@ -23,8 +23,25 @@ export const PeriodDataSchema = S.Struct({
   ),
   startDate: S.DateFromSelf,
   endDate: S.DateFromSelf,
+  fastingStartDate: S.DateFromSelf,
+  fastingEndDate: S.DateFromSelf,
+  eatingStartDate: S.DateFromSelf,
+  eatingEndDate: S.DateFromSelf,
   status: PeriodStatusSchema,
-});
+}).pipe(
+  S.filter(
+    (period) =>
+      period.startDate.getTime() === period.fastingStartDate.getTime() &&
+      period.fastingStartDate < period.fastingEndDate &&
+      period.fastingEndDate <= period.eatingStartDate &&
+      period.eatingStartDate < period.eatingEndDate &&
+      period.endDate.getTime() === period.eatingEndDate.getTime(),
+    {
+      message: () =>
+        'Period phase dates must be in chronological order with startDate=fastingStartDate and endDate=eatingEndDate',
+    },
+  ),
+);
 
 export const PlanDataSchema = S.Struct({
   userId: S.UUID,
@@ -54,10 +71,27 @@ export const PeriodRecordSchema = S.Struct({
   eatingWindow: S.Number,
   startDate: S.DateFromSelf,
   endDate: S.DateFromSelf,
+  fastingStartDate: S.DateFromSelf,
+  fastingEndDate: S.DateFromSelf,
+  eatingStartDate: S.DateFromSelf,
+  eatingEndDate: S.DateFromSelf,
   status: PeriodStatusSchema,
   createdAt: S.DateFromSelf,
   updatedAt: S.DateFromSelf,
-});
+}).pipe(
+  S.filter(
+    (period) =>
+      period.startDate.getTime() === period.fastingStartDate.getTime() &&
+      period.fastingStartDate < period.fastingEndDate &&
+      period.fastingEndDate <= period.eatingStartDate &&
+      period.eatingStartDate < period.eatingEndDate &&
+      period.endDate.getTime() === period.eatingEndDate.getTime(),
+    {
+      message: () =>
+        'Period phase dates must be in chronological order with startDate=fastingStartDate and endDate=eatingEndDate',
+    },
+  ),
+);
 
 // Combined schema for plan with periods
 export const PlanWithPeriodsRecordSchema = S.Struct({

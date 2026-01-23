@@ -7,13 +7,14 @@ import { computed } from 'vue';
  *
  * @example
  * ```ts
- * const { loading, inProgress, cycleMetadata, startDate, endDate, loadActiveCycle } = useCycle();
+ * const { loading, inProgress, cycleMetadata, startDate, endDate } = useCycle();
  * ```
  */
 export function useCycle() {
   const { send, actorRef } = useActor(cycleMachine);
 
   // State checks
+  const checkingPlan = useSelector(actorRef, (state) => state.matches(CycleState.CheckingPlan));
   const idle = useSelector(actorRef, (state) => state.matches(CycleState.Idle));
   const isActionButtonLoading = useSelector(
     actorRef,
@@ -41,7 +42,7 @@ export function useCycle() {
   const notes = useSelector(actorRef, (state) => state.context.notes);
 
   const loading = useSelector(actorRef, (state) => state.matches(CycleState.Loading));
-  const showSkeleton = computed(() => loading.value);
+  const showSkeleton = computed(() => checkingPlan.value || loading.value);
 
   // Actions
   const loadActiveCycle = () => {
@@ -98,6 +99,7 @@ export function useCycle() {
 
   return {
     // State checks
+    checkingPlan,
     idle,
     loading,
     isActionButtonLoading,

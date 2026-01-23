@@ -1,0 +1,2 @@
+ALTER TABLE "periods" ADD CONSTRAINT "chk_start_equals_fasting_start" CHECK ("periods"."start_date" = "periods"."fasting_start_date");--> statement-breakpoint
+ALTER TABLE "periods" ADD CONSTRAINT "chk_end_equals_eating_end" CHECK ("periods"."end_date" = "periods"."eating_end_date");

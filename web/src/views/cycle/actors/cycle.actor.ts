@@ -2,6 +2,7 @@ import { extractErrorMessage } from '@/services/http/errors';
 import { LocalNotificationService } from '@/services/local-notifications';
 import { runWithUi } from '@/utils/effects/helpers';
 import { formatFullDateTime, formatFullDateTimeWithAt } from '@/utils/formatting';
+import { programGetActivePlan } from '@/views/plan/services/plan.service';
 import { addHours, startOfMinute } from 'date-fns';
 import { Effect, Match } from 'effect';
 import {
@@ -28,6 +29,7 @@ import {
   type UpdateCycleError,
 } from '../services/cycle.service';
 import { Event as SchedulerDialogEvent, schedulerDialogMachine } from './schedulerDialog.actor';
+import { timerLogic } from './shared/timerLogic';
 
 const DEFAULT_FASTING_DURATION = 1; // in hours
 
@@ -66,6 +68,7 @@ const VALIDATION_INFO = {
 };
 
 export enum CycleState {
+  CheckingPlan = 'CheckingPlan',
   Idle = 'Idle',
   Loading = 'Loading',
   Creating = 'Creating',
@@ -98,6 +101,8 @@ export enum Event {
   ON_NOTES_SAVED = 'ON_NOTES_SAVED',
   SAVE_FEELINGS = 'SAVE_FEELINGS',
   ON_FEELINGS_SAVED = 'ON_FEELINGS_SAVED',
+  ON_HAS_ACTIVE_PLAN = 'ON_HAS_ACTIVE_PLAN',
+  ON_NO_ACTIVE_PLAN = 'ON_NO_ACTIVE_PLAN',
 }
 
 type EventType =
@@ -119,7 +124,9 @@ type EventType =
   | { type: Event.SAVE_NOTES; notes: string }
   | { type: Event.ON_NOTES_SAVED; result: GetCycleSuccess }
   | { type: Event.SAVE_FEELINGS; feelings: string[] }
-  | { type: Event.ON_FEELINGS_SAVED; result: GetCycleSuccess };
+  | { type: Event.ON_FEELINGS_SAVED; result: GetCycleSuccess }
+  | { type: Event.ON_HAS_ACTIVE_PLAN }
+  | { type: Event.ON_NO_ACTIVE_PLAN };
 
 export enum Emit {
   TICK = 'TICK',
@@ -128,6 +135,7 @@ export enum Emit {
   UPDATE_COMPLETE = 'UPDATE_COMPLETE',
   NOTES_SAVED = 'NOTES_SAVED',
   FEELINGS_SAVED = 'FEELINGS_SAVED',
+  HAS_ACTIVE_PLAN = 'HAS_ACTIVE_PLAN',
 }
 
 export type EmitType =
@@ -136,7 +144,8 @@ export type EmitType =
   | { type: Emit.VALIDATION_INFO; summary: string; detail: string }
   | { type: Emit.UPDATE_COMPLETE }
   | { type: Emit.NOTES_SAVED }
-  | { type: Emit.FEELINGS_SAVED };
+  | { type: Emit.FEELINGS_SAVED }
+  | { type: Emit.HAS_ACTIVE_PLAN };
 
 export type CycleMetadata = {
   id: string;
@@ -218,22 +227,6 @@ function buildUpdateCycleInput(context: Context, event: EventType): UpdateCycleI
       return base;
   }
 }
-
-const timerLogic = fromCallback(({ sendBack, receive }) => {
-  const intervalId = setInterval(() => {
-    sendBack({ type: Event.TICK });
-  }, 100);
-
-  receive((event) => {
-    if (event.type === 'xstate.stop') {
-      clearInterval(intervalId);
-    }
-  });
-
-  return () => {
-    clearInterval(intervalId);
-  };
-});
 
 /**
  * Handles errors from cycle operations, detecting CycleOverlapError and extracting dates.
@@ -362,6 +355,25 @@ const cancelNotificationLogic = fromCallback<EventObject, void>(() => {
 
   return () => {};
 });
+
+const checkActivePlanLogic = fromCallback<EventObject, void>(({ sendBack }) =>
+  runWithUi(
+    programGetActivePlan(),
+    () => {
+      sendBack({ type: Event.ON_HAS_ACTIVE_PLAN });
+    },
+    (error) => {
+      Match.value(error).pipe(
+        Match.when({ _tag: 'NoActivePlanError' }, () => {
+          sendBack({ type: Event.ON_NO_ACTIVE_PLAN });
+        }),
+        Match.orElse((err) => {
+          sendBack({ type: Event.ON_ERROR, error: extractErrorMessage(err) });
+        }),
+      );
+    },
+  ),
+);
 
 /**
  * Checks if a start date is in the future.
@@ -732,6 +744,7 @@ export const cycleMachine = setup({
     schedulerDialogMachine: schedulerDialogMachine,
     scheduleNotificationActor: scheduleNotificationLogic,
     cancelNotificationActor: cancelNotificationLogic,
+    checkActivePlanActor: checkActivePlanLogic,
   },
 }).createMachine({
   id: 'cycle',
@@ -742,14 +755,32 @@ export const cycleMachine = setup({
       input: { view: start },
     }),
   }),
-  initial: CycleState.Idle,
+  initial: CycleState.CheckingPlan,
   on: {
     [Event.REFRESH]: {
       actions: ['resetContext'],
-      target: `.${CycleState.Loading}`,
+      target: `.${CycleState.CheckingPlan}`,
     },
   },
   states: {
+    [CycleState.CheckingPlan]: {
+      invoke: {
+        id: 'checkActivePlanActor',
+        src: 'checkActivePlanActor',
+      },
+      on: {
+        [Event.ON_HAS_ACTIVE_PLAN]: {
+          actions: [emit({ type: Emit.HAS_ACTIVE_PLAN })],
+        },
+        [Event.ON_NO_ACTIVE_PLAN]: {
+          target: CycleState.Loading,
+        },
+        [Event.ON_ERROR]: {
+          actions: 'emitCycleError',
+          target: CycleState.Idle,
+        },
+      },
+    },
     [CycleState.Idle]: {
       on: {
         [Event.LOAD]: CycleState.Loading,

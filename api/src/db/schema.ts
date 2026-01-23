@@ -233,6 +233,9 @@ export const periodsTable = pgTable(
     check('chk_fasting_dates_valid', sql`${table.fastingEndDate} > ${table.fastingStartDate}`),
     check('chk_eating_dates_valid', sql`${table.eatingEndDate} > ${table.eatingStartDate}`),
     check('chk_fasting_before_eating', sql`${table.eatingStartDate} >= ${table.fastingEndDate}`),
+    // CHECK constraints linking period bounds to phase timestamps
+    check('chk_start_equals_fasting_start', sql`${table.startDate} = ${table.fastingStartDate}`),
+    check('chk_end_equals_eating_end', sql`${table.endDate} = ${table.eatingEndDate}`),
   ],
 );
 

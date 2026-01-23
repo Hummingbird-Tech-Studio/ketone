@@ -416,47 +416,5 @@ function handleStartNewFast() {
       margin-bottom: 0.5rem;
     }
   }
-
-  .cycle-data {
-    max-width: 600px;
-    width: 100%;
-
-    h2 {
-      margin-bottom: 1.5rem;
-      font-size: 1.5rem;
-    }
-
-    .cycle-info {
-      background-color: #f5f5f5;
-      padding: 1.5rem;
-      border-radius: 8px;
-      text-align: left;
-
-      p {
-        margin: 0.75rem 0;
-        font-size: 1rem;
-
-        strong {
-          color: #333;
-          margin-right: 0.5rem;
-        }
-      }
-    }
-  }
-
-  .no-cycle {
-    color: #666;
-    padding: 2rem;
-
-    p {
-      margin: 0.5rem 0;
-      font-size: 1.1rem;
-
-      &:last-child {
-        font-size: 0.9rem;
-        color: #999;
-      }
-    }
-  }
 }
 </style>

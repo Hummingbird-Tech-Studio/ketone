@@ -11,7 +11,3 @@ export interface ActivePlanTimelineBar {
   type: BarType;
   periodStatus: PeriodStatus;
 }
-
-export interface ActivePlanTimelineProps {
-  activePlanActorRef: unknown;
-}

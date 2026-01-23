@@ -16,7 +16,6 @@ import {
   type EventObject,
 } from 'xstate';
 import { start } from '../domain/domain';
-import { timerLogic } from './shared/timerLogic';
 import {
   programCompleteCycle,
   programCreateCycle,
@@ -30,6 +29,7 @@ import {
   type UpdateCycleError,
 } from '../services/cycle.service';
 import { Event as SchedulerDialogEvent, schedulerDialogMachine } from './schedulerDialog.actor';
+import { timerLogic } from './shared/timerLogic';
 
 const DEFAULT_FASTING_DURATION = 1; // in hours
 

@@ -45,7 +45,6 @@ const props = defineProps<{
 const chartContainerRef = ref<HTMLElement | null>(null);
 const currentTime = ref(new Date());
 
-
 const tickSubscription = props.activePlanActorRef.on(Emit.TICK, () => {
   currentTime.value = new Date();
 });

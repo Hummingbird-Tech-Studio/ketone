@@ -119,11 +119,29 @@ export function useActivePlanTimelineData(options: UseActivePlanTimelineDataOpti
     // Generate bars for each period based on its individual config
     periods.forEach((period, periodIndex) => {
       // Split fasting period across days
-      addBarsForTimeRange(bars, periodIndex, period.fastingStartDate, period.fastingEndDate, 'fasting', period.status, startTime, endTimeLimit);
+      addBarsForTimeRange(
+        bars,
+        periodIndex,
+        period.fastingStartDate,
+        period.fastingEndDate,
+        'fasting',
+        period.status,
+        startTime,
+        endTimeLimit,
+      );
 
       // Split eating period across days
       if (period.eatingWindow > 0) {
-        addBarsForTimeRange(bars, periodIndex, period.fastingEndDate, period.eatingEndDate, 'eating', period.status, startTime, endTimeLimit);
+        addBarsForTimeRange(
+          bars,
+          periodIndex,
+          period.fastingEndDate,
+          period.eatingEndDate,
+          'eating',
+          period.status,
+          startTime,
+          endTimeLimit,
+        );
       }
     });
 

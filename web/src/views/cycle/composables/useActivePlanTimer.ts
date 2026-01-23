@@ -1,10 +1,9 @@
 import { formatTime } from '@/utils';
 import type { PeriodResponse } from '@ketone/shared';
-import { addHours } from 'date-fns';
+import { useSelector } from '@xstate/vue';
 import { computed, onUnmounted, ref, type Ref } from 'vue';
 import type { Actor, AnyActorLogic } from 'xstate';
 import { ActivePlanState, Emit } from '../actors/activePlan.actor';
-import { useSelector } from '@xstate/vue';
 
 const SECONDS_PER_MINUTE = 60;
 const SECONDS_PER_HOUR = 60 * 60;
@@ -21,17 +20,15 @@ interface UseActivePlanTimerParams {
  * Composable for calculating timer values for active plan view.
  * Calculates elapsed and remaining time based on the current window phase.
  *
- * For fasting window: tracks time from startDate to startDate + fastingDuration
- * For eating window: tracks time from startDate + fastingDuration to endDate
+ * For fasting window: tracks time from fastingStartDate to fastingEndDate
+ * For eating window: tracks time from fastingEndDate to eatingEndDate
  */
 export function useActivePlanTimer({ activePlanActor, currentPeriod, windowPhase }: UseActivePlanTimerParams) {
   const now = ref(new Date());
 
   const shouldUpdateRealTime = useSelector(
     activePlanActor,
-    (state) =>
-      state.matches(ActivePlanState.InFastingWindow) ||
-      state.matches(ActivePlanState.InEatingWindow),
+    (state) => state.matches(ActivePlanState.InFastingWindow) || state.matches(ActivePlanState.InEatingWindow),
   );
 
   const tickSubscription = activePlanActor.on(Emit.TICK, () => {
@@ -50,7 +47,7 @@ export function useActivePlanTimer({ activePlanActor, currentPeriod, windowPhase
   }
 
   /**
-   * Get the start and end dates for the current window
+   * Get the start and end dates for the current window (using explicit API timestamps)
    */
   const windowBounds = computed(() => {
     if (!currentPeriod.value || !windowPhase.value) {
@@ -58,36 +55,35 @@ export function useActivePlanTimer({ activePlanActor, currentPeriod, windowPhase
     }
 
     const period = currentPeriod.value;
-    const fastingEnd = addHours(period.startDate, period.fastingDuration);
 
     if (windowPhase.value === 'fasting') {
       return {
-        start: period.startDate,
-        end: fastingEnd,
+        start: period.fastingStartDate,
+        end: period.fastingEndDate,
       };
     }
 
     // Eating window
     return {
-      start: fastingEnd,
-      end: period.endDate,
+      start: period.fastingEndDate,
+      end: period.eatingEndDate,
     };
   });
 
   /**
-   * Fasting start date (start of the period)
+   * Fasting start date
    */
   const fastingStartDate = computed(() => {
     if (!currentPeriod.value) return new Date();
-    return currentPeriod.value.startDate;
+    return currentPeriod.value.fastingStartDate;
   });
 
   /**
-   * Fasting end date (start + fastingDuration hours)
+   * Fasting end date
    */
   const fastingEndDate = computed(() => {
     if (!currentPeriod.value) return new Date();
-    return addHours(currentPeriod.value.startDate, currentPeriod.value.fastingDuration);
+    return currentPeriod.value.fastingEndDate;
   });
 
   /**

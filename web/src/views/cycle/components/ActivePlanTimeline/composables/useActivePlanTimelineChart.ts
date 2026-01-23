@@ -680,9 +680,7 @@ export function useActivePlanTimelineChart(
       if (!chartInstance.value) return;
       // Only update the marker series (series index 3) without touching other series
       chartInstance.value.setOption({
-        series: [
-          { id: 'marker', data: markerData.value },
-        ],
+        series: [{ id: 'marker', data: markerData.value }],
       });
     },
     { deep: true },

@@ -6,9 +6,7 @@
         <i class="pi pi-check-circle"></i>
       </div>
       <h2 class="plan__completed__title">Congratulations!</h2>
-      <p class="plan__completed__message">
-        You have successfully completed your fasting plan.
-      </p>
+      <p class="plan__completed__message">You have successfully completed your fasting plan.</p>
       <p v-if="activePlan.name" class="plan__completed__plan-name">
         {{ activePlan.name }}
       </p>
@@ -17,11 +15,7 @@
       </p>
 
       <div class="plan__timeline plan__timeline--completed">
-        <ActivePlanTimeline
-          :activePlan="activePlan"
-          :currentPeriod="currentPeriod"
-          :activePlanActorRef="actorRef"
-        />
+        <ActivePlanTimeline :activePlan="activePlan" :currentPeriod="currentPeriod" :activePlanActorRef="actorRef" />
       </div>
     </div>
 
@@ -76,17 +70,11 @@
         <p v-if="activePlan.description" class="plan__info__description">
           {{ activePlan.description }}
         </p>
-        <p class="plan__info__periods">
-          Period {{ completedPeriodsCount + 1 }} of {{ totalPeriodsCount }}
-        </p>
+        <p class="plan__info__periods">Period {{ completedPeriodsCount + 1 }} of {{ totalPeriodsCount }}</p>
       </div>
 
       <div v-if="activePlan && !showSkeleton" class="plan__timeline">
-        <ActivePlanTimeline
-          :activePlan="activePlan"
-          :currentPeriod="currentPeriod"
-          :activePlanActorRef="actorRef"
-        />
+        <ActivePlanTimeline :activePlan="activePlan" :currentPeriod="currentPeriod" :activePlanActorRef="actorRef" />
       </div>
     </template>
   </PullToRefresh>
@@ -155,7 +143,7 @@ const stage = computed(() => {
 
   const now = new Date();
   const diffInMs = differenceInMilliseconds(now, currentPeriod.value.startDate);
-  const hours = Math.round(diffInMs / MILLISECONDS_PER_HOUR);
+  const hours = Math.floor(diffInMs / MILLISECONDS_PER_HOUR);
 
   return getFastingStageByHours(hours);
 });

@@ -43,9 +43,11 @@ function findCurrentPeriod(plan: GetActivePlanSuccess): PeriodResponse | null {
 
   // Fall back to finding by current time
   const now = new Date();
-  return plan.periods.find((p) => {
-    return now >= p.startDate && now < p.endDate;
-  }) ?? null;
+  return (
+    plan.periods.find((p) => {
+      return now >= p.startDate && now < p.endDate;
+    }) ?? null
+  );
 }
 
 /**
@@ -91,10 +93,7 @@ export enum Emit {
   NO_ACTIVE_PLAN = 'NO_ACTIVE_PLAN',
 }
 
-export type EmitType =
-  | { type: Emit.TICK }
-  | { type: Emit.PLAN_ERROR; error: string }
-  | { type: Emit.NO_ACTIVE_PLAN };
+export type EmitType = { type: Emit.TICK } | { type: Emit.PLAN_ERROR; error: string } | { type: Emit.NO_ACTIVE_PLAN };
 
 type Context = {
   activePlan: GetActivePlanSuccess | null;
@@ -251,11 +250,6 @@ export const activePlanMachine = setup({
       if (!nextPeriod) return false;
       const now = new Date();
       return now >= nextPeriod.fastingEndDate && now < nextPeriod.eatingEndDate;
-    },
-    hasNextPeriodScheduled: ({ context }) => {
-      if (!context.activePlan || !context.currentPeriod) return false;
-      const nextPeriod = findNextPeriod(context.activePlan, context.currentPeriod);
-      return nextPeriod !== null;
     },
     noMorePeriods: ({ context }) => {
       if (!context.activePlan || !context.currentPeriod) return false;

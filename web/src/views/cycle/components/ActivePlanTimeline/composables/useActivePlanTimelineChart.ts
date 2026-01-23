@@ -12,22 +12,22 @@ import { computed, shallowRef, watch, type Ref, type ShallowRef } from 'vue';
 import type { ActivePlanTimelineBar } from '../types';
 
 // Status-based colors
-const COLOR_FASTING_COMPLETED = '#70c07a'; // Green - completed fast
-const COLOR_FASTING_ACTIVE = '#c8a0dc'; // Purple - active fast
-const COLOR_FASTING_PLANNED = '#5b9bd5'; // Blue - planned fast
-const COLOR_EATING = '#f4b183'; // Orange - eating window
+const COLOR_FASTING_COMPLETED = '#96F4A0'; // Green - completed fast
+const COLOR_FASTING_ACTIVE = '#d795ff'; // Purple - active fast
+const COLOR_FASTING_PLANNED = '#7ABDFF'; // Blue - planned fast
+const COLOR_EATING = '#FFC9B4'; // Orange - eating window
 
-// Highlight colors (slightly darker/more saturated)
-const COLOR_FASTING_COMPLETED_HIGHLIGHT = '#5eb068';
-const COLOR_FASTING_ACTIVE_HIGHLIGHT = '#b88bcc';
-const COLOR_FASTING_PLANNED_HIGHLIGHT = '#4a8ac4';
-const COLOR_EATING_HIGHLIGHT = '#e5a070';
+// Highlight colors (slightly darker for hover effect)
+const COLOR_FASTING_COMPLETED_HIGHLIGHT = '#7ed889';
+const COLOR_FASTING_ACTIVE_HIGHLIGHT = '#c080e8';
+const COLOR_FASTING_PLANNED_HIGHLIGHT = '#5fa8e8';
+const COLOR_EATING_HIGHLIGHT = '#e8b09d';
 
 // Location marker color
 const COLOR_LOCATION_MARKER = '#e57373'; // Pink/red for current position
 
 // Other colors
-const COLOR_BAR_TEXT = '#ffffff';
+const COLOR_BAR_TEXT = '#000000';
 const COLOR_BORDER = '#e0e0e0';
 const COLOR_TEXT = '#494949';
 

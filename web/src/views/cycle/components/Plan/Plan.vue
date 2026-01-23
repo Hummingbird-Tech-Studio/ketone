@@ -283,10 +283,14 @@ const { pullToRefreshRef, handleRefresh } = usePullToRefresh(loading, refresh);
   }
 
   &__timeline {
-    padding: 0 1rem 1rem;
-    max-width: 800px;
+    max-width: 312px;
     margin: 0 auto;
     width: 100%;
+    padding-bottom: 1rem;
+
+    @media only screen and (min-width: $breakpoint-tablet-min-width) {
+      max-width: 680px;
+    }
 
     &--completed {
       margin-top: 2rem;

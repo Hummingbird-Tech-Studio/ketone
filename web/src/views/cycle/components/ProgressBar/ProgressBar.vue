@@ -95,6 +95,7 @@
                   class="progress__stageInfo__link"
                   :href="isEatingWindow ? EATING_WINDOW_CONTENT.link : displayedStage.link"
                   target="_blank"
+                  rel="noopener noreferrer"
                   >See more</a
                 >
               </div>

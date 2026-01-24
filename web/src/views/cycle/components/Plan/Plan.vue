@@ -71,16 +71,27 @@
           :idle="!isActive"
           :isBlurActive="isActive"
           :isRotating="isActive"
+          :isEatingWindow="inEatingWindow"
         />
       </div>
 
       <div class="plan__schedule">
         <div class="plan__schedule__card">
-          <PlanTimeCard :loading="showSkeleton" title="Start Fast" :date="fastingStartDate" variant="start" />
+          <PlanTimeCard
+            :loading="showSkeleton"
+            :title="scheduleCardTitles.start"
+            :date="windowBounds.start"
+            variant="start"
+          />
         </div>
 
         <div class="plan__schedule__card">
-          <PlanTimeCard :loading="showSkeleton" title="End Fast" :date="fastingEndDate" variant="end" />
+          <PlanTimeCard
+            :loading="showSkeleton"
+            :title="scheduleCardTitles.end"
+            :date="windowBounds.end"
+            variant="end"
+          />
         </div>
       </div>
 
@@ -151,11 +162,17 @@ useActivePlanEmissions(actorRef, {
   onNoActivePlan: () => emit('noActivePlan'),
 });
 
-const { elapsedTime, remainingTime, progressPercentage, fastingStartDate, fastingEndDate } = useActivePlanTimer({
-  activePlanActor: actorRef,
-  currentPeriod,
-  windowPhase,
-});
+const { elapsedTime, remainingTime, progressPercentage, fastingStartDate, fastingEndDate, windowBounds } =
+  useActivePlanTimer({
+    activePlanActor: actorRef,
+    currentPeriod,
+    windowPhase,
+  });
+
+const scheduleCardTitles = computed(() => ({
+  start: inEatingWindow.value ? 'Start Eating' : 'Start Fast',
+  end: inEatingWindow.value ? 'End Eating' : 'End Fast',
+}));
 
 // Calculate fasting stage based on hours elapsed
 const stage = computed(() => {

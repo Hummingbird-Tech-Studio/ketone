@@ -18,7 +18,7 @@
       <div class="plan-ended-dialog__actions">
         <Button label="View statistics" severity="secondary" outlined @click="handleViewStatistics" />
         <Button label="Start new fast" severity="secondary" outlined @click="handleStartNewFast" />
-        <Button label="Start new plan" @click="handleStartNewPlan" />
+        <Button label="Start new plan" severity="primary" @click="handleStartNewPlan" />
       </div>
     </div>
   </Dialog>
@@ -102,11 +102,6 @@ function handleStartNewPlan() {
     gap: 12px;
     width: 100%;
     margin-top: 8px;
-
-    :deep(.p-button) {
-      width: 100%;
-      justify-content: center;
-    }
   }
 }
 </style>

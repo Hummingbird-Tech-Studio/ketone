@@ -120,6 +120,7 @@ type Context = {
   windowPhase: 'fasting' | 'eating' | null;
   completeError: string | null;
   endError: string | null;
+  endedAt: Date | null;
 };
 
 function getInitialContextValues(): Omit<Context, never> {
@@ -129,6 +130,7 @@ function getInitialContextValues(): Omit<Context, never> {
     windowPhase: null,
     completeError: null,
     endError: null,
+    endedAt: null,
   };
 }
 
@@ -262,6 +264,9 @@ export const activePlanMachine = setup({
         error: event.error,
       };
     }),
+    captureEndedAt: assign(() => ({
+      endedAt: new Date(),
+    })),
   },
   guards: {
     isInFastingWindowFromEvent: ({ event }) => {
@@ -402,6 +407,7 @@ export const activePlanMachine = setup({
           },
         ],
         [Event.END_PLAN]: {
+          actions: ['captureEndedAt'],
           target: ActivePlanState.EndingPlan,
         },
       },
@@ -423,6 +429,7 @@ export const activePlanMachine = setup({
           },
         ],
         [Event.END_PLAN]: {
+          actions: ['captureEndedAt'],
           target: ActivePlanState.EndingPlan,
         },
       },
@@ -455,6 +462,7 @@ export const activePlanMachine = setup({
           },
         ],
         [Event.END_PLAN]: {
+          actions: ['captureEndedAt'],
           target: ActivePlanState.EndingPlan,
         },
       },

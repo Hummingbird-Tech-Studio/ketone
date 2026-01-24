@@ -44,6 +44,7 @@ export function useActivePlan() {
   const windowPhase = useSelector(actorRef, (state) => state.context.windowPhase);
   const completeErrorMessage = useSelector(actorRef, (state) => state.context.completeError);
   const endErrorMessage = useSelector(actorRef, (state) => state.context.endError);
+  const endedAt = useSelector(actorRef, (state) => state.context.endedAt);
 
   // UI helpers
   const showSkeleton = computed(() => loading.value);
@@ -101,6 +102,7 @@ export function useActivePlan() {
     windowPhase,
     completeErrorMessage,
     endErrorMessage,
+    endedAt,
 
     // UI helpers
     showSkeleton,

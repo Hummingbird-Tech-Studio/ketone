@@ -14,6 +14,7 @@ interface UseActivePlanTimerParams {
   activePlanActor: Actor<AnyActorLogic>;
   currentPeriod: Ref<PeriodResponse | null>;
   windowPhase: Ref<'fasting' | 'eating' | null>;
+  endedAt: Ref<Date | null>;
 }
 
 /**
@@ -23,7 +24,7 @@ interface UseActivePlanTimerParams {
  * For fasting window: tracks time from fastingStartDate to fastingEndDate
  * For eating window: tracks time from fastingEndDate to eatingEndDate
  */
-export function useActivePlanTimer({ activePlanActor, currentPeriod, windowPhase }: UseActivePlanTimerParams) {
+export function useActivePlanTimer({ activePlanActor, currentPeriod, windowPhase, endedAt }: UseActivePlanTimerParams) {
   const now = ref(new Date());
 
   const shouldUpdateRealTime = useSelector(
@@ -95,7 +96,8 @@ export function useActivePlanTimer({ activePlanActor, currentPeriod, windowPhase
     }
 
     const { start } = windowBounds.value;
-    const referenceTime = shouldUpdateRealTime.value ? now.value : windowBounds.value.end;
+    // Use real-time when active, snapshot time when plan was ended, or window end as fallback
+    const referenceTime = shouldUpdateRealTime.value ? now.value : (endedAt.value ?? windowBounds.value.end);
     const elapsedSeconds = Math.max(0, Math.floor((referenceTime.getTime() - start.getTime()) / 1000));
     return calculateTime(elapsedSeconds);
   });
@@ -132,7 +134,8 @@ export function useActivePlanTimer({ activePlanActor, currentPeriod, windowPhase
       return MIN_PERCENTAGE;
     }
 
-    const referenceTime = shouldUpdateRealTime.value ? now.value : end;
+    // Use real-time when active, snapshot time when plan was ended, or window end as fallback
+    const referenceTime = shouldUpdateRealTime.value ? now.value : (endedAt.value ?? end);
     const elapsed = referenceTime.getTime() - start.getTime();
     const percentage = (elapsed / totalDuration) * MAX_PERCENTAGE;
 

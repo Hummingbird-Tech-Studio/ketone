@@ -80,8 +80,8 @@
           :stage="stage"
           :startDate="fastingStartDate"
           :endDate="fastingEndDate"
-          :idle="!isActive"
-          :isBlurActive="isActive"
+          :idle="!showProgressBar"
+          :isBlurActive="showProgressBar"
           :isRotating="isActive"
           :isEatingWindow="inEatingWindow"
         />
@@ -119,7 +119,14 @@
       </div>
 
       <div v-if="canEndPlan && activePlan && !showSkeleton" class="plan__end-plan">
-        <Button label="End Plan" severity="danger" outlined @click="handleEndPlanClick" class="plan__end-plan__btn" />
+        <Button
+          label="End Plan"
+          severity="danger"
+          outlined
+          rounded
+          @click="handleEndPlanClick"
+          class="plan__end-plan__btn"
+        />
       </div>
     </template>
   </PullToRefresh>
@@ -184,6 +191,7 @@ const {
   windowPhase,
   completeErrorMessage,
   endErrorMessage,
+  endedAt,
   showSkeleton,
   isActive,
   canEndPlan,
@@ -226,7 +234,11 @@ const { elapsedTime, remainingTime, progressPercentage, fastingStartDate, fastin
     activePlanActor: actorRef,
     currentPeriod,
     windowPhase,
+    endedAt,
   });
+
+// Show progress bar when active OR when plan was ended (frozen state)
+const showProgressBar = computed(() => isActive.value || endedAt.value !== null);
 
 const scheduleCardTitles = computed(() => ({
   start: inEatingWindow.value ? 'Start Eating' : 'Start Fast',

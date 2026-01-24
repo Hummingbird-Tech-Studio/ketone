@@ -57,7 +57,7 @@
     <template #footer>
       <div class="end-plan-confirm-dialog__actions">
         <Button label="Cancel" severity="secondary" outlined @click="handleCancel" :disabled="loading" />
-        <Button label="End Plan" severity="danger" outlined @click="handleConfirm" :loading="loading" />
+        <Button label="End Plan" severity="danger" @click="handleConfirm" :loading="loading" />
       </div>
     </template>
   </Dialog>

@@ -104,34 +104,6 @@
           A period is one complete fasting and eating window.
         </Message>
       </div>
-
-      <div class="preset-config-dialog__start">
-        <div class="preset-config-dialog__start-icon">
-          <StartTimeIcon />
-        </div>
-        <div class="preset-config-dialog__start-info">
-          <div class="preset-config-dialog__start-label">Start:</div>
-          <div class="preset-config-dialog__start-value">{{ formattedStartDate }}</div>
-        </div>
-        <Button
-          type="button"
-          icon="pi pi-pencil"
-          rounded
-          variant="outlined"
-          severity="secondary"
-          aria-label="Edit Start Date"
-          @click="showDatePicker = true"
-        />
-      </div>
-
-      <DateTimePickerDialog
-        v-if="showDatePicker"
-        :visible="showDatePicker"
-        title="Start Date"
-        :dateTime="localStartDate"
-        @update:visible="showDatePicker = $event"
-        @update:dateTime="handleDateUpdate"
-      />
     </div>
 
     <template #footer>
@@ -144,8 +116,6 @@
 </template>
 
 <script setup lang="ts">
-import DateTimePickerDialog from '@/components/DateTimePickerDialog/DateTimePickerDialog.vue';
-import StartTimeIcon from '@/components/Icons/StartTime.vue';
 import { computed, ref, watch } from 'vue';
 import {
   DEFAULT_PERIODS_TO_SHOW,
@@ -162,7 +132,6 @@ export interface PresetInitialConfig {
   fastingDuration: number;
   eatingWindow: number;
   periods: number;
-  startDate: string;
 }
 
 interface Props {
@@ -179,18 +148,9 @@ interface Emits {
 const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
 
-const getDefaultStartDate = () => {
-  const date = new Date();
-  date.setSeconds(0);
-  date.setMilliseconds(0);
-  return date;
-};
-
 const localFastingDuration = ref(props.preset.fastingDuration);
 const localEatingWindow = ref(props.preset.eatingWindow);
 const localPeriods = ref(DEFAULT_PERIODS_TO_SHOW);
-const localStartDate = ref(getDefaultStartDate());
-const showDatePicker = ref(false);
 
 // Reset local state when dialog opens
 watch(
@@ -200,7 +160,6 @@ watch(
       localFastingDuration.value = props.preset.fastingDuration;
       localEatingWindow.value = props.preset.eatingWindow;
       localPeriods.value = DEFAULT_PERIODS_TO_SHOW;
-      localStartDate.value = getDefaultStartDate();
     }
   },
 );
@@ -230,16 +189,6 @@ const canDecrementPeriods = computed(() => {
 
 const canIncrementPeriods = computed(() => {
   return localPeriods.value < MAX_PERIODS;
-});
-
-const formattedStartDate = computed(() => {
-  return new Intl.DateTimeFormat('en-US', {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
-  }).format(localStartDate.value);
 });
 
 function decrementFasting() {
@@ -278,11 +227,6 @@ function incrementPeriods() {
   }
 }
 
-function handleDateUpdate(newDate: Date) {
-  localStartDate.value = newDate;
-  showDatePicker.value = false;
-}
-
 function handleVisibilityChange(value: boolean) {
   emit('update:visible', value);
 }
@@ -296,7 +240,6 @@ function handleConfirm() {
     fastingDuration: localFastingDuration.value,
     eatingWindow: localEatingWindow.value,
     periods: localPeriods.value,
-    startDate: localStartDate.value.toISOString(),
   });
 }
 </script>
@@ -371,45 +314,6 @@ function handleConfirm() {
     text-align: center;
     font-size: 16px;
     font-weight: 600;
-    color: $color-primary-button-text;
-  }
-
-  &__start {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 12px;
-    background: rgba($color-primary-button-outline, 0.3);
-    border-radius: 8px;
-  }
-
-  &__start-icon {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    background: rgba($color-theme-green, 0.1);
-    border-radius: 8px;
-    flex-shrink: 0;
-  }
-
-  &__start-info {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-
-  &__start-label {
-    font-weight: 600;
-    font-size: 14px;
-    color: $color-primary-button-text;
-  }
-
-  &__start-value {
-    font-weight: 400;
-    font-size: 13px;
     color: $color-primary-button-text;
   }
 

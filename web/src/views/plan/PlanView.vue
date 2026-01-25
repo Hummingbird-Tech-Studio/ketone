@@ -113,7 +113,6 @@ const handleConfirm = (config: PresetInitialConfig) => {
       fastingDuration: config.fastingDuration.toString(),
       eatingWindow: config.eatingWindow.toString(),
       periods: config.periods.toString(),
-      startDate: config.startDate,
     },
   });
 };

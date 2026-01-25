@@ -361,6 +361,7 @@ const loadDataLogic = fromCallback<EventObject>(({ sendBack }) =>
 );
 
 // 2. In composable: composables/useFeature.ts
+const { send, actorRef } = useActor(featureMachine, { input: { /* ... */ } });
 const data = useSelector(actorRef, (state) => state.context.data);
 const loadData = () => send({ type: Event.LOAD_DATA });
 

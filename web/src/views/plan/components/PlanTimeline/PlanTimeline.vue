@@ -12,7 +12,9 @@
         <span class="plan-timeline__legend-text">Last Completed Fast</span>
       </div>
       <div v-if="isLastCycleWeakSpanning" class="plan-timeline__legend-item">
-        <span class="plan-timeline__legend-color plan-timeline__legend-color--completed plan-timeline__legend-color--striped"></span>
+        <span
+          class="plan-timeline__legend-color plan-timeline__legend-color--completed plan-timeline__legend-color--striped"
+        ></span>
         <span class="plan-timeline__legend-text">Day-spanning</span>
       </div>
       <div class="plan-timeline__legend-item">

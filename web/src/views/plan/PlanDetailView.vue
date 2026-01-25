@@ -23,7 +23,11 @@
         <PlanConfigCard v-model:start-date="startDate" />
       </div>
 
-      <PlanTimeline :period-configs="periodConfigs" @update:period-configs="handlePeriodConfigsUpdate" />
+      <PlanTimeline
+        :period-configs="periodConfigs"
+        :last-completed-cycle="lastCompletedCycle"
+        @update:period-configs="handlePeriodConfigsUpdate"
+      />
     </div>
 
     <div class="plan-detail__footer">
@@ -65,7 +69,7 @@ const {
   actorRef,
 } = useCycleBlockDialog();
 
-const { createPlan, creating, actorRef: planActorRef } = usePlan();
+const { createPlan, creating, lastCompletedCycle, loadLastCompletedCycle, actorRef: planActorRef } = usePlan();
 const toast = useToast();
 
 // Handle emissions - no onProceed needed, page just renders normally
@@ -129,6 +133,7 @@ onMounted(() => {
     return;
   }
   startCheck();
+  loadLastCompletedCycle();
 });
 
 const presetId = computed(() => route.params.presetId as string);

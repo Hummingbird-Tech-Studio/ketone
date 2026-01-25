@@ -7,6 +7,16 @@
     <div ref="chartContainerRef" class="plan-timeline__chart" :style="chartContainerStyle"></div>
 
     <div class="plan-timeline__legend">
+      <div v-if="lastCompletedCycle" class="plan-timeline__legend-item">
+        <span class="plan-timeline__legend-color plan-timeline__legend-color--completed"></span>
+        <span class="plan-timeline__legend-text">Last Completed Fast</span>
+      </div>
+      <div v-if="isLastCycleWeakSpanning" class="plan-timeline__legend-item">
+        <span
+          class="plan-timeline__legend-color plan-timeline__legend-color--completed plan-timeline__legend-color--striped"
+        ></span>
+        <span class="plan-timeline__legend-text">Day-spanning</span>
+      </div>
       <div class="plan-timeline__legend-item">
         <span class="plan-timeline__legend-color plan-timeline__legend-color--fasting"></span>
         <span class="plan-timeline__legend-text">Planned fast</span>
@@ -20,6 +30,7 @@
 </template>
 
 <script setup lang="ts">
+import type { AdjacentCycle } from '@ketone/shared';
 import { computed, ref, toRef } from 'vue';
 import { usePlanTimeline } from './composables/usePlanTimeline';
 import { usePlanTimelineChart } from './composables/usePlanTimelineChart';
@@ -28,6 +39,7 @@ import type { PeriodConfig, PeriodUpdate } from './types';
 
 const props = defineProps<{
   periodConfigs: PeriodConfig[];
+  lastCompletedCycle?: AdjacentCycle | null;
 }>();
 
 const emit = defineEmits<{
@@ -35,6 +47,9 @@ const emit = defineEmits<{
 }>();
 
 const chartContainerRef = ref<HTMLElement | null>(null);
+
+// Calculate min plan start date (cannot start before last cycle ends)
+const minPlanStartDate = computed(() => props.lastCompletedCycle?.endDate ?? null);
 
 const {
   // State checks
@@ -57,6 +72,7 @@ const {
   updateChartDimensions,
 } = usePlanTimeline({
   periodConfigs: toRef(() => props.periodConfigs),
+  minPlanStartDate,
   onPeriodsDragUpdated: (updates: PeriodUpdate[]) => {
     const newConfigs = [...props.periodConfigs];
     for (const update of updates) {
@@ -71,6 +87,7 @@ const {
 
 const timelineData = usePlanTimelineData({
   periodConfigs: toRef(() => props.periodConfigs),
+  lastCompletedCycle: toRef(() => props.lastCompletedCycle ?? null),
 });
 
 const dragPeriodIndex = computed(() => dragState.value?.periodIndex ?? null);
@@ -81,6 +98,7 @@ const { chartHeight } = usePlanTimelineChart(chartContainerRef, {
   hourLabels: timelineData.hourLabels,
   hourPositions: timelineData.hourPositions,
   timelineBars: timelineData.timelineBars,
+  completedCycleBars: timelineData.completedCycleBars,
   periodConfigs: toRef(() => props.periodConfigs),
 
   // State from machine
@@ -101,6 +119,19 @@ const { chartHeight } = usePlanTimelineChart(chartContainerRef, {
 const chartContainerStyle = computed(() => ({
   height: `${chartHeight.value}px`,
 }));
+
+// Check if the last completed cycle spans multiple days (weak spanning)
+const isLastCycleWeakSpanning = computed(() => {
+  const cycle = props.lastCompletedCycle;
+  if (!cycle) return false;
+
+  const startDay = new Date(cycle.startDate);
+  startDay.setHours(0, 0, 0, 0);
+  const endDay = new Date(cycle.endDate);
+  endDay.setHours(0, 0, 0, 0);
+
+  return startDay.getTime() !== endDay.getTime();
+});
 </script>
 
 <style scoped lang="scss">
@@ -151,6 +182,20 @@ $color-eating: #ffc9b4;
     width: 12px;
     height: 12px;
     border-radius: 3px;
+
+    &--completed {
+      background: #96f4a0;
+    }
+
+    &--striped {
+      background-image: repeating-linear-gradient(
+        45deg,
+        transparent,
+        transparent 3px,
+        rgba(0, 0, 0, 0.15) 3px,
+        rgba(0, 0, 0, 0.15) 5px
+      );
+    }
 
     &--fasting {
       background: $color-fasting;

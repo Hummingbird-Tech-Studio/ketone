@@ -134,12 +134,7 @@ onMounted(() => {
 const presetId = computed(() => route.params.presetId as string);
 const currentPreset = computed(() => findPresetById(presetId.value));
 
-const getDefaultStartDate = () => {
-  const date = new Date();
-  date.setSeconds(0);
-  date.setMilliseconds(0);
-  return date;
-};
+const getDefaultStartDate = () => new Date();
 
 // Read initial values from query params (with fallback to preset defaults)
 const initialFastingDuration = computed(() => {
@@ -170,19 +165,10 @@ const initialPeriods = computed(() => {
   return DEFAULT_PERIODS_TO_SHOW;
 });
 
-const initialStartDate = computed(() => {
-  const param = route.query.startDate;
-  if (param && !Array.isArray(param)) {
-    const parsed = new Date(param);
-    if (!isNaN(parsed.getTime())) return parsed;
-  }
-  return getDefaultStartDate();
-});
-
 // Base settings for new periods (from PlanConfigCard)
 const planName = ref(currentPreset.value?.ratio ?? '');
 const planDescription = ref('');
-const startDate = ref(initialStartDate.value);
+const startDate = ref(getDefaultStartDate());
 
 // Initialize period configs with fixed start times
 const createInitialPeriodConfigs = (
@@ -240,10 +226,10 @@ const handlePeriodConfigsUpdate = (newConfigs: PeriodConfig[]) => {
 const handleReset = () => {
   planName.value = currentPreset.value?.ratio ?? '';
   planDescription.value = '';
-  startDate.value = initialStartDate.value;
+  startDate.value = getDefaultStartDate();
   periodConfigs.value = createInitialPeriodConfigs(
     initialPeriods.value,
-    initialStartDate.value,
+    getDefaultStartDate(),
     initialFastingDuration.value,
     initialEatingWindow.value,
   );

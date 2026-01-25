@@ -1,6 +1,7 @@
 import { extractErrorMessage } from '@/services/http/errors';
 import { runWithUi } from '@/utils/effects/helpers';
 import {
+  programCancelPlan,
   programCompletePlan,
   programGetActivePlan,
   type GetActivePlanSuccess,
@@ -53,15 +54,28 @@ function findNextPeriod(plan: GetActivePlanSuccess, currentPeriod: PeriodRespons
   return plan.periods[currentIndex + 1] ?? null;
 }
 
+/**
+ * Finds the first period of the plan (sorted by start date).
+ */
+function findFirstPeriod(plan: GetActivePlanSuccess): PeriodResponse | null {
+  if (plan.periods.length === 0) return null;
+  const sorted = [...plan.periods].sort((a, b) => a.startDate.getTime() - b.startDate.getTime());
+  return sorted[0] ?? null;
+}
+
 export enum ActivePlanState {
   Idle = 'Idle',
   Loading = 'Loading',
+  WaitingForPlanStart = 'WaitingForPlanStart',
   InFastingWindow = 'InFastingWindow',
   InEatingWindow = 'InEatingWindow',
   PeriodCompleted = 'PeriodCompleted',
   CompletingPlan = 'CompletingPlan',
   CompletePlanError = 'CompletePlanError',
   AllPeriodsCompleted = 'AllPeriodsCompleted',
+  EndingPlan = 'EndingPlan',
+  EndPlanError = 'EndPlanError',
+  PlanEnded = 'PlanEnded',
 }
 
 export enum Event {
@@ -74,6 +88,10 @@ export enum Event {
   ON_COMPLETE_SUCCESS = 'ON_COMPLETE_SUCCESS',
   ON_COMPLETE_ERROR = 'ON_COMPLETE_ERROR',
   RETRY_COMPLETE = 'RETRY_COMPLETE',
+  END_PLAN = 'END_PLAN',
+  ON_END_SUCCESS = 'ON_END_SUCCESS',
+  ON_END_ERROR = 'ON_END_ERROR',
+  RETRY_END = 'RETRY_END',
 }
 
 type EventType =
@@ -85,21 +103,34 @@ type EventType =
   | { type: Event.ON_ERROR; error: string }
   | { type: Event.ON_COMPLETE_SUCCESS }
   | { type: Event.ON_COMPLETE_ERROR; error: string }
-  | { type: Event.RETRY_COMPLETE };
+  | { type: Event.RETRY_COMPLETE }
+  | { type: Event.END_PLAN }
+  | { type: Event.ON_END_SUCCESS }
+  | { type: Event.ON_END_ERROR; error: string }
+  | { type: Event.RETRY_END };
 
 export enum Emit {
   TICK = 'TICK',
   PLAN_ERROR = 'PLAN_ERROR',
   NO_ACTIVE_PLAN = 'NO_ACTIVE_PLAN',
+  PLAN_ENDED = 'PLAN_ENDED',
+  PLAN_END_ERROR = 'PLAN_END_ERROR',
 }
 
-export type EmitType = { type: Emit.TICK } | { type: Emit.PLAN_ERROR; error: string } | { type: Emit.NO_ACTIVE_PLAN };
+export type EmitType =
+  | { type: Emit.TICK }
+  | { type: Emit.PLAN_ERROR; error: string }
+  | { type: Emit.NO_ACTIVE_PLAN }
+  | { type: Emit.PLAN_ENDED }
+  | { type: Emit.PLAN_END_ERROR; error: string };
 
 type Context = {
   activePlan: GetActivePlanSuccess | null;
   currentPeriod: PeriodResponse | null;
   windowPhase: 'fasting' | 'eating' | null;
   completeError: string | null;
+  endError: string | null;
+  endedAt: Date | null;
 };
 
 function getInitialContextValues(): Omit<Context, never> {
@@ -108,6 +139,8 @@ function getInitialContextValues(): Omit<Context, never> {
     currentPeriod: null,
     windowPhase: null,
     completeError: null,
+    endError: null,
+    endedAt: null,
   };
 }
 
@@ -138,6 +171,18 @@ const completePlanLogic = fromCallback<EventObject, { planId: string }>(({ sendB
     },
     (error) => {
       sendBack({ type: Event.ON_COMPLETE_ERROR, error: extractErrorMessage(error) });
+    },
+  ),
+);
+
+const endPlanLogic = fromCallback<EventObject, { planId: string }>(({ sendBack, input }) =>
+  runWithUi(
+    programCancelPlan(input.planId),
+    () => {
+      sendBack({ type: Event.ON_END_SUCCESS });
+    },
+    (error) => {
+      sendBack({ type: Event.ON_END_ERROR, error: extractErrorMessage(error) });
     },
   ),
 );
@@ -210,6 +255,40 @@ export const activePlanMachine = setup({
       return { completeError: event.error };
     }),
     clearCompleteError: assign(() => ({ completeError: null })),
+    setEndError: assign(({ event }) => {
+      if (event.type !== Event.ON_END_ERROR) {
+        return { endError: 'Unknown error' };
+      }
+      return { endError: event.error };
+    }),
+    clearEndError: assign(() => ({ endError: null })),
+    emitPlanEnded: emit(() => ({
+      type: Emit.PLAN_ENDED,
+    })),
+    emitPlanEndError: emit(({ event }) => {
+      if (event.type !== Event.ON_END_ERROR) {
+        return { type: Emit.PLAN_END_ERROR, error: 'Unknown error' };
+      }
+      return {
+        type: Emit.PLAN_END_ERROR,
+        error: event.error,
+      };
+    }),
+    captureEndedAt: assign(() => ({
+      endedAt: new Date(),
+    })),
+    setFirstPeriodAsCurrentPeriod: assign(({ event }) => {
+      if (event.type !== Event.ON_SUCCESS) {
+        return {};
+      }
+
+      const firstPeriod = findFirstPeriod(event.result);
+      return {
+        activePlan: event.result,
+        currentPeriod: firstPeriod,
+        windowPhase: null,
+      };
+    }),
   },
   guards: {
     isInFastingWindowFromEvent: ({ event }) => {
@@ -272,11 +351,24 @@ export const activePlanMachine = setup({
       const nextPeriod = findNextPeriod(context.activePlan, context.currentPeriod);
       return nextPeriod === null;
     },
+    isWaitingForPlanStartFromEvent: ({ event }) => {
+      if (event.type !== Event.ON_SUCCESS) return false;
+      const firstPeriod = findFirstPeriod(event.result);
+      if (!firstPeriod) return false;
+      const now = new Date();
+      return now < firstPeriod.fastingStartDate;
+    },
+    hasPlanStarted: ({ context }) => {
+      if (!context.currentPeriod) return false;
+      const now = new Date();
+      return now >= context.currentPeriod.fastingStartDate;
+    },
   },
   actors: {
     timerActor: timerLogic,
     loadActivePlanActor: loadActivePlanLogic,
     completePlanActor: completePlanLogic,
+    endPlanActor: endPlanLogic,
   },
 }).createMachine({
   id: 'activePlan',
@@ -300,6 +392,11 @@ export const activePlanMachine = setup({
             guard: 'allPeriodsCompletedFromEvent',
             actions: ['setActivePlanData'],
             target: ActivePlanState.CompletingPlan,
+          },
+          {
+            guard: 'isWaitingForPlanStartFromEvent',
+            actions: ['setFirstPeriodAsCurrentPeriod'],
+            target: ActivePlanState.WaitingForPlanStart,
           },
           {
             guard: 'isInFastingWindowFromEvent',
@@ -332,6 +429,28 @@ export const activePlanMachine = setup({
       },
     },
     [ActivePlanState.Idle]: {},
+    [ActivePlanState.WaitingForPlanStart]: {
+      invoke: {
+        id: 'timerActor',
+        src: 'timerActor',
+      },
+      on: {
+        [Event.TICK]: [
+          {
+            guard: 'hasPlanStarted',
+            actions: ['updateWindowPhase'],
+            target: ActivePlanState.InFastingWindow,
+          },
+          {
+            actions: [emit({ type: Emit.TICK })],
+          },
+        ],
+        [Event.END_PLAN]: {
+          actions: ['captureEndedAt'],
+          target: ActivePlanState.EndingPlan,
+        },
+      },
+    },
     [ActivePlanState.InFastingWindow]: {
       invoke: {
         id: 'timerActor',
@@ -348,6 +467,10 @@ export const activePlanMachine = setup({
             actions: [emit({ type: Emit.TICK })],
           },
         ],
+        [Event.END_PLAN]: {
+          actions: ['captureEndedAt'],
+          target: ActivePlanState.EndingPlan,
+        },
       },
     },
     [ActivePlanState.InEatingWindow]: {
@@ -366,6 +489,10 @@ export const activePlanMachine = setup({
             actions: [emit({ type: Emit.TICK })],
           },
         ],
+        [Event.END_PLAN]: {
+          actions: ['captureEndedAt'],
+          target: ActivePlanState.EndingPlan,
+        },
       },
     },
     [ActivePlanState.PeriodCompleted]: {
@@ -395,6 +522,10 @@ export const activePlanMachine = setup({
             actions: [emit({ type: Emit.TICK })],
           },
         ],
+        [Event.END_PLAN]: {
+          actions: ['captureEndedAt'],
+          target: ActivePlanState.EndingPlan,
+        },
       },
     },
     [ActivePlanState.CompletingPlan]: {
@@ -424,5 +555,33 @@ export const activePlanMachine = setup({
       },
     },
     [ActivePlanState.AllPeriodsCompleted]: {},
+    [ActivePlanState.EndingPlan]: {
+      invoke: {
+        id: 'endPlanActor',
+        src: 'endPlanActor',
+        input: ({ context }) => ({
+          planId: context.activePlan?.id ?? '',
+        }),
+      },
+      on: {
+        [Event.ON_END_SUCCESS]: {
+          actions: ['emitPlanEnded'],
+          target: ActivePlanState.PlanEnded,
+        },
+        [Event.ON_END_ERROR]: {
+          actions: ['setEndError', 'emitPlanEndError'],
+          target: ActivePlanState.EndPlanError,
+        },
+      },
+    },
+    [ActivePlanState.EndPlanError]: {
+      on: {
+        [Event.RETRY_END]: {
+          actions: ['clearEndError'],
+          target: ActivePlanState.EndingPlan,
+        },
+      },
+    },
+    [ActivePlanState.PlanEnded]: {},
   },
 });
